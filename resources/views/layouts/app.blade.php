@@ -7,26 +7,26 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {{-- SEO Meta Tags --}}
-    <title>@yield('title', 'Nur Al-Quran & Seerah - AI-Powered Islamic Learning')</title>
+    <title>@yield('title', 'The Eternal Echo - AI-Powered Islamic Learning')</title>
     <meta name="description"
-        content="@yield('meta_description', 'Nur Al-Quran & Seerah Daily — An AI-powered Islamic learning platform. Take personalized Quran Para quizzes, Seerah knowledge challenges, and track your spiritual growth journey.')">
+        content="@yield('meta_description', 'The Eternal Echo — An AI-powered Islamic learning platform. Take personalized Quran Para quizzes, Seerah knowledge challenges, and track your spiritual growth journey.')">
     <meta name="keywords"
         content="Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app">
-    <meta name="author" content="Nur Al-Quran & Seerah Daily">
+    <meta name="author" content="The Eternal Echo">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="{{ url()->current() }}">
 
     {{-- Open Graph / Facebook --}}
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url()->current() }}">
-    <meta property="og:title" content="@yield('title', 'Nur Al-Quran & Seerah - AI-Powered Islamic Learning')">
+    <meta property="og:title" content="@yield('title', 'The Eternal Echo - AI-Powered Islamic Learning')">
     <meta property="og:description"
         content="@yield('meta_description', 'AI-powered Islamic learning platform with Quran Para quizzes, Seerah challenges, and personalized insights.')">
-    <meta property="og:site_name" content="Nur Al-Quran & Seerah Daily">
+    <meta property="og:site_name" content="The Eternal Echo">
 
     {{-- Twitter Card --}}
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="@yield('title', 'Nur Al-Quran & Seerah - AI-Powered Islamic Learning')">
+    <meta name="twitter:title" content="@yield('title', 'The Eternal Echo - AI-Powered Islamic Learning')">
     <meta name="twitter:description"
         content="@yield('meta_description', 'AI-powered Islamic learning platform with Quran Para quizzes, Seerah challenges, and personalized insights.')">
 
@@ -35,7 +35,7 @@
     {
         "@@context": "https://schema.org",
         "@@type": "EducationalApplication",
-        "name": "Nur Al-Quran & Seerah Daily",
+        "name": "The Eternal Echo",
         "description": "AI-powered Islamic learning platform with personalized Quran quizzes and Seerah knowledge challenges",
         "applicationCategory": "EducationalApplication",
         "operatingSystem": "Web",
@@ -130,7 +130,7 @@
                                 stroke-width="2" />
                         </svg>
                     </div>
-                    <h1 class="text-xl font-bold tracking-tight hidden sm:block">Nur Al-Quran</h1>
+                    <h1 class="text-xl font-bold tracking-tight hidden sm:block">The Eternal Echo</h1>
                 </a>
 
                 <nav class="hidden md:flex space-x-1">
@@ -192,8 +192,8 @@
         {{-- Footer --}}
         <footer class="bg-slate-900 text-slate-500 py-12 text-center text-sm pb-24 md:pb-12">
             <div class="max-w-7xl mx-auto px-4 space-y-4">
-                <p class="font-bold text-slate-400">Nur Al-Quran & Seerah Daily</p>
-                <p class="opacity-50">&copy; {{ date('Y') }} Nur Al-Quran. All spiritual rights reserved.</p>
+                <p class="font-bold text-slate-400">The Eternal Echo</p>
+                <p class="opacity-50">&copy; {{ date('Y') }} The Eternal Echo. All spiritual rights reserved.</p>
             </div>
         </footer>
 

@@ -1,6 +1,6 @@
 @extends('layouts.app')
-@section('title', 'Profile - Nur Al-Quran')
-@section('meta_description', 'Manage your Nur Al-Quran profile. Update your display name and view your spiritual learning journey.')
+@section('title', 'Profile - The Eternal Echo')
+@section('meta_description', 'Manage your The Eternal Echo profile. Update your display name and view your spiritual learning journey.')
 
 @section('content')
     <div class="max-w-2xl mx-auto space-y-8 pb-10 animate-fadeIn">

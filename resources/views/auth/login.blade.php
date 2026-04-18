@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Login - Nur Al-Quran & Seerah')
+@section('title', 'Login - The Eternal Echo')
 
 @section('content')
     <div class="fixed inset-0 flex items-center justify-center bg-emerald-900 p-6 z-[60] overflow-hidden"
@@ -14,7 +14,7 @@
                             stroke-width="2" />
                     </svg>
                 </div>
-                <h2 class="text-4xl font-black text-slate-900 tracking-tight leading-none">Nur Al-Quran</h2>
+                <h2 class="text-4xl font-black text-slate-900 tracking-tight leading-none">The Eternal Echo</h2>
                 <p class="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Spiritual Knowledge Journey
                 </p>
             </div>

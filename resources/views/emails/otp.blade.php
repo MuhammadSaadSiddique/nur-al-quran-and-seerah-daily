@@ -114,7 +114,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Nur Al-Quran</h1>
+            <h1>The Eternal Echo</h1>
             <p>Spiritual Knowledge Journey</p>
         </div>
         <div class="body">
@@ -132,7 +132,7 @@
             </div>
         </div>
         <div class="footer">
-            <p>© {{ date('Y') }} Nur Al-Quran & Seerah Daily</p>
+            <p>© {{ date('Y') }} The Eternal Echo</p>
         </div>
     </div>
 </body>

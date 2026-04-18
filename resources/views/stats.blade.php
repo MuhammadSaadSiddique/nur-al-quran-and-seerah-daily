@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Your Progress - Nur Al-Quran')
+@section('title', 'Your Progress - The Eternal Echo')
 @section('meta_description', 'Track your Quran and Seerah learning progress. View quiz statistics, accuracy rates, and spiritual growth milestones.')
 
 @section('content')

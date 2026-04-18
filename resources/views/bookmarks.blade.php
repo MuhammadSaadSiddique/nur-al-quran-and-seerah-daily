@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Bookmarks - Nur Al-Quran')
+@section('title', 'Bookmarks - The Eternal Echo')
 @section('meta_description', 'Your bookmarked quiz questions. Review saved questions and deepen your understanding of the Quran and Seerah.')
 
 @section('content')

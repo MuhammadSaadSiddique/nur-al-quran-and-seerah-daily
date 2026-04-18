@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Dashboard - Nur Al-Quran & Seerah Daily')
+@section('title', 'Dashboard - The Eternal Echo')
 @section('meta_description', 'Your personal Islamic learning dashboard. Take Quran Para quizzes, Seerah challenges, and Grand Quizzes to deepen your knowledge.')
 
 @section('content')

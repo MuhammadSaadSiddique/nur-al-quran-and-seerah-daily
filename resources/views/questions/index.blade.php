@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Question Bank - Nur Al-Quran')
+@section('title', 'Question Bank - The Eternal Echo')
 @section('meta_description', 'Browse your personal question bank. Review attempted and bookmarked Quran and Seerah quiz questions with explanations.')
 
 @section('content')

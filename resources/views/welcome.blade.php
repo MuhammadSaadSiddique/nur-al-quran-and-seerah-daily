@@ -4,23 +4,23 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Nur Al-Quran & Seerah Daily — AI-Powered Islamic Learning Platform</title>
+    <title>The Eternal Echo — AI-Powered Islamic Learning Platform</title>
     <meta name="description" content="Embark on an interactive journey through the 30 Paras of the Quran and the beautiful Seerah of Prophet Muhammad ﷺ. AI-powered personalized quizzes, knowledge tracking, and spiritual growth.">
     <meta name="keywords" content="Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app, learn Quran online">
-    <meta name="author" content="Nur Al-Quran & Seerah Daily">
+    <meta name="author" content="The Eternal Echo">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="{{ url('/') }}">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url('/') }}">
-    <meta property="og:title" content="Nur Al-Quran & Seerah Daily — AI-Powered Islamic Learning">
+    <meta property="og:title" content="The Eternal Echo — AI-Powered Islamic Learning">
     <meta property="og:description" content="Interactive Quran Para quizzes, Seerah knowledge challenges, and AI-powered personalized insights. Free Islamic learning platform.">
-    <meta property="og:site_name" content="Nur Al-Quran & Seerah Daily">
+    <meta property="og:site_name" content="The Eternal Echo">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Nur Al-Quran & Seerah Daily — AI-Powered Islamic Learning">
+    <meta name="twitter:title" content="The Eternal Echo — AI-Powered Islamic Learning">
     <meta name="twitter:description" content="Interactive Quran Para quizzes, Seerah knowledge challenges, and AI-powered personalized insights.">
 
     <!-- JSON-LD Structured Data -->
@@ -28,7 +28,7 @@
     {
         "@@context": "https://schema.org",
         "@@type": "WebApplication",
-        "name": "Nur Al-Quran & Seerah Daily",
+        "name": "The Eternal Echo",
         "description": "AI-powered Islamic learning platform with personalized Quran quizzes, Seerah knowledge challenges, and spiritual growth tracking",
         "url": "{{ url('/') }}",
         "applicationCategory": "EducationalApplication",
@@ -86,7 +86,7 @@
                                 d="M12 6v12m-8-6h16M4 6h16M4 18h16" />
                         </svg>
                     </div>
-                    <span class="font-extrabold text-xl tracking-tight text-white">Nur Al-Quran</span>
+                    <span class="font-extrabold text-xl tracking-tight text-white">The Eternal Echo</span>
                 </div>
                 <div class="flex items-center space-x-6">
                     @auth

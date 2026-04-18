@@ -1,7 +1,7 @@
 <div align="center">
 <img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
 
-# Nur Al-Quran & Seerah Daily
+# The Eternal Echo
 
 **An AI-powered daily quiz app for deepening knowledge of the 30 Paras of the Holy Quran and the Seerah (life) of Prophet Muhammad (SAWW).**
 
@@ -37,7 +37,7 @@
 
 ## 🌟 Overview
 
-**Nur Al-Quran & Seerah Daily** is an interactive educational web application that leverages AI to generate dynamic, never-repeating quiz questions about the Quran and the life of Prophet Muhammad (SAWW). Users authenticate via email OTP verification, take quizzes across three difficulty levels, receive AI-generated insights, and track their spiritual learning journey through detailed analytics.
+**The Eternal Echo** is an interactive educational web application that leverages AI to generate dynamic, never-repeating quiz questions about the Quran and the life of Prophet Muhammad (SAWW). Users authenticate via email OTP verification, take quizzes across three difficulty levels, receive AI-generated insights, and track their spiritual learning journey through detailed analytics.
 
 ---
 
@@ -141,7 +141,7 @@
 ## 📁 Project Structure
 
 ```
-nur-al-quran-and-seerah-daily/
+the-eternal-echo/
 ├── index.html              # Entry HTML with Tailwind CDN, import maps, custom CSS
 ├── index.tsx               # React DOM root mount point
 ├── App.tsx                 # Main application component (all views, state, logic)
@@ -372,4 +372,4 @@ SQLite database (`database.sqlite`) with two tables:
 
 ## 📜 License
 
-© 2024 Nur Al-Quran & Seerah Daily. All rights reserved.
+© 2024 The Eternal Echo. All rights reserved.

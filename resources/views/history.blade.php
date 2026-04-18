@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Quiz History - Nur Al-Quran')
+@section('title', 'Quiz History - The Eternal Echo')
 @section('meta_description', 'View your complete quiz history. Review past Quran and Seerah quiz performance and track your improvement over time.')
 
 @section('content')

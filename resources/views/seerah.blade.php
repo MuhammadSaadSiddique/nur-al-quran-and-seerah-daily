@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', 'Seerah Insight - Nur Al-Quran')
+@section('title', 'Seerah Insight - The Eternal Echo')
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"

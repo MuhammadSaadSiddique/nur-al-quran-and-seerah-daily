@@ -1,5 +1,5 @@
 @extends('layouts.app')
-@section('title', $title . ' Quiz - Nur Al-Quran')
+@section('title', $title . ' Quiz - The Eternal Echo')
 @section('meta_description', 'Take the ' . $title . ' quiz at ' . $difficulty . ' difficulty. Test your Islamic knowledge with AI-generated questions.')
 
 @section('content')
@@ -198,12 +198,12 @@
 
                 async shareQuestion() {
                     const q = this.currentQuestion;
-                    const text = `Challenge: Can you answer this?\n\n"${q.text}"\n\nTake the quiz at Nur Al-Quran!\n#Quran #Seerah #IslamicQuiz #NurAlQuran`;
+                    const text = `Challenge: Can you answer this?\n\n"${q.text}"\n\nTake the quiz at The Eternal Echo!\n#Quran #Seerah #IslamicQuiz #TheEternalEcho`;
                     
                     if (navigator.share) {
                         try {
                             await navigator.share({
-                                title: 'Nur Al-Quran Quiz Challenge',
+                                title: 'The Eternal Echo Quiz Challenge',
                                 text: text,
                                 url: window.location.origin
                             });

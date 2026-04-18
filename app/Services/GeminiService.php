@@ -1,0 +1,260 @@
+<?php
+
+namespace App\Services;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
+class GeminiService
+{
+    protected string $apiKey;
+    protected string $model = 'gemini-1.5-flash';
+    protected string $baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+    public function __construct()
+    {
+        $this->apiKey = config('services.gemini.api_key', '');
+    }
+
+    protected function callGemini(string $prompt, ?array $responseSchema = null): ?string
+    {
+        $config = [];
+        if ($responseSchema) {
+            $config['responseMimeType'] = 'application/json';
+            $config['responseSchema'] = $responseSchema;
+        }
+
+        $payload = [
+            'contents' => [
+                ['parts' => [['text' => $prompt]]]
+            ],
+        ];
+
+        if (!empty($config)) {
+            $payload['generationConfig'] = $config;
+        }
+
+        try {
+            $response = Http::timeout(60)
+                ->withoutVerifying()
+                ->post(
+                    "{$this->baseUrl}/{$this->model}:generateContent?key={$this->apiKey}",
+                    $payload
+                );
+
+            if ($response->successful()) {
+                $data = $response->json();
+                return $data['candidates'][0]['content']['parts'][0]['text'] ?? null;
+            }
+
+            Log::error('Gemini API error', ['status' => $response->status(), 'body' => $response->body()]);
+            return null;
+        } catch (\Exception $e) {
+            Log::error('Gemini API exception', ['message' => $e->getMessage()]);
+            return null;
+        }
+    }
+
+    protected function getDifficultyPrompt(string $difficulty): string
+    {
+        return match ($difficulty) {
+            'Easy' => 'Focus on basic facts, names, and direct recall. Keep it simple and straightforward.',
+            'Medium' => 'Focus on understanding the wisdom behind specific events and roles of key figures. Require some level of thought beyond simple recall.',
+            'Hard' => 'Focus on deep historical/theological context and nuances. Questions should be challenging and thought-provoking.',
+            default => '',
+        };
+    }
+
+    public function generateSpiritualWelcome(string $email): string
+    {
+        $prompt = "Generate a very short, one-sentence spiritual welcome message for a user with the email {$email} who is logging into a Quranic learning app. It should be warm and encouraging.";
+        $result = $this->callGemini($prompt);
+        return $result ? trim($result) : 'Peace be upon you and welcome to your journey.';
+    }
+
+    public function generateParaQuestions(int $paraNumber, string $difficulty, ?string $theme = null): array
+    {
+        $difficultyContext = $this->getDifficultyPrompt($difficulty);
+        $themeFilter = $theme
+            ? "Specifically focus on the theme: '{$theme}'."
+            : "Mix questions from themes: 'Belief in Allah', 'Stories of Prophets', 'Guidance for Daily Life', 'Hereafter'.";
+
+        $prompt = "Generate 20 high-quality multiple-choice questions about Para {$paraNumber} of the Holy Quran at a {$difficulty} difficulty level.
+{$difficultyContext}
+{$themeFilter}
+Ensure each question has exactly 4 options.
+
+IMPORTANT: The correct answer (correctAnswerIndex) must be randomly and evenly distributed across all 4 possible indices (0, 1, 2, and 3). Do NOT always pick the middle options (1 or 2).
+
+For each question, assign one of these themes: 'Belief in Allah', 'Stories of Prophets', 'Guidance for Daily Life', 'Hereafter'.
+CRITICAL: For each answer, provide a concise explanation and include the specific Quranic verse (Surah and Ayat number).
+
+Respond with a JSON array of objects with keys: text, options (array of 4 strings), correctAnswerIndex (0-3), explanation, theme, reference.";
+
+        $schema = [
+            'type' => 'ARRAY',
+            'items' => [
+                'type' => 'OBJECT',
+                'properties' => [
+                    'text' => ['type' => 'STRING'],
+                    'options' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                    'correctAnswerIndex' => ['type' => 'INTEGER'],
+                    'explanation' => ['type' => 'STRING'],
+                    'theme' => ['type' => 'STRING'],
+                    'reference' => ['type' => 'STRING'],
+                ],
+                'required' => ['text', 'options', 'correctAnswerIndex', 'explanation', 'theme', 'reference'],
+            ],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+
+        if ($result) {
+            $questions = json_decode($result, true);
+            if (is_array($questions)) {
+                foreach ($questions as $idx => &$q) {
+                    $q['id'] = "q-para-{$paraNumber}-{$difficulty}-{$idx}-" . time();
+                    $q['difficulty'] = $difficulty;
+                }
+                return $questions;
+            }
+        }
+
+        return [];
+    }
+
+    public function generateSeerahQuizQuestions(string $difficulty, ?string $theme = null): array
+    {
+        $difficultyContext = $this->getDifficultyPrompt($difficulty);
+        $themeFilter = $theme
+            ? "Specifically focus on the theme: '{$theme}'."
+            : "Mix questions from themes: 'Prophet Muhammad\\'s Early Life', 'The Revelation', 'Persecution in Makkah', 'The Hijrah', 'Life in Madinah'.";
+
+        $prompt = "Generate 20 high-quality multiple-choice questions about the Seerah (life) of Prophet Muhammad (SAWW) at a {$difficulty} difficulty level.
+{$difficultyContext}
+{$themeFilter}
+Ensure each question has exactly 4 options.
+
+IMPORTANT: The correct answer (correctAnswerIndex) must be randomly and evenly distributed across all 4 possible indices (0, 1, 2, and 3). Avoid patterns like always choosing B or C.
+
+For each question, assign one of these themes: 'Prophet Muhammad\\'s Early Life', 'The Revelation', 'Persecution in Makkah', 'The Hijrah', 'Life in Madinah'.
+CRITICAL: For each answer, provide a concise explanation and include the specific historical event reference.
+
+Respond with a JSON array of objects with keys: text, options (array of 4 strings), correctAnswerIndex (0-3), explanation, theme, reference.";
+
+        $schema = [
+            'type' => 'ARRAY',
+            'items' => [
+                'type' => 'OBJECT',
+                'properties' => [
+                    'text' => ['type' => 'STRING'],
+                    'options' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                    'correctAnswerIndex' => ['type' => 'INTEGER'],
+                    'explanation' => ['type' => 'STRING'],
+                    'theme' => ['type' => 'STRING'],
+                    'reference' => ['type' => 'STRING'],
+                ],
+                'required' => ['text', 'options', 'correctAnswerIndex', 'explanation', 'theme', 'reference'],
+            ],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+
+        if ($result) {
+            $questions = json_decode($result, true);
+            if (is_array($questions)) {
+                foreach ($questions as $idx => &$q) {
+                    $q['id'] = "q-seerah-quiz-{$difficulty}-" . time() . "-{$idx}";
+                    $q['difficulty'] = $difficulty;
+                }
+                return $questions;
+            }
+        }
+
+        return [];
+    }
+
+    public function generateSeerahInsight(string $difficulty = 'Medium'): ?array
+    {
+        $prompt = "Provide an inspiring insight from the Seerah at {$difficulty} difficulty.
+Include a multiple-choice question with theme categorization.
+Themes: 'Prophet Muhammad\\'s Early Life', 'The Revelation', 'Persecution in Makkah', 'The Hijrah', 'Life in Madinah'.
+RANDOMIZE the correct answer index (0-3).
+
+Respond with a JSON object with keys: title (string), content (string), question (object with text, options array, correctAnswerIndex 0-3, explanation, theme, reference).";
+
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'title' => ['type' => 'STRING'],
+                'content' => ['type' => 'STRING'],
+                'question' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'text' => ['type' => 'STRING'],
+                        'options' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                        'correctAnswerIndex' => ['type' => 'INTEGER'],
+                        'explanation' => ['type' => 'STRING'],
+                        'theme' => ['type' => 'STRING'],
+                        'reference' => ['type' => 'STRING'],
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+
+        if ($result) {
+            $parsed = json_decode($result, true);
+            if (is_array($parsed) && isset($parsed['question'])) {
+                $parsed['question']['difficulty'] = $difficulty;
+                $parsed['question']['id'] = 'q-seerah-insight-' . time();
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+
+    public function generateQuranHistoryInsight(string $difficulty = 'Medium'): ?array
+    {
+        $prompt = "Provide an educational insight about the history of the Quran at {$difficulty} difficulty.
+Followed by one multiple-choice question. Categorize theme as 'Quranic History'.
+RANDOMIZE the correct answer index (0-3).
+
+Respond with a JSON object with keys: title (string), content (string), question (object with text, options array, correctAnswerIndex 0-3, explanation, theme, reference).";
+
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'title' => ['type' => 'STRING'],
+                'content' => ['type' => 'STRING'],
+                'question' => [
+                    'type' => 'OBJECT',
+                    'properties' => [
+                        'text' => ['type' => 'STRING'],
+                        'options' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                        'correctAnswerIndex' => ['type' => 'INTEGER'],
+                        'explanation' => ['type' => 'STRING'],
+                        'theme' => ['type' => 'STRING'],
+                        'reference' => ['type' => 'STRING'],
+                    ],
+                ],
+            ],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+
+        if ($result) {
+            $parsed = json_decode($result, true);
+            if (is_array($parsed) && isset($parsed['question'])) {
+                $parsed['question']['difficulty'] = $difficulty;
+                $parsed['question']['theme'] = 'Quranic History';
+                $parsed['question']['id'] = 'q-quran-history-' . time();
+                return $parsed;
+            }
+        }
+
+        return null;
+    }
+}

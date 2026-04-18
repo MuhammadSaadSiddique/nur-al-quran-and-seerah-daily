@@ -1,0 +1,80 @@
+<?php
+
+use App\Http\Controllers\AuthController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\InsightController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\QuestionShowcaseController;
+use App\Http\Controllers\QuizController;
+use App\Http\Controllers\Admin\QuestionController as AdminQuestionController;
+use App\Http\Controllers\Admin\UserController as AdminUserController;
+use Illuminate\Support\Facades\Route;
+
+// Public routes
+Route::get('/', function () {
+    return view('welcome');
+})->name('welcome');
+
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::post('/otp/request', [AuthController::class, 'requestOtp']);
+Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
+
+Route::get('/auth/quran/redirect', [AuthController::class, 'redirectToQuran'])->name('quran.redirect');
+Route::get('/auth/quran/callback', [AuthController::class, 'handleQuranCallback'])->name('quran.callback');
+
+// Authenticated routes
+Route::middleware('auth')->group(function () {
+    Route::get('/dashboard', [HomeController::class, 'index'])->name('home');
+
+    // Quizzes
+    Route::post('/quiz/para', [QuizController::class, 'startParaQuiz'])->name('quiz.para');
+    Route::post('/quiz/seerah', [QuizController::class, 'startSeerahQuiz'])->name('quiz.seerah');
+    Route::post('/quiz/grand', [QuizController::class, 'startGrandQuiz'])->name('quiz.grand');
+    Route::post('/quiz/finish', [QuizController::class, 'finishQuiz'])->name('quiz.finish');
+    Route::get('/quiz/history', [QuizController::class, 'history'])->name('quiz.history');
+
+    // Insights
+    Route::get('/seerah', [InsightController::class, 'seerah'])->name('seerah');
+    Route::get('/quran-history', [InsightController::class, 'quranHistory'])->name('quran.history');
+    Route::post('/insight/answer', [InsightController::class, 'submitInsightAnswer'])->name('insight.answer');
+
+    // Profile & Stats
+    Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
+    Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
+    Route::get('/stats', [ProfileController::class, 'stats'])->name('stats');
+    Route::get('/bookmarks', [ProfileController::class, 'bookmarks'])->name('bookmarks');
+    Route::post('/bookmark/toggle', [ProfileController::class, 'toggleBookmark'])->name('bookmark.toggle');
+
+    // Question Bank
+    Route::get('/questions', [QuestionShowcaseController::class, 'index'])->name('questions.index');
+    Route::get('/questions/{question}', [QuestionShowcaseController::class, 'show'])->name('questions.show');
+
+    // Admin Routes
+    Route::middleware('admin')->prefix('admin')->name('admin.')->group(function () {
+        Route::get('/', function () {
+            return redirect()->route('admin.questions.index');
+        })->name('dashboard');
+        
+        Route::get('/questions', [AdminQuestionController::class, 'index'])->name('questions.index');
+        Route::get('/questions/create', [AdminQuestionController::class, 'create'])->name('questions.create');
+        Route::post('/questions', [AdminQuestionController::class, 'store'])->name('questions.store');
+        Route::get('/questions/{question}/edit', [AdminQuestionController::class, 'edit'])->name('questions.edit');
+        Route::put('/questions/{question}', [AdminQuestionController::class, 'update'])->name('questions.update');
+        Route::delete('/questions/{question}', [AdminQuestionController::class, 'destroy'])->name('questions.destroy');
+
+        Route::get('/users', [AdminUserController::class, 'index'])->name('users.index');
+        Route::patch('/users/{user}/toggle-admin', [AdminUserController::class, 'toggleAdmin'])->name('users.toggle-admin');
+
+        Route::get('/feedback', [AdminQuestionController::class, 'feedbackIndex'])->name('feedback.index');
+        Route::patch('/feedback/{feedback}/status', [AdminQuestionController::class, 'feedbackUpdateStatus'])->name('feedback.update-status');
+
+        Route::get('/duplicates', [AdminQuestionController::class, 'duplicates'])->name('duplicates');
+        Route::post('/duplicates/bulk-delete', [AdminQuestionController::class, 'bulkDelete'])->name('duplicates.bulk-delete');
+    });
+
+    // Quiz Feedback
+    Route::post('/quiz/feedback', [QuizController::class, 'submitFeedback'])->name('quiz.feedback');
+
+    // Logout
+    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+});

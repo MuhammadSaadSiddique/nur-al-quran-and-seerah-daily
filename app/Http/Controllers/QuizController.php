@@ -43,14 +43,15 @@ class QuizController extends Controller
         ]);
 
         $theme = $request->theme === 'Any Theme' ? null : $request->theme;
-        
+
         $dbQuery = GeneratedQuestion::where('type', 'PARA')
-                    ->where('difficulty', $request->difficulty)
-                    ->where('source_info', "Para {$request->para}");
+            ->where('difficulty', $request->difficulty)
+            ->where('source_info', 'like', "%Para {$request->para}:%")
+            ->where('reference', 'like', "%Para {$request->para}:%");
         if ($theme) {
             $dbQuery->where('theme', $theme);
         }
-        
+
         $dbQuestions = $dbQuery->inRandomOrder()->limit(10)->get();
         $questions = [];
 
@@ -98,13 +99,13 @@ class QuizController extends Controller
         ]);
 
         $theme = $request->theme === 'Any Theme' ? null : $request->theme;
-        
+
         $dbQuery = GeneratedQuestion::where('type', 'SEERAH')
-                    ->where('difficulty', $request->difficulty);
+            ->where('difficulty', $request->difficulty);
         if ($theme) {
             $dbQuery->where('theme', $theme);
         }
-        
+
         $dbQuestions = $dbQuery->inRandomOrder()->limit(10)->get();
         $questions = [];
 
@@ -234,7 +235,7 @@ class QuizController extends Controller
         ]);
 
         $type = $request->quiz_type === 'QURAN' ? 'PARA' : 'SEERAH';
-        
+
         $dbQuestions = GeneratedQuestion::where('type', $type)
             ->where('difficulty', $request->difficulty)
             ->inRandomOrder()

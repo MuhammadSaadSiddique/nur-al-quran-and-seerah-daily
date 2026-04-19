@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use App\Models\Testimonial;
 
 class ProfileController extends Controller
 {
@@ -75,5 +76,21 @@ class ProfileController extends Controller
         $user->save();
 
         return response()->json(['success' => true, 'bookmarked' => $existingIndex === null]);
+    }
+
+    public function submitTestimonial(Request $request)
+    {
+        $request->validate([
+            'name' => 'required|string|max:255',
+            'feedback' => 'required|string|max:1000',
+        ]);
+
+        Testimonial::create([
+            'name' => $request->name,
+            'feedback' => $request->feedback,
+            'is_active' => false,
+        ]);
+
+        return back()->with('success', 'Thank you for your feedback! It will be reviewed by our team.');
     }
 }

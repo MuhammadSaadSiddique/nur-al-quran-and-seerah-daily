@@ -75,9 +75,16 @@ class GeminiService
     public function generateParaQuestions(int $paraNumber, string $difficulty, ?string $theme = null): array
     {
         $difficultyContext = $this->getDifficultyPrompt($difficulty);
+        
+        $activeThemes = \App\Models\Theme::where('type', 'PARA')
+            ->where('is_active', true)
+            ->pluck('name')
+            ->toArray();
+        $themeList = !empty($activeThemes) ? "'" . implode("', '", $activeThemes) . "'" : "'Belief in Allah', 'Stories of Prophets', 'Guidance for Daily Life', 'Hereafter'";
+
         $themeFilter = $theme
             ? "Specifically focus on the theme: '{$theme}'."
-            : "Mix questions from themes: 'Belief in Allah', 'Stories of Prophets', 'Guidance for Daily Life', 'Hereafter'.";
+            : "Mix questions from themes: {$themeList}.";
 
         $prompt = "Generate 20 high-quality multiple-choice questions about Para {$paraNumber} of the Holy Quran at a {$difficulty} difficulty level.
 {$difficultyContext}
@@ -86,7 +93,7 @@ Ensure each question has exactly 4 options.
 
 IMPORTANT: The correct answer (correctAnswerIndex) must be randomly and evenly distributed across all 4 possible indices (0, 1, 2, and 3). Do NOT always pick the middle options (1 or 2).
 
-For each question, assign one of these themes: 'Belief in Allah', 'Stories of Prophets', 'Guidance for Daily Life', 'Hereafter'.
+For each question, assign one of these themes: {$themeList}.
 CRITICAL: For each answer, provide a concise explanation and include the specific Quranic verse (Surah and Ayat number).
 
 Respond with a JSON array of objects with keys: text, options (array of 4 strings), correctAnswerIndex (0-3), explanation, theme, reference.";
@@ -126,9 +133,16 @@ Respond with a JSON array of objects with keys: text, options (array of 4 string
     public function generateSeerahQuizQuestions(string $difficulty, ?string $theme = null): array
     {
         $difficultyContext = $this->getDifficultyPrompt($difficulty);
+        
+        $activeThemes = \App\Models\Theme::where('type', 'SEERAH')
+            ->where('is_active', true)
+            ->pluck('name')
+            ->toArray();
+        $themeList = !empty($activeThemes) ? "'" . implode("', '", $activeThemes) . "'" : "'Prophet Muhammad\'s Early Life', 'The Revelation', 'Persecution in Makkah', 'The Hijrah', 'Life in Madinah'";
+
         $themeFilter = $theme
             ? "Specifically focus on the theme: '{$theme}'."
-            : "Mix questions from themes: 'Prophet Muhammad\\'s Early Life', 'The Revelation', 'Persecution in Makkah', 'The Hijrah', 'Life in Madinah'.";
+            : "Mix questions from themes: {$themeList}.";
 
         $prompt = "Generate 20 high-quality multiple-choice questions about the Seerah (life) of Prophet Muhammad (SAWW) at a {$difficulty} difficulty level.
 {$difficultyContext}
@@ -137,7 +151,7 @@ Ensure each question has exactly 4 options.
 
 IMPORTANT: The correct answer (correctAnswerIndex) must be randomly and evenly distributed across all 4 possible indices (0, 1, 2, and 3). Avoid patterns like always choosing B or C.
 
-For each question, assign one of these themes: 'Prophet Muhammad\\'s Early Life', 'The Revelation', 'Persecution in Makkah', 'The Hijrah', 'Life in Madinah'.
+For each question, assign one of these themes: {$themeList}.
 CRITICAL: For each answer, provide a concise explanation and include the specific historical event reference.
 
 Respond with a JSON array of objects with keys: text, options (array of 4 strings), correctAnswerIndex (0-3), explanation, theme, reference.";

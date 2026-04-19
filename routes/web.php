@@ -8,11 +8,14 @@ use App\Http\Controllers\QuestionShowcaseController;
 use App\Http\Controllers\QuizController;
 use App\Http\Controllers\Admin\QuestionController as AdminQuestionController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
+use App\Http\Controllers\Admin\ThemeController as AdminThemeController;
+use App\Http\Controllers\Admin\TestimonialController as AdminTestimonialController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::get('/', function () {
-    return view('welcome');
+    $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();
+    return view('welcome', compact('testimonials'));
 })->name('welcome');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -44,6 +47,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/stats', [ProfileController::class, 'stats'])->name('stats');
     Route::get('/bookmarks', [ProfileController::class, 'bookmarks'])->name('bookmarks');
     Route::post('/bookmark/toggle', [ProfileController::class, 'toggleBookmark'])->name('bookmark.toggle');
+    Route::post('/testimonials/submit', [ProfileController::class, 'submitTestimonial'])->name('testimonials.submit');
 
     // Question Bank
     Route::get('/questions', [QuestionShowcaseController::class, 'index'])->name('questions.index');
@@ -70,6 +74,9 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/duplicates', [AdminQuestionController::class, 'duplicates'])->name('duplicates');
         Route::post('/duplicates/bulk-delete', [AdminQuestionController::class, 'bulkDelete'])->name('duplicates.bulk-delete');
+
+        Route::resource('themes', AdminThemeController::class)->except(['create', 'edit', 'show']);
+        Route::resource('testimonials', AdminTestimonialController::class)->except(['create', 'edit', 'show']);
     });
 
     // Quiz Feedback

@@ -5,8 +5,10 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>The Eternal Echo — AI-Powered Islamic Learning Platform</title>
-    <meta name="description" content="Embark on an interactive journey through the 30 Paras of the Quran and the beautiful Seerah of Prophet Muhammad ﷺ. AI-powered personalized quizzes, knowledge tracking, and spiritual growth.">
-    <meta name="keywords" content="Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app, learn Quran online">
+    <meta name="description"
+        content="Embark on an interactive journey through the 30 Paras of the Quran and the beautiful Seerah of Prophet Muhammad ﷺ. AI-powered personalized quizzes, knowledge tracking, and spiritual growth.">
+    <meta name="keywords"
+        content="Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app, learn Quran online">
     <meta name="author" content="The Eternal Echo">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="{{ url('/') }}">
@@ -15,13 +17,15 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="{{ url('/') }}">
     <meta property="og:title" content="The Eternal Echo — AI-Powered Islamic Learning">
-    <meta property="og:description" content="Interactive Quran Para quizzes, Seerah knowledge challenges, and AI-powered personalized insights. Free Islamic learning platform.">
+    <meta property="og:description"
+        content="Interactive Quran Para quizzes, Seerah knowledge challenges, and AI-powered personalized insights. Free Islamic learning platform.">
     <meta property="og:site_name" content="The Eternal Echo">
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="The Eternal Echo — AI-Powered Islamic Learning">
-    <meta name="twitter:description" content="Interactive Quran Para quizzes, Seerah knowledge challenges, and AI-powered personalized insights.">
+    <meta name="twitter:description"
+        content="Interactive Quran Para quizzes, Seerah knowledge challenges, and AI-powered personalized insights.">
 
     <!-- JSON-LD Structured Data -->
     <script type="application/ld+json">
@@ -230,6 +234,40 @@
         </div>
     </section>
 
+    <!-- Testimonials Section -->
+    @if($testimonials->count() > 0)
+    <section id="testimonials" class="py-24 bg-slate-900 border-t border-white/5 relative z-10">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center max-w-3xl mx-auto mb-16">
+                <h2 class="text-3xl md:text-5xl font-black text-white mb-4">Voices of Enlightenment</h2>
+                <p class="text-slate-400 text-lg">Join thousands of students deepening their spiritual foundation.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                @foreach($testimonials as $testimonial)
+                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-3xl border border-white/10 relative group">
+                    <div class="absolute -top-4 -left-4 w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-12 group-hover:rotate-0 transition-transform duration-300">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C20.1216 16 21.017 16.8954 21.017 18V21C21.017 22.1046 20.1216 23 19.017 23H14.017C12.9124 23 12.017 22.1046 12.017 21ZM14.017 21V10C14.017 8.89543 14.9124 8 16.017 8H21.017V21M5.011 21L5.011 18C5.011 16.8954 5.9064 16 7.011 16H10.011C11.1156 16 12.011 16.8954 12.011 18V21C12.011 22.1046 11.1156 23 10.011 23H5.011C3.9064 23 3.011 22.1046 3.011 21ZM5.011 21V10C5.011 8.89543 5.9064 8 7.011 8H12.011V21"/></svg>
+                    </div>
+                    <div class="space-y-4">
+                        <p class="text-slate-300 italic leading-relaxed text-lg">"{{ $testimonial->feedback }}"</p>
+                        <div class="flex items-center space-x-3 pt-4 border-t border-white/5">
+                            <div class="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 font-black">
+                                {{ substr($testimonial->name, 0, 1) }}
+                            </div>
+                            <div>
+                                <h4 class="text-white font-bold">{{ $testimonial->name }}</h4>
+                                <p class="text-slate-500 text-xs font-black uppercase tracking-widest">Spiritual Learner</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                @endforeach
+            </div>
+        </div>
+    </section>
+    @endif
+
     <!-- Bottom CTA -->
     <section class="py-24 bg-gradient-to-b from-slate-900 to-black relative z-10">
         <div class="max-w-4xl mx-auto px-4 text-center">
@@ -252,8 +290,8 @@
     <!-- Footer -->
     <footer class="bg-black py-12 border-t border-white/5 relative z-10">
         <div class="max-w-7xl mx-auto px-4 text-center">
-            <p class="text-slate-600 font-bold text-sm tracking-widest uppercase">&copy; {{ date('Y') }} Nur Al-Quran &
-                Seerah. Open Source Project.</p>
+            <p class="text-slate-600 font-bold text-sm tracking-widest uppercase">&copy; {{ date('Y') }} The Eternal
+                Echo. <a href="https://asloobulhayat.com/">Asloob ul Hayat Project.</a></p>
         </div>
     </footer>
 

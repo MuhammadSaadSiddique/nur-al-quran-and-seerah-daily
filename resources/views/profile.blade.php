@@ -61,6 +61,36 @@
             </div>
         </div>
 
+        {{-- Share Your Experience --}}
+        <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-6">
+            <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Share Your Experience</h3>
+            <p class="text-slate-500 text-sm font-medium">Your inspiring words could help others on their spiritual journey. Share how The Eternal Echo has impacted you.</p>
+            
+            <form action="{{ route('testimonials.submit') }}" method="POST" class="space-y-4">
+                @csrf
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Your Name (as it will appear)</label>
+                    <input type="text" name="name" 
+                        value="{{ $user->display_name ?: explode('@', $user->email)[0] }}"
+                        placeholder="E.g. Ahmad Hassan" required
+                        class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Your Feedback</label>
+                    <textarea name="feedback" rows="4" required
+                        placeholder="What do you love about the platform?"
+                        class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all resize-none"></textarea>
+                </div>
+                <button type="submit"
+                    class="w-full bg-slate-900 text-white py-4 rounded-xl font-black hover:bg-emerald-900 transition-all active:scale-[0.99] flex items-center justify-center space-x-2">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    </svg>
+                    <span>Submit Testimonial</span>
+                </button>
+            </form>
+        </div>
+
         {{-- Sign Out --}}
         <form action="{{ route('logout') }}" method="POST">
             @csrf

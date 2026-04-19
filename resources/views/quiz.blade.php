@@ -122,38 +122,64 @@
             class="w-full bg-emerald-700 text-white py-5 rounded-2xl font-black text-xl shadow-xl hover:bg-emerald-800 transition-all active:scale-[0.98]"
             x-text="currentIndex === questions.length - 1 ? 'Finish Journey' : 'Next Question'"></button>
 
-        {{-- Feedback Modal --}}
-        <div x-show="showFeedbackModal" x-cloak
-            class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6"
-            @click.self="showFeedbackModal = false">
-            <div class="bg-white rounded-2xl p-8 max-w-md w-full shadow-2xl space-y-5 animate-slideUp">
-                <h3 class="text-xl font-black text-slate-900">Question Feedback</h3>
-                <p class="text-sm text-slate-500 line-clamp-2" x-text="currentQuestion?.text"></p>
-
-                <div class="space-y-2">
-                    <label class="text-xs font-bold uppercase text-slate-400">Feedback Type</label>
-                    <div class="flex space-x-2">
-                        <button @click="feedbackType = 'error'" :class="feedbackType === 'error' ? 'bg-rose-100 border-rose-300 text-rose-700' : 'bg-white border-slate-200 text-slate-500'"
-                            class="flex-1 py-2 px-3 rounded-xl border-2 font-bold text-sm transition-all">🐛 Error</button>
-                        <button @click="feedbackType = 'suggestion'" :class="feedbackType === 'suggestion' ? 'bg-blue-100 border-blue-300 text-blue-700' : 'bg-white border-slate-200 text-slate-500'"
-                            class="flex-1 py-2 px-3 rounded-xl border-2 font-bold text-sm transition-all">💡 Suggestion</button>
-                        <button @click="feedbackType = 'praise'" :class="feedbackType === 'praise' ? 'bg-emerald-100 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'"
-                            class="flex-1 py-2 px-3 rounded-xl border-2 font-bold text-sm transition-all">⭐ Praise</button>
+        {{-- Result & Testimonial Modal --}}
+        <div x-show="showResultModal" x-cloak
+            class="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[200] flex items-center justify-center p-4 md:p-6 overflow-y-auto">
+            <div class="bg-white rounded-[3rem] p-8 md:p-12 max-w-lg w-full shadow-2xl space-y-8 animate-slideUp my-auto">
+                {{-- Celebration Header --}}
+                <div class="text-center space-y-4">
+                    <div class="w-24 h-24 bg-emerald-100 rounded-[2rem] flex items-center justify-center mx-auto text-emerald-600 shadow-inner group">
+                        <svg class="w-12 h-12 transform group-hover:scale-110 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <div class="space-y-1">
+                        <h3 class="text-3xl font-black text-slate-900">Journey Complete</h3>
+                        <p class="text-emerald-600 font-black uppercase tracking-[0.2em] text-xs">Masha'Allah</p>
                     </div>
                 </div>
 
-                <div class="space-y-2">
-                    <label class="text-xs font-bold uppercase text-slate-400">Your Message</label>
-                    <textarea x-model="feedbackMessage" rows="3" placeholder="Describe the issue or your suggestion..."
-                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 outline-none resize-none"></textarea>
+                {{-- Score Display --}}
+                <div class="bg-slate-50 rounded-3xl p-6 border-2 border-slate-100 text-center space-y-1">
+                    <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Your Knowledge Score</p>
+                    <div class="text-5xl font-black text-slate-900">
+                        <span x-text="score"></span><span class="text-slate-300 mx-1">/</span><span x-text="questions.length"></span>
+                    </div>
                 </div>
 
-                <div class="flex space-x-3">
-                    <button @click="showFeedbackModal = false" class="flex-1 py-3 bg-slate-100 text-slate-600 rounded-xl font-bold text-sm">Cancel</button>
-                    <button @click="submitFeedback()" :disabled="!feedbackMessage || feedbackSubmitting"
-                        class="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all disabled:opacity-50">
-                        <span x-show="!feedbackSubmitting">Submit</span>
-                        <span x-show="feedbackSubmitting">Sending...</span>
+                {{-- Testimonial Form --}}
+                <div class="space-y-6" x-show="!testimonialSent">
+                    <div class="space-y-2">
+                        <h4 class="text-sm font-black text-slate-800 uppercase tracking-wider text-center">Share Your Wisdom</h4>
+                        <p class="text-slate-500 text-xs font-medium text-center italic">How did this quiz impact your journey?</p>
+                    </div>
+
+                    <div class="space-y-4">
+                        <input type="text" x-model="testimonialName" placeholder="Your Name"
+                            class="w-full bg-white border-2 border-slate-100 rounded-2xl px-5 py-3 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all shadow-sm">
+                        
+                        <textarea x-model="testimonialFeedback" rows="3" placeholder="Share a few words of inspiration..."
+                            class="w-full bg-white border-2 border-slate-100 rounded-2xl px-5 py-3 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all shadow-sm resize-none"></textarea>
+
+                        <button @click="submitQuizTestimonial()" :disabled="!testimonialFeedback || testimonialSubmitting"
+                            class="w-full bg-emerald-600 text-white py-4 rounded-2xl font-black hover:bg-emerald-700 transition-all active:scale-[0.98] shadow-lg shadow-emerald-500/30 disabled:opacity-50">
+                            <span x-show="!testimonialSubmitting">Share with the Ummah</span>
+                            <span x-show="testimonialSubmitting">Spreading Wisdom...</span>
+                        </button>
+                    </div>
+                </div>
+
+                {{-- Success Message --}}
+                <div x-show="testimonialSent" x-cloak class="text-center space-y-4 py-4 animate-fadeIn">
+                    <div class="text-emerald-500 font-black text-lg">JazakAllah Khairan!</div>
+                    <p class="text-slate-500 text-sm font-medium italic">Your words will inspire others on their spiritual path.</p>
+                </div>
+
+                {{-- Final Action --}}
+                <div class="pt-4 border-t border-slate-100">
+                    <button @click="goToDashboard()" 
+                        class="w-full text-slate-400 font-black uppercase text-xs tracking-[0.2em] hover:text-emerald-600 transition-colors py-2">
+                        Continue to Dashboard
                     </button>
                 </div>
             </div>
@@ -183,6 +209,14 @@
                 feedbackType: 'error',
                 feedbackMessage: '',
                 feedbackSubmitting: false,
+
+                // Result & Testimonial state
+                showResultModal: false,
+                quizFinished: false,
+                testimonialSent: false,
+                testimonialName: '{{ Auth::user()->display_name ?: explode("@", Auth::user()->email)[0] }}',
+                testimonialFeedback: '',
+                testimonialSubmitting: false,
 
                 get currentQuestion() { return this.questions[this.currentIndex]; },
 
@@ -249,7 +283,8 @@
                         });
                         const data = await res.json();
                         if (data.success) {
-                            window.location.href = data.redirect;
+                            this.quizFinished = true;
+                            this.showResultModal = true;
                         }
                     } catch (e) {
                         alert('Failed to save quiz. Please try again.');
@@ -304,6 +339,35 @@
                     } finally {
                         this.feedbackSubmitting = false;
                     }
+                },
+
+                async submitQuizTestimonial() {
+                    if (!this.testimonialFeedback) return;
+                    this.testimonialSubmitting = true;
+                    try {
+                        const res = await fetch('{{ route("testimonials.submit") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                name: this.testimonialName,
+                                feedback: this.testimonialFeedback,
+                            }),
+                        });
+                        const data = await res.json();
+                        this.testimonialSent = true;
+                    } catch (e) {
+                        alert('Failed to submit testimonial.');
+                    } finally {
+                        this.testimonialSubmitting = false;
+                    }
+                },
+
+                goToDashboard() {
+                    window.location.href = '{{ route("stats") }}';
                 },
 
                 getOptionClass(idx) {

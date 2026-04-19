@@ -12,17 +12,15 @@ class HomeController extends Controller
     {
         $user = Auth::user();
 
-        $quranThemes = GeneratedQuestion::where('type', 'PARA')
-            ->whereNotNull('theme')
-            ->distinct()
-            ->pluck('theme')
+        $quranThemes = \App\Models\Theme::where('type', 'PARA')
+            ->where('is_active', true)
+            ->pluck('name')
             ->sort()
             ->values();
 
-        $seerahThemes = GeneratedQuestion::where('type', 'SEERAH')
-            ->whereNotNull('theme')
-            ->distinct()
-            ->pluck('theme')
+        $seerahThemes = \App\Models\Theme::where('type', 'SEERAH')
+            ->where('is_active', true)
+            ->pluck('name')
             ->sort()
             ->values();
 

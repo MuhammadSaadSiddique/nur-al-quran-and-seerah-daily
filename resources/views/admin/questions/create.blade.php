@@ -39,10 +39,23 @@
             </div>
         </div>
 
-        <div class="space-y-2">
-            <label for="theme" class="block text-sm font-bold text-slate-700">Theme (Optional)</label>
-            <input type="text" id="theme" name="theme" value="{{ old('theme') }}" placeholder="e.g., Stories of Prophets" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-3 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
+        <div class="space-y-2" x-data="{ type: '{{ old('type', 'PARA') }}' }">
+            <label for="theme" class="block text-sm font-bold text-slate-700">Theme (Select from managed themes)</label>
+            <select id="theme" name="theme" class="w-full bg-slate-50 border border-slate-200 text-slate-800 rounded-xl px-4 py-3 focus:ring-4 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all shadow-sm">
+                <option value="">No Theme / General</option>
+                <optgroup label="Quran Themes">
+                @foreach($themes->where('type', 'PARA') as $t)
+                    <option value="{{ $t->name }}" {{ old('theme') == $t->name ? 'selected' : '' }}>{{ $t->name }}</option>
+                @endforeach
+                </optgroup>
+                <optgroup label="Seerah Themes">
+                @foreach($themes->where('type', 'SEERAH') as $t)
+                    <option value="{{ $t->name }}" {{ old('theme') == $t->name ? 'selected' : '' }}>{{ $t->name }}</option>
+                @endforeach
+                </optgroup>
+            </select>
             @error('theme') <p class="text-rose-500 text-xs font-bold">{{ $message }}</p> @enderror
+            <p class="text-[10px] text-slate-400 font-bold uppercase mt-1">Manage these in <a href="{{ route('admin.themes.index') }}" class="text-emerald-600 hover:underline">Theme Settings</a></p>
         </div>
 
         {{-- Question Core --}}

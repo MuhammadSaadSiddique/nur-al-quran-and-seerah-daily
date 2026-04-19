@@ -6,6 +6,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use App\Models\GeneratedQuestion;
 use App\Models\Feedback;
+use App\Models\Theme;
 
 class QuestionController extends Controller
 {
@@ -27,14 +28,14 @@ class QuestionController extends Controller
         }
 
         $questions = $query->paginate(20)->withQueryString();
-        $themes = GeneratedQuestion::whereNotNull('theme')->distinct()->pluck('theme');
+        $themes = Theme::orderBy('name')->get();
 
         return view('admin.questions.index', compact('questions', 'themes'));
     }
 
     public function create()
     {
-        $themes = GeneratedQuestion::whereNotNull('theme')->distinct()->pluck('theme');
+        $themes = Theme::orderBy('name')->get();
         return view('admin.questions.create', compact('themes'));
     }
 
@@ -82,7 +83,7 @@ class QuestionController extends Controller
 
     public function edit(GeneratedQuestion $question)
     {
-        $themes = GeneratedQuestion::whereNotNull('theme')->distinct()->pluck('theme');
+        $themes = Theme::orderBy('name')->get();
         return view('admin.questions.edit', compact('question', 'themes'));
     }
 

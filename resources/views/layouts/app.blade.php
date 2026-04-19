@@ -193,7 +193,9 @@
         <footer class="bg-slate-900 text-slate-500 py-12 text-center text-sm pb-24 md:pb-12">
             <div class="max-w-7xl mx-auto px-4 space-y-4">
                 <p class="font-bold text-slate-400">The Eternal Echo</p>
-                <p class="opacity-50">&copy; {{ date('Y') }} The Eternal Echo. All spiritual rights reserved.</p>
+                <p class="opacity-50  text-slate-400">&copy; {{ date('Y') }} The Eternal Echo. <a
+                        href="https://asloobulhayat.com/">Asloob
+                        ul Hayat Project.</a></p>
             </div>
         </footer>
 

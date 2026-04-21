@@ -22,6 +22,6 @@
 Homestead.json
 Homestead.yaml
 Thumbs.db
-app/Console/Commands/UpdateParaNumbers.php
-app/Console/Commands/SyncThemes.php
-app/Console/Commands/MigrateToMysql.php
+app/Console/*
+scratch/*
+scratch/migrate_question_themes.php

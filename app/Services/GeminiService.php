@@ -72,7 +72,7 @@ class GeminiService
         return $result ? trim($result) : 'Peace be upon you and welcome to your journey.';
     }
 
-    public function generateParaQuestions(int $paraNumber, string $difficulty, ?string $theme = null): array
+    public function generateParaQuestions(int $paraNumber, string $difficulty, int $count = 20): array
     {
         $difficultyContext = $this->getDifficultyPrompt($difficulty);
         
@@ -82,13 +82,9 @@ class GeminiService
             ->toArray();
         $themeList = !empty($activeThemes) ? "'" . implode("', '", $activeThemes) . "'" : "'Belief in Allah', 'Stories of Prophets', 'Guidance for Daily Life', 'Hereafter'";
 
-        $themeFilter = $theme
-            ? "Specifically focus on the theme: '{$theme}'."
-            : "Mix questions from themes: {$themeList}.";
-
-        $prompt = "Generate 20 high-quality multiple-choice questions about Para {$paraNumber} of the Holy Quran at a {$difficulty} difficulty level.
+        $prompt = "Generate {$count} high-quality multiple-choice questions about Para {$paraNumber} of the Holy Quran at a {$difficulty} difficulty level.
 {$difficultyContext}
-{$themeFilter}
+Mix questions from themes: {$themeList}.
 Ensure each question has exactly 4 options.
 
 IMPORTANT: The correct answer (correctAnswerIndex) must be randomly and evenly distributed across all 4 possible indices (0, 1, 2, and 3). Do NOT always pick the middle options (1 or 2).
@@ -130,7 +126,7 @@ Respond with a JSON array of objects with keys: text, options (array of 4 string
         return [];
     }
 
-    public function generateSeerahQuizQuestions(string $difficulty, ?string $theme = null): array
+    public function generateSeerahQuizQuestions(string $difficulty, int $count = 20): array
     {
         $difficultyContext = $this->getDifficultyPrompt($difficulty);
         
@@ -140,13 +136,9 @@ Respond with a JSON array of objects with keys: text, options (array of 4 string
             ->toArray();
         $themeList = !empty($activeThemes) ? "'" . implode("', '", $activeThemes) . "'" : "'Prophet Muhammad\'s Early Life', 'The Revelation', 'Persecution in Makkah', 'The Hijrah', 'Life in Madinah'";
 
-        $themeFilter = $theme
-            ? "Specifically focus on the theme: '{$theme}'."
-            : "Mix questions from themes: {$themeList}.";
-
-        $prompt = "Generate 20 high-quality multiple-choice questions about the Seerah (life) of Prophet Muhammad (SAWW) at a {$difficulty} difficulty level.
+        $prompt = "Generate {$count} high-quality multiple-choice questions about the Seerah (life) of Prophet Muhammad (SAWW) at a {$difficulty} difficulty level.
 {$difficultyContext}
-{$themeFilter}
+Mix questions from themes: {$themeList}.
 Ensure each question has exactly 4 options.
 
 IMPORTANT: The correct answer (correctAnswerIndex) must be randomly and evenly distributed across all 4 possible indices (0, 1, 2, and 3). Avoid patterns like always choosing B or C.
@@ -180,6 +172,58 @@ Respond with a JSON array of objects with keys: text, options (array of 4 string
                 foreach ($questions as $idx => &$q) {
                     $q['id'] = "q-seerah-quiz-{$difficulty}-" . time() . "-{$idx}";
                     $q['difficulty'] = $difficulty;
+                }
+                return $questions;
+            }
+        }
+
+        return [];
+    }
+
+    public function generateThemeQuestions(string $type, string $theme, string $difficulty, int $count = 20): array
+    {
+        $difficultyContext = $this->getDifficultyPrompt($difficulty);
+        $sourceName = $type === 'PARA' ? 'the Holy Quran' : 'the Seerah (life) of Prophet Muhammad (SAWW)';
+        $referenceRequirement = $type === 'PARA' 
+            ? 'include the specific Quranic verse (Surah and Ayat number)' 
+            : 'include the specific historical event reference';
+
+        $prompt = "Generate {$count} high-quality multiple-choice questions about {$sourceName} specifically focused on the theme: '{$theme}' at a {$difficulty} difficulty level.
+{$difficultyContext}
+" . ($type === 'PARA' ? "Questions should span the entire Quran, not limited to any specific Para." : "") . "
+Ensure each question has exactly 4 options.
+
+IMPORTANT: The correct answer (correctAnswerIndex) must be randomly and evenly distributed across all 4 possible indices (0, 1, 2, and 3).
+
+CRITICAL: For each answer, provide a concise explanation and {$referenceRequirement}.
+
+Respond with a JSON array of objects with keys: text, options (array of 4 strings), correctAnswerIndex (0-3), explanation, theme, reference.";
+
+        $schema = [
+            'type' => 'ARRAY',
+            'items' => [
+                'type' => 'OBJECT',
+                'properties' => [
+                    'text' => ['type' => 'STRING'],
+                    'options' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                    'correctAnswerIndex' => ['type' => 'INTEGER'],
+                    'explanation' => ['type' => 'STRING'],
+                    'theme' => ['type' => 'STRING'],
+                    'reference' => ['type' => 'STRING'],
+                ],
+                'required' => ['text', 'options', 'correctAnswerIndex', 'explanation', 'theme', 'reference'],
+            ],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+
+        if ($result) {
+            $questions = json_decode($result, true);
+            if (is_array($questions)) {
+                foreach ($questions as $idx => &$q) {
+                    $q['id'] = "q-theme-{$type}-" . time() . "-{$idx}";
+                    $q['difficulty'] = $difficulty;
+                    $q['theme'] = $theme;
                 }
                 return $questions;
             }

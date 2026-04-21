@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Feedback;
 use App\Models\GeneratedQuestion;
 use App\Models\Quiz;
+use App\Models\Theme;
 use App\Services\GeminiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -17,6 +18,8 @@ class QuizController extends Controller
     protected function persistQuestions(array $questions, string $type, string $sourceInfo, string $difficulty): void
     {
         foreach ($questions as $q) {
+            $theme = Theme::where('name', $q['theme'] ?? '')->where('type', $type)->first();
+            
             GeneratedQuestion::updateOrCreate(
                 ['question_id' => $q['id'] ?? uniqid('q-')],
                 [
@@ -24,6 +27,7 @@ class QuizController extends Controller
                     'source_info' => $sourceInfo,
                     'difficulty' => $q['difficulty'] ?? $difficulty,
                     'theme' => $q['theme'] ?? null,
+                    'theme_id' => $theme?->id,
                     'text' => $q['text'],
                     'options' => $q['options'],
                     'correct_answer_index' => $q['correctAnswerIndex'],
@@ -39,23 +43,20 @@ class QuizController extends Controller
         $request->validate([
             'para' => 'required|integer|min:1|max:30',
             'difficulty' => 'required|in:Easy,Medium,Hard',
-            'theme' => 'nullable|string',
+            'quantity' => 'required|integer|in:20,50,100',
         ]);
 
-        $theme = $request->theme === 'Any Theme' ? null : $request->theme;
+        $quantity = $request->quantity;
 
         $dbQuery = GeneratedQuestion::where('type', 'PARA')
             ->where('difficulty', $request->difficulty)
             ->where('source_info', 'like', "%Para {$request->para}:%")
             ->where('reference', 'like', "%Para {$request->para}:%");
-        if ($theme) {
-            $dbQuery->where('theme', $theme);
-        }
-
-        $dbQuestions = $dbQuery->inRandomOrder()->limit(10)->get();
+        
+        $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
-        if ($dbQuestions->isNotEmpty()) {
+        if ($dbQuestions->count() >= $quantity) {
             foreach ($dbQuestions as $q) {
                 $questions[] = [
                     'id' => $q->question_id,
@@ -71,9 +72,34 @@ class QuizController extends Controller
                 ];
             }
         } else {
-            $questions = $gemini->generateParaQuestions($request->para, $request->difficulty, $theme);
-            if (!empty($questions)) {
-                $this->persistQuestions($questions, 'PARA', "Para {$request->para}", $request->difficulty);
+            $needed = $quantity - $dbQuestions->count();
+            $generated = $gemini->generateParaQuestions($request->para, $request->difficulty, $needed + 5);
+            
+            if (!empty($generated)) {
+                $this->persistQuestions($generated, 'PARA', "Para {$request->para}", $request->difficulty);
+            }
+
+            // Refresh from DB to get the mix
+            $dbQuestions = GeneratedQuestion::where('type', 'PARA')
+                ->where('difficulty', $request->difficulty)
+                ->where('source_info', 'like', "%Para {$request->para}:%")
+                ->where('reference', 'like', "%Para {$request->para}:%");
+            
+            $dbQuestions = $dbQuestions->inRandomOrder()->limit($quantity)->get();
+
+            foreach ($dbQuestions as $q) {
+                $questions[] = [
+                    'id' => $q->question_id,
+                    'dbId' => $q->id,
+                    'text' => $q->text,
+                    'options' => $q->options,
+                    'correctAnswerIndex' => $q->correct_answer_index,
+                    'explanation' => $q->explanation,
+                    'theme' => $q->theme,
+                    'difficulty' => $q->difficulty,
+                    'reference' => $q->reference,
+                    'source_info' => $q->source_info,
+                ];
             }
         }
 
@@ -87,7 +113,7 @@ class QuizController extends Controller
             'title' => "Para {$request->para}",
             'paraNumber' => $request->para,
             'difficulty' => $request->difficulty,
-            'theme' => $theme ?? 'General Study',
+            'theme' => 'General Study',
         ]);
     }
 
@@ -95,21 +121,18 @@ class QuizController extends Controller
     {
         $request->validate([
             'difficulty' => 'required|in:Easy,Medium,Hard',
-            'theme' => 'nullable|string',
+            'quantity' => 'required|integer|in:20,50,100',
         ]);
 
-        $theme = $request->theme === 'Any Theme' ? null : $request->theme;
+        $quantity = $request->quantity;
 
         $dbQuery = GeneratedQuestion::where('type', 'SEERAH')
             ->where('difficulty', $request->difficulty);
-        if ($theme) {
-            $dbQuery->where('theme', $theme);
-        }
-
-        $dbQuestions = $dbQuery->inRandomOrder()->limit(10)->get();
+        
+        $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
-        if ($dbQuestions->isNotEmpty()) {
+        if ($dbQuestions->count() >= $quantity) {
             foreach ($dbQuestions as $q) {
                 $questions[] = [
                     'id' => $q->question_id,
@@ -125,9 +148,30 @@ class QuizController extends Controller
                 ];
             }
         } else {
-            $questions = $gemini->generateSeerahQuizQuestions($request->difficulty, $theme);
-            if (!empty($questions)) {
-                $this->persistQuestions($questions, 'SEERAH', 'Seerah', $request->difficulty);
+            $needed = $quantity - $dbQuestions->count();
+            $generated = $gemini->generateSeerahQuizQuestions($request->difficulty, $needed + 5);
+            
+            if (!empty($generated)) {
+                $this->persistQuestions($generated, 'SEERAH', 'Seerah', $request->difficulty);
+            }
+
+            $dbQuestions = GeneratedQuestion::where('type', 'SEERAH')
+                ->where('difficulty', $request->difficulty)
+                ->inRandomOrder()->limit($quantity)->get();
+
+            foreach ($dbQuestions as $q) {
+                $questions[] = [
+                    'id' => $q->question_id,
+                    'dbId' => $q->id,
+                    'text' => $q->text,
+                    'options' => $q->options,
+                    'correctAnswerIndex' => $q->correct_answer_index,
+                    'explanation' => $q->explanation,
+                    'theme' => $q->theme,
+                    'difficulty' => $q->difficulty,
+                    'reference' => $q->reference,
+                    'source_info' => $q->source_info,
+                ];
             }
         }
 
@@ -141,7 +185,82 @@ class QuizController extends Controller
             'title' => 'Seerah Knowledge Journey',
             'paraNumber' => null,
             'difficulty' => $request->difficulty,
-            'theme' => $theme ?? 'General Study',
+            'theme' => 'General Study',
+        ]);
+    }
+
+    public function startThemeQuiz(Request $request, GeminiService $gemini)
+    {
+        $request->validate([
+            'theme_id' => 'required|exists:themes,id',
+            'difficulty' => 'required|in:Easy,Medium,Hard',
+            'quantity' => 'required|integer|in:20,50,100',
+        ]);
+
+        $theme = Theme::findOrFail($request->theme_id);
+        $quantity = $request->quantity;
+
+        $dbQuery = GeneratedQuestion::where('theme_id', $theme->id)
+            ->where('difficulty', $request->difficulty);
+        
+        $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
+        $questions = [];
+
+        if ($dbQuestions->count() >= $quantity) {
+            foreach ($dbQuestions as $q) {
+                $questions[] = [
+                    'id' => $q->question_id,
+                    'dbId' => $q->id,
+                    'text' => $q->text,
+                    'options' => $q->options,
+                    'correctAnswerIndex' => $q->correct_answer_index,
+                    'explanation' => $q->explanation,
+                    'theme' => $q->theme,
+                    'difficulty' => $q->difficulty,
+                    'reference' => $q->reference,
+                    'source_info' => $q->source_info,
+                ];
+            }
+        } else {
+            $needed = $quantity - $dbQuestions->count();
+            // Full scope generation
+            $generated = $gemini->generateThemeQuestions($theme->type, $theme->name, $request->difficulty, $needed + 5);
+            
+            if (!empty($generated)) {
+                $this->persistQuestions($generated, $theme->type, ($theme->type === 'PARA' ? 'Full Quran theme' : 'Seerah theme'), $request->difficulty);
+            }
+
+            $dbQuestions = GeneratedQuestion::where('theme_id', $theme->id)
+                ->where('difficulty', $request->difficulty)
+                ->inRandomOrder()->limit($quantity)->get();
+
+            foreach ($dbQuestions as $q) {
+                $questions[] = [
+                    'id' => $q->question_id,
+                    'dbId' => $q->id,
+                    'text' => $q->text,
+                    'options' => $q->options,
+                    'correctAnswerIndex' => $q->correct_answer_index,
+                    'explanation' => $q->explanation,
+                    'theme' => $q->theme,
+                    'difficulty' => $q->difficulty,
+                    'reference' => $q->reference,
+                    'source_info' => $q->source_info,
+                ];
+            }
+        }
+
+        if (empty($questions)) {
+            return back()->with('error', 'Failed to load theme quiz. Please try again.');
+        }
+
+        return view('quiz', [
+            'questions' => $questions,
+            'type' => $theme->type,
+            'title' => $theme->name,
+            'paraNumber' => null,
+            'difficulty' => $request->difficulty,
+            'theme' => $theme->name,
         ]);
     }
 

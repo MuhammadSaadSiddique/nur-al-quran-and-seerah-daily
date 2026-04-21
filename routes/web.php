@@ -3,6 +3,8 @@
 use App\Http\Controllers\AuthController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\InsightController;
+use App\Http\Controllers\LeaderboardController;
+use App\Http\Controllers\LegalController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\QuestionShowcaseController;
 use App\Http\Controllers\QuizController;
@@ -25,6 +27,9 @@ Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
 Route::get('/auth/quran/redirect', [AuthController::class, 'redirectToQuran'])->name('quran.redirect');
 Route::get('/auth/quran/callback', [AuthController::class, 'handleQuranCallback'])->name('quran.callback');
 
+Route::get('/privacy-policy', [LegalController::class, 'privacy'])->name('privacy');
+Route::get('/terms', [LegalController::class, 'terms'])->name('terms');
+
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [HomeController::class, 'index'])->name('home');
@@ -32,6 +37,7 @@ Route::middleware('auth')->group(function () {
     // Quizzes
     Route::post('/quiz/para', [QuizController::class, 'startParaQuiz'])->name('quiz.para');
     Route::post('/quiz/seerah', [QuizController::class, 'startSeerahQuiz'])->name('quiz.seerah');
+    Route::post('/quiz/theme', [QuizController::class, 'startThemeQuiz'])->name('quiz.theme');
     Route::post('/quiz/grand', [QuizController::class, 'startGrandQuiz'])->name('quiz.grand');
     Route::post('/quiz/finish', [QuizController::class, 'finishQuiz'])->name('quiz.finish');
     Route::get('/quiz/history', [QuizController::class, 'history'])->name('quiz.history');
@@ -45,6 +51,7 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::get('/stats', [ProfileController::class, 'stats'])->name('stats');
+    Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
     Route::get('/bookmarks', [ProfileController::class, 'bookmarks'])->name('bookmarks');
     Route::post('/bookmark/toggle', [ProfileController::class, 'toggleBookmark'])->name('bookmark.toggle');
     Route::post('/testimonials/submit', [ProfileController::class, 'submitTestimonial'])->name('testimonials.submit');
@@ -83,5 +90,5 @@ Route::middleware('auth')->group(function () {
     Route::post('/quiz/feedback', [QuizController::class, 'submitFeedback'])->name('quiz.feedback');
 
     // Logout
-    Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
+    Route::match(['get', 'post'], '/logout', [AuthController::class, 'logout'])->name('logout');
 });

@@ -20,14 +20,14 @@ class QuestionController extends Controller
         if ($request->filled('difficulty')) {
             $query->where('difficulty', $request->difficulty);
         }
-        if ($request->filled('theme')) {
-            $query->where('theme', $request->theme);
+        if ($request->filled('theme_id')) {
+            $query->where('theme_id', $request->theme_id);
         }
         if ($request->filled('search')) {
             $query->where('text', 'LIKE', '%' . $request->search . '%');
         }
 
-        $questions = $query->paginate(20)->withQueryString();
+        $questions = $query->with('themeRecord')->paginate(20)->withQueryString();
         $themes = Theme::orderBy('name')->get();
 
         return view('admin.questions.index', compact('questions', 'themes'));
@@ -44,7 +44,7 @@ class QuestionController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:PARA,SEERAH',
             'difficulty' => 'required|in:Easy,Medium,Hard',
-            'theme' => 'nullable|string',
+            'theme_id' => 'nullable|exists:themes,id',
             'text' => 'required|string',
             'option_0' => 'required|string',
             'option_1' => 'required|string',
@@ -55,6 +55,8 @@ class QuestionController extends Controller
             'reference' => 'nullable|string',
             'source_info' => 'nullable|string',
         ]);
+
+        $theme = $validated['theme_id'] ? Theme::find($validated['theme_id']) : null;
 
         $options = [
             $validated['option_0'],
@@ -67,7 +69,8 @@ class QuestionController extends Controller
             'question_id' => 'manual-' . time(),
             'type' => $validated['type'],
             'difficulty' => $validated['difficulty'],
-            'theme' => $validated['theme'],
+            'theme' => $theme?->name,
+            'theme_id' => $validated['theme_id'],
             'text' => $validated['text'],
             'options' => $options,
             'correct_answer_index' => $validated['correct_answer_index'],
@@ -92,7 +95,7 @@ class QuestionController extends Controller
         $validated = $request->validate([
             'type' => 'required|in:PARA,SEERAH',
             'difficulty' => 'required|in:Easy,Medium,Hard',
-            'theme' => 'nullable|string',
+            'theme_id' => 'nullable|exists:themes,id',
             'text' => 'required|string',
             'option_0' => 'required|string',
             'option_1' => 'required|string',
@@ -104,10 +107,13 @@ class QuestionController extends Controller
             'source_info' => 'nullable|string',
         ]);
 
+        $theme = $validated['theme_id'] ? Theme::find($validated['theme_id']) : null;
+
         $question->update([
             'type' => $validated['type'],
             'difficulty' => $validated['difficulty'],
-            'theme' => $validated['theme'],
+            'theme' => $theme?->name,
+            'theme_id' => $validated['theme_id'],
             'text' => $validated['text'],
             'options' => [
                 $validated['option_0'],

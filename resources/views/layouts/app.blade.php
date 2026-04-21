@@ -140,6 +140,7 @@
                             ['route' => 'questions.index', 'label' => 'Bank', 'icon' => 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'],
                             ['route' => 'quiz.history', 'label' => 'History', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
                             ['route' => 'stats', 'label' => 'Progress', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
+                            ['route' => 'leaderboard', 'label' => 'Rankings', 'icon' => 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'],
                             ['route' => 'bookmarks', 'label' => 'Bookmarks', 'icon' => 'M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z'],
                             ['route' => 'profile', 'label' => 'Profile', 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
                         ];
@@ -192,10 +193,13 @@
         {{-- Footer --}}
         <footer class="bg-slate-900 text-slate-500 py-12 text-center text-sm pb-24 md:pb-12">
             <div class="max-w-7xl mx-auto px-4 space-y-4">
-                <p class="font-bold text-slate-400">The Eternal Echo</p>
-                <p class="opacity-50  text-slate-400">&copy; {{ date('Y') }} The Eternal Echo. <a
+                <p class="opacity-50 text-slate-400">&copy; {{ date('Y') }} The Eternal Echo. <a
                         href="https://asloobulhayat.com/">Asloob
                         ul Hayat Project.</a></p>
+                <div class="flex items-center justify-center space-x-6 text-[10px] uppercase font-black tracking-widest text-slate-600">
+                    <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
+                    <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>
+                </div>
             </div>
         </footer>
 

@@ -12,6 +12,7 @@ class GeneratedQuestion extends Model
         'source_info',
         'difficulty',
         'theme',
+        'theme_id',
         'text',
         'options',
         'correct_answer_index',
@@ -33,5 +34,10 @@ class GeneratedQuestion extends Model
         return $this->times_answered > 0
             ? (int) round(($this->times_correct / $this->times_answered) * 100)
             : 0;
+    }
+
+    public function themeRecord()
+    {
+        return $this->belongsTo(Theme::class, 'theme_id');
     }
 }

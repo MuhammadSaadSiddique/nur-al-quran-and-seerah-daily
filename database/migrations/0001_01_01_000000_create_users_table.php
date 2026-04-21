@@ -23,11 +23,11 @@ return new class extends Migration
             $table->integer('seerah_read_count')->default(0);
             $table->integer('quran_history_read_count')->default(0);
             $table->integer('seerah_quiz_count')->default(0);
-            $table->json('completed_paras')->default('[]');
-            $table->json('para_mastery')->default('{}');
+            $table->json('completed_paras')->nullable();
+            $table->json('para_mastery')->nullable();
             $table->json('difficulty_stats')->nullable();
-            $table->json('bookmarked_questions')->default('[]');
-            $table->json('seerah_quiz_best_score')->default('{}');
+            $table->json('bookmarked_questions')->nullable();
+            $table->json('seerah_quiz_best_score')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

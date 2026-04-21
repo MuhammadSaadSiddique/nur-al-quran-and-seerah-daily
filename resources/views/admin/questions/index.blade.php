@@ -56,10 +56,10 @@
         </div>
         <div class="space-y-1">
             <label class="text-[10px] font-bold uppercase text-slate-400">Theme</label>
-            <select name="theme" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium">
+            <select name="theme_id" class="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 text-sm font-medium">
                 <option value="">All Themes</option>
                 @foreach($themes as $t)
-                    <option value="{{ $t }}" {{ request('theme') == $t ? 'selected' : '' }}>{{ $t }}</option>
+                    <option value="{{ $t->id }}" {{ request('theme_id') == $t->id ? 'selected' : '' }}>{{ $t->name }} ({{ $t->type }})</option>
                 @endforeach
             </select>
         </div>
@@ -104,7 +104,15 @@
                                     {{ $q->difficulty }}
                                 </span>
                             </td>
-                            <td class="px-4 py-4 text-xs text-slate-500">{{ $q->theme ?? '—' }}</td>
+                            <td class="px-4 py-4 text-xs">
+                                @if($q->theme_id && $q->themeRecord)
+                                    <span class="font-bold text-slate-700">{{ $q->themeRecord->name }}</span>
+                                @elseif($q->theme)
+                                    <span class="text-slate-400">{{ $q->theme }} (Legacy)</span>
+                                @else
+                                    <span class="text-slate-300">—</span>
+                                @endif
+                            </td>
                             <td class="px-4 py-4 font-medium text-slate-800 whitespace-normal min-w-[250px]">
                                 {{ Str::limit($q->text, 70) }}
                             </td>

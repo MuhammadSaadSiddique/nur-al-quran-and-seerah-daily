@@ -85,20 +85,24 @@
                 <div class="flex items-center space-x-3">
                     <div
                         class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                        <svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                d="M12 6v12m-8-6h16M4 6h16M4 18h16" />
+                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path
+                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
+                                stroke-width="2"></path>
                         </svg>
                     </div>
                     <span class="font-extrabold text-xl tracking-tight text-white">The Eternal Echo</span>
                 </div>
                 <div class="flex items-center space-x-6">
+                    <a href="{{ route('themes.index') }}"
+                        class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Explore Themes</a>
                     @auth
                         <a href="{{ route('home') }}"
                             class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Dashboard</a>
                     @else
                         <a href="{{ route('login') }}"
                             class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Sign In</a>
+
                         <a href="{{ route('login') }}"
                             class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-full shadow-lg shadow-emerald-600/30 transition-all hover:-translate-y-0.5">Get
                             Started</a>
@@ -138,18 +142,18 @@
                 Muhammad ﷺ, guided by advanced personalized AI insights.
             </p>
 
-            <div class="flex flex-col sm:flex-row justify-center items-center space-y-4 sm:space-y-0 sm:space-x-6">
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-8 animate-slideUp"
+                style="animation-delay: 0.4s">
                 <a href="{{ route('login') }}"
-                    class="w-full sm:w-auto px-8 py-4 bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-black rounded-full shadow-[0_0_40px_-10px_rgba(16,185,129,0.5)] transition-all transform hover:-translate-y-1 hover:scale-105 flex items-center justify-center space-x-2">
-                    <span>Embark Now</span>
+                    class="w-full sm:w-auto px-10 py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-lg transition-all shadow-2xl shadow-emerald-600/40 hover:-translate-y-1 flex items-center justify-center space-x-3">
+                    <span>Start Your Journey</span>
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M14 5l7 7m0 0l-7 7m7-7H3" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
                 </a>
-                <a href="#features"
-                    class="w-full sm:w-auto px-8 py-4 bg-white/5 hover:bg-white/10 text-white font-bold rounded-full border border-white/10 backdrop-blur-sm transition-all text-center">
-                    Discover Features
+                <a href="{{ route('themes.index') }}"
+                    class="w-full sm:w-auto px-10 py-5 bg-white/5 hover:bg-white/10 text-white border border-white/20 rounded-2xl font-black text-lg transition-all backdrop-blur-sm hover:-translate-y-1 flex items-center justify-center">
+                    Explore Themes
                 </a>
             </div>
 
@@ -236,36 +240,43 @@
 
     <!-- Testimonials Section -->
     @if($testimonials->count() > 0)
-    <section id="testimonials" class="py-24 bg-slate-900 border-t border-white/5 relative z-10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="text-center max-w-3xl mx-auto mb-16">
-                <h2 class="text-3xl md:text-5xl font-black text-white mb-4">Voices of Enlightenment</h2>
-                <p class="text-slate-400 text-lg">Join thousands of students deepening their spiritual foundation.</p>
-            </div>
+        <section id="testimonials" class="py-24 bg-slate-900 border-t border-white/5 relative z-10">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="text-center max-w-3xl mx-auto mb-16">
+                    <h2 class="text-3xl md:text-5xl font-black text-white mb-4">Voices of Enlightenment</h2>
+                    <p class="text-slate-400 text-lg">Join thousands of students deepening their spiritual foundation.</p>
+                </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
-                @foreach($testimonials as $testimonial)
-                <div class="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-3xl border border-white/10 relative group">
-                    <div class="absolute -top-4 -left-4 w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-12 group-hover:rotate-0 transition-transform duration-300">
-                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C20.1216 16 21.017 16.8954 21.017 18V21C21.017 22.1046 20.1216 23 19.017 23H14.017C12.9124 23 12.017 22.1046 12.017 21ZM14.017 21V10C14.017 8.89543 14.9124 8 16.017 8H21.017V21M5.011 21L5.011 18C5.011 16.8954 5.9064 16 7.011 16H10.011C11.1156 16 12.011 16.8954 12.011 18V21C12.011 22.1046 11.1156 23 10.011 23H5.011C3.9064 23 3.011 22.1046 3.011 21ZM5.011 21V10C5.011 8.89543 5.9064 8 7.011 8H12.011V21"/></svg>
-                    </div>
-                    <div class="space-y-4">
-                        <p class="text-slate-300 italic leading-relaxed text-lg">"{{ $testimonial->feedback }}"</p>
-                        <div class="flex items-center space-x-3 pt-4 border-t border-white/5">
-                            <div class="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 font-black">
-                                {{ substr($testimonial->name, 0, 1) }}
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+                    @foreach($testimonials as $testimonial)
+                        <div
+                            class="bg-gradient-to-br from-slate-800 to-slate-900 p-8 rounded-3xl border border-white/10 relative group">
+                            <div
+                                class="absolute -top-4 -left-4 w-12 h-12 bg-emerald-500 rounded-2xl flex items-center justify-center text-white shadow-xl rotate-12 group-hover:rotate-0 transition-transform duration-300">
+                                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                                    <path
+                                        d="M14.017 21L14.017 18C14.017 16.8954 14.9124 16 16.017 16H19.017C20.1216 16 21.017 16.8954 21.017 18V21C21.017 22.1046 20.1216 23 19.017 23H14.017C12.9124 23 12.017 22.1046 12.017 21ZM14.017 21V10C14.017 8.89543 14.9124 8 16.017 8H21.017V21M5.011 21L5.011 18C5.011 16.8954 5.9064 16 7.011 16H10.011C11.1156 16 12.011 16.8954 12.011 18V21C12.011 22.1046 11.1156 23 10.011 23H5.011C3.9064 23 3.011 22.1046 3.011 21ZM5.011 21V10C5.011 8.89543 5.9064 8 7.011 8H12.011V21" />
+                                </svg>
                             </div>
-                            <div>
-                                <h4 class="text-white font-bold">{{ $testimonial->name }}</h4>
-                                <p class="text-slate-500 text-xs font-black uppercase tracking-widest">Spiritual Learner</p>
+                            <div class="space-y-4">
+                                <p class="text-slate-300 italic leading-relaxed text-lg">"{{ $testimonial->feedback }}"</p>
+                                <div class="flex items-center space-x-3 pt-4 border-t border-white/5">
+                                    <div
+                                        class="w-10 h-10 bg-emerald-500/20 rounded-full flex items-center justify-center text-emerald-400 font-black">
+                                        {{ substr($testimonial->name, 0, 1) }}
+                                    </div>
+                                    <div>
+                                        <h4 class="text-white font-bold">{{ $testimonial->name }}</h4>
+                                        <p class="text-slate-500 text-xs font-black uppercase tracking-widest">Spiritual Learner
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    @endforeach
                 </div>
-                @endforeach
             </div>
-        </div>
-    </section>
+        </section>
     @endif
 
     <!-- Bottom CTA -->

@@ -12,12 +12,7 @@
     </div>
 
     {{-- Navigation Tabs --}}
-    <div class="flex space-x-4 mb-8 border-b border-slate-200">
-        <a href="{{ route('admin.questions.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300">Manage Questions</a>
-        <a href="{{ route('admin.users.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300">User Statistics</a>
-        <a href="{{ route('admin.themes.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300">Manage Themes</a>
-        <a href="{{ route('admin.testimonials.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm border-emerald-600 text-emerald-600">Testimonials</a>
-    </div>
+    @include('admin.partials.tabs')
 
     @if(session('success'))
         <div class="mb-6 p-4 bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-xl font-medium animate-fadeIn">{{ session('success') }}</div>

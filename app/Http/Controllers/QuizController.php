@@ -7,6 +7,7 @@ use App\Models\GeneratedQuestion;
 use App\Models\Quiz;
 use App\Models\Theme;
 use App\Services\GeminiService;
+use App\Services\QuranApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -19,7 +20,7 @@ class QuizController extends Controller
     {
         foreach ($questions as $q) {
             $theme = Theme::where('name', $q['theme'] ?? '')->where('type', $type)->first();
-            
+
             GeneratedQuestion::updateOrCreate(
                 ['question_id' => $q['id'] ?? uniqid('q-')],
                 [
@@ -52,7 +53,7 @@ class QuizController extends Controller
             ->where('difficulty', $request->difficulty)
             ->where('source_info', 'like', "%Para {$request->para}:%")
             ->where('reference', 'like', "%Para {$request->para}:%");
-        
+
         $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
@@ -74,7 +75,7 @@ class QuizController extends Controller
         } else {
             $needed = $quantity - $dbQuestions->count();
             $generated = $gemini->generateParaQuestions($request->para, $request->difficulty, $needed + 5);
-            
+
             if (!empty($generated)) {
                 $this->persistQuestions($generated, 'PARA', "Para {$request->para}", $request->difficulty);
             }
@@ -84,7 +85,7 @@ class QuizController extends Controller
                 ->where('difficulty', $request->difficulty)
                 ->where('source_info', 'like', "%Para {$request->para}:%")
                 ->where('reference', 'like', "%Para {$request->para}:%");
-            
+
             $dbQuestions = $dbQuestions->inRandomOrder()->limit($quantity)->get();
 
             foreach ($dbQuestions as $q) {
@@ -128,7 +129,7 @@ class QuizController extends Controller
 
         $dbQuery = GeneratedQuestion::where('type', 'SEERAH')
             ->where('difficulty', $request->difficulty);
-        
+
         $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
@@ -150,7 +151,7 @@ class QuizController extends Controller
         } else {
             $needed = $quantity - $dbQuestions->count();
             $generated = $gemini->generateSeerahQuizQuestions($request->difficulty, $needed + 5);
-            
+
             if (!empty($generated)) {
                 $this->persistQuestions($generated, 'SEERAH', 'Seerah', $request->difficulty);
             }
@@ -202,7 +203,7 @@ class QuizController extends Controller
 
         $dbQuery = GeneratedQuestion::where('theme_id', $theme->id)
             ->where('difficulty', $request->difficulty);
-        
+
         $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
@@ -225,7 +226,7 @@ class QuizController extends Controller
             $needed = $quantity - $dbQuestions->count();
             // Full scope generation
             $generated = $gemini->generateThemeQuestions($theme->type, $theme->name, $request->difficulty, $needed + 5);
-            
+
             if (!empty($generated)) {
                 $this->persistQuestions($generated, $theme->type, ($theme->type === 'PARA' ? 'Full Quran theme' : 'Seerah theme'), $request->difficulty);
             }
@@ -334,6 +335,17 @@ class QuizController extends Controller
         $user->difficulty_stats = $diffStats;
         $user->save();
 
+        // Push reading session to Quran API if linked
+        if (!empty($user->quran_access_token)) {
+            $quranApi = app(QuranApiService::class);
+            $quranApi->postUserData('/reading_sessions', [
+                'type' => $request->type,
+                'title' => $request->title,
+                'score' => $request->score,
+                'total_questions' => $request->totalQuestions,
+            ], $user);
+        }
+
         return response()->json([
             'success' => true,
             'redirect' => route('stats'),
@@ -351,14 +363,16 @@ class QuizController extends Controller
         $request->validate([
             'quiz_type' => 'required|in:QURAN,SEERAH',
             'difficulty' => 'required|in:Easy,Medium,Hard',
+            'quantity' => 'required|integer|in:20,50,100',
         ]);
 
         $type = $request->quiz_type === 'QURAN' ? 'PARA' : 'SEERAH';
+        $quantity = $request->quantity;
 
         $dbQuestions = GeneratedQuestion::where('type', $type)
             ->where('difficulty', $request->difficulty)
             ->inRandomOrder()
-            ->limit(20)
+            ->limit($quantity)
             ->get();
 
         $questions = [];

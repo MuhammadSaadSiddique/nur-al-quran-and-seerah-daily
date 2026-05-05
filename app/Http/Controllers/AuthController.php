@@ -132,7 +132,8 @@ class AuthController extends Controller
             'code_challenge_method' => 'S256',
         ]);
 
-        return redirect('https://auth.quran.foundation/oauth2/auth?' . $query);
+        $authUrl = config('services.quran.auth_url');
+        return redirect("{$authUrl}/oauth2/auth?" . $query);
     }
 
     public function handleQuranCallback(Request $request)
@@ -144,7 +145,8 @@ class AuthController extends Controller
             return redirect()->route('login')->withErrors(['email' => 'Invalid state in OAuth callback']);
         }
 
-        $response = \Illuminate\Support\Facades\Http::asForm()->post('https://auth.quran.foundation/oauth2/token', [
+        $authUrl = config('services.quran.auth_url');
+        $response = \Illuminate\Support\Facades\Http::asForm()->post("{$authUrl}/oauth2/token", [
             'grant_type' => 'authorization_code',
             'client_id' => config('services.quran.client_id'),
             'client_secret' => config('services.quran.client_secret'),

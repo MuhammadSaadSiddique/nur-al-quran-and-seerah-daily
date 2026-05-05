@@ -8,10 +8,15 @@ use Illuminate\Support\Facades\Auth;
 
 class LeaderboardController extends Controller
 {
-    public function index(Request $request)
+    public function index(Request $request, \App\Services\QuranApiService $quranApiService)
     {
         $period = $request->query('period', 'lifetime');
         $currentUser = Auth::user();
+
+        $quranStreak = 0;
+        if ($currentUser->quran_access_token) {
+            $quranStreak = $quranApiService->getUserStreak($currentUser) ?? 0;
+        }
 
         if ($period === 'weekly') {
             $topUsers = User::withSum(['quizzes' => function ($query) {
@@ -60,6 +65,6 @@ class LeaderboardController extends Controller
             $currentUser->display_score = $currentUser->total_score;
         }
 
-        return view('leaderboard', compact('topUsers', 'currentUserRank', 'currentUser', 'period'));
+        return view('leaderboard', compact('topUsers', 'currentUserRank', 'currentUser', 'period', 'quranStreak'));
     }
 }

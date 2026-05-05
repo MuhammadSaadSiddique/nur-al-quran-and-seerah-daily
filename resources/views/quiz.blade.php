@@ -143,7 +143,7 @@
                 <div class="bg-slate-50 rounded-3xl p-6 border-2 border-slate-100 text-center space-y-1">
                     <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest">Your Knowledge Score</p>
                     <div class="text-5xl font-black text-slate-900">
-                        <span x-text="score"></span><span class="text-slate-300 mx-1">/</span><span x-text="questions.length"></span>
+                        <span x-text="score"></span><span class="text-slate-300 mx-1">/</span><span x-text="maxScore"></span>
                     </div>
                 </div>
 
@@ -225,9 +225,23 @@
                     this.selectedAnswer = idx;
                     this.answered = true;
                     if (idx === this.currentQuestion.correctAnswerIndex) {
-                        this.score++;
+                        const difficulty = this.currentQuestion.difficulty || this.difficulty;
+                        let points = 5;
+                        if (difficulty === 'Medium') points = 10;
+                        if (difficulty === 'Hard') points = 15;
+                        this.score += points;
                     }
                     this.userAnswers.push(idx);
+                },
+
+                get maxScore() {
+                    return this.questions.reduce((total, q) => {
+                        const diff = q.difficulty || this.difficulty;
+                        let points = 5;
+                        if (diff === 'Medium') points = 10;
+                        if (diff === 'Hard') points = 15;
+                        return total + points;
+                    }, 0);
                 },
 
                 async shareQuestion() {

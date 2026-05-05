@@ -19,8 +19,14 @@ class ThemeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'slug' => 'nullable|string|max:255|unique:themes,slug',
+            'description' => 'nullable|string',
             'type' => 'required|in:PARA,SEERAH',
         ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = \Illuminate\Support\Str::slug($validated['name']);
+        }
 
         Theme::create($validated);
 
@@ -31,6 +37,8 @@ class ThemeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
+            'slug' => 'required|string|max:255|unique:themes,slug,' . $theme->id,
+            'description' => 'nullable|string',
             'is_active' => 'required|boolean',
         ]);
 
@@ -39,9 +47,27 @@ class ThemeController extends Controller
         return redirect()->back()->with('success', 'Theme updated successfully.');
     }
 
-    public function destroy(Theme $theme)
+    public function merge(Request $request)
     {
-        $theme->delete();
-        return redirect()->back()->with('success', 'Theme deleted successfully.');
+        $request->validate([
+            'keep_id' => 'required|exists:themes,id',
+            'merge_ids' => 'required|array',
+            'merge_ids.*' => 'exists:themes,id',
+        ]);
+
+        $keepTheme = Theme::find($request->keep_id);
+        $mergeThemes = Theme::whereIn('id', $request->merge_ids)->where('id', '!=', $keepTheme->id)->get();
+
+        foreach ($mergeThemes as $theme) {
+            \App\Models\GeneratedQuestion::where('theme_id', $theme->id)
+                ->update([
+                    'theme_id' => $keepTheme->id,
+                    'theme' => $keepTheme->name
+                ]);
+            
+            $theme->delete();
+        }
+
+        return redirect()->back()->with('success', count($mergeThemes) . ' themes merged into ' . $keepTheme->name);
     }
 }

@@ -31,6 +31,21 @@
                     </a>
                 </div>
             </div>
+
+            @if(Auth::user()->quran_access_token)
+            <div class="flex justify-center mt-4">
+                <div class="inline-flex items-center gap-2 bg-[#114030]/10 text-[#114030] px-4 py-2 rounded-xl border border-[#114030]/20">
+                    <svg class="w-5 h-5 text-emerald-600" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
+                    <span class="text-sm font-bold">Quran.com Streak: <span class="font-black">{{ $quranStreak ?? 0 }} Days</span></span>
+                </div>
+            </div>
+            @else
+            <div class="flex justify-center mt-4">
+                <a href="{{ route('quran.redirect') }}" class="inline-flex items-center gap-2 text-emerald-600 hover:text-emerald-800 text-xs font-bold transition-colors">
+                    Link Quran.com to track your streaks
+                </a>
+            </div>
+            @endif
         </div>
 
         {{-- Podium --}}

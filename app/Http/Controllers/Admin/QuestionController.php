@@ -170,22 +170,60 @@ class QuestionController extends Controller
     public function duplicates()
     {
         $allQuestions = GeneratedQuestion::all();
-        $groups = [];
+        $textGroups = [];
+        $answerGroups = [];
 
         foreach ($allQuestions as $q) {
-            $key = $this->normalizeText($q->text);
-            $groups[$key][] = $q;
+            // Group by normalized text
+            $textKey = $this->normalizeText($q->text);
+            $textGroups[$textKey][] = $q;
+
+            // Group by options (normalized/sorted)
+            $options = $q->options;
+            if (is_array($options)) {
+                $sortedOptions = $options;
+                sort($sortedOptions);
+                $answerKey = json_encode($sortedOptions);
+                $answerGroups[$answerKey][] = $q;
+            }
         }
 
-        // Only keep groups with more than 1 question (actual duplicates)
-        $duplicateGroups = collect($groups)
+        // Filter text duplicates
+        $duplicateTextGroups = collect($textGroups)
             ->filter(fn($group) => count($group) > 1)
             ->sortByDesc(fn($group) => count($group))
             ->values();
 
-        $totalDuplicates = $duplicateGroups->sum(fn($group) => count($group) - 1);
+        // Filter answer duplicates (only if many questions share exactly the same answers, which is suspicious)
+        $duplicateAnswerGroups = collect($answerGroups)
+            ->filter(fn($group) => count($group) > 1)
+            ->sortByDesc(fn($group) => count($group))
+            ->values();
 
-        return view('admin.questions.duplicates', compact('duplicateGroups', 'totalDuplicates'));
+        // Theme Duplicates
+        $allThemes = Theme::all();
+        $themeGroups = [];
+        foreach ($allThemes as $theme) {
+            $norm = $this->normalizeText($theme->name);
+            $themeGroups[$norm][] = $theme;
+        }
+
+        $duplicateThemeGroups = collect($themeGroups)
+            ->filter(fn($group) => count($group) > 1)
+            ->sortByDesc(fn($group) => count($group))
+            ->values();
+
+        $totalTextDuplicates = $duplicateTextGroups->sum(fn($group) => count($group) - 1);
+        $totalThemeDuplicates = $duplicateThemeGroups->sum(fn($group) => count($group) - 1);
+
+        return view('admin.questions.duplicates', compact(
+            'duplicateTextGroups', 
+            'duplicateAnswerGroups', 
+            'duplicateThemeGroups',
+            'totalTextDuplicates',
+            'totalThemeDuplicates',
+            'allThemes'
+        ));
     }
 
     public function bulkDelete(Request $request)

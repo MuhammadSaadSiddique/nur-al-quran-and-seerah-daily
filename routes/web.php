@@ -30,6 +30,10 @@ Route::get('/auth/quran/callback', [AuthController::class, 'handleQuranCallback'
 Route::get('/privacy-policy', [LegalController::class, 'privacy'])->name('privacy');
 Route::get('/terms', [LegalController::class, 'terms'])->name('terms');
 
+// Theme Showcase (Public for SEO)
+Route::get('/themes', [\App\Http\Controllers\ThemeShowcaseController::class, 'index'])->name('themes.index');
+Route::get('/themes/{theme:slug}', [\App\Http\Controllers\ThemeShowcaseController::class, 'show'])->name('themes.show');
+
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [HomeController::class, 'index'])->name('home');
@@ -82,6 +86,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/duplicates', [AdminQuestionController::class, 'duplicates'])->name('duplicates');
         Route::post('/duplicates/bulk-delete', [AdminQuestionController::class, 'bulkDelete'])->name('duplicates.bulk-delete');
 
+        Route::post('/themes/merge', [AdminThemeController::class, 'merge'])->name('themes.merge');
         Route::resource('themes', AdminThemeController::class)->except(['create', 'edit', 'show']);
         Route::resource('testimonials', AdminTestimonialController::class)->except(['create', 'edit', 'show']);
     });

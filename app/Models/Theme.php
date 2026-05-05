@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class Theme extends Model
 {
-    protected $fillable = ['name', 'type', 'is_active'];
+    protected $fillable = ['name', 'slug', 'description', 'type', 'is_active'];
 
     public function questions()
     {

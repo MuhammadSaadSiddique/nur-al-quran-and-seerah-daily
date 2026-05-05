@@ -1,7 +1,7 @@
 <?php
 
-require __DIR__.'/../vendor/autoload.php';
-$app = require_once __DIR__.'/../bootstrap/app.php';
+require __DIR__ . '/../vendor/autoload.php';
+$app = require_once __DIR__ . '/../bootstrap/app.php';
 $kernel = $app->make(Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
 
@@ -15,16 +15,17 @@ $mismatched = 0;
 echo "Processing $total questions...\n";
 
 // Get all themes for lookup
-$themes = Theme::all()->groupBy('type')->map(function($items) {
+$themes = Theme::all()->groupBy('type')->map(function ($items) {
     return $items->pluck('id', 'name');
 });
 
-GeneratedQuestion::chunk(500, function($questions) use (&$linked, &$mismatched, $themes) {
+GeneratedQuestion::chunk(500, function ($questions) use (&$linked, &$mismatched, $themes) {
     foreach ($questions as $q) {
-        if (!$q->theme) continue;
-        
+        if (!$q->theme)
+            continue;
+
         $themeId = $themes[$q->type][$q->theme] ?? null;
-        
+
         if ($themeId) {
             $q->update(['theme_id' => $themeId]);
             $linked++;

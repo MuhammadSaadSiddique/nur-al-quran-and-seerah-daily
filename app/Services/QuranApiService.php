@@ -8,7 +8,12 @@ use Illuminate\Support\Facades\Log;
 
 class QuranApiService
 {
-    protected string $baseUrl = 'https://apis.quran.foundation/auth/v1';
+    protected string $baseUrl;
+
+    public function __construct()
+    {
+        $this->baseUrl = config('services.quran.api_url') . '/auth/v1';
+    }
 
     /**
      * Call a User API endpoint on Quran Foundation using the user's access token
@@ -48,7 +53,8 @@ class QuranApiService
         }
 
         try {
-            $response = Http::asForm()->post('https://auth.quran.foundation/oauth2/token', [
+            $authUrl = config('services.quran.auth_url');
+            $response = Http::asForm()->post("{$authUrl}/oauth2/token", [
                 'grant_type' => 'refresh_token',
                 'client_id' => config('services.quran.client_id'),
                 'client_secret' => config('services.quran.client_secret'),
@@ -116,5 +122,57 @@ class QuranApiService
             Log::error('Quran Api Service POST Exception', ['message' => $e->getMessage()]);
             return null;
         }
+    }
+
+    /**
+     * Get user bookmarks from Quran Foundation
+     */
+    public function getQuranBookmarks(User $user): ?array
+    {
+        if (empty($user->quran_access_token)) {
+            return null;
+        }
+
+        $data = $this->getUserData('/bookmarks', $user->quran_access_token);
+        return $data['data'] ?? [];
+    }
+
+    /**
+     * Get user current streak from Quran Foundation
+     */
+    public function getUserStreak(User $user): ?int
+    {
+        if (empty($user->quran_access_token)) {
+            return null;
+        }
+
+        // Attempting to get streaks
+        $data = $this->getUserData('/streaks', $user->quran_access_token);
+
+        if (isset($data['data']) && is_array($data['data'])) {
+            // Find active streak
+            foreach ($data['data'] as $streak) {
+                if (($streak['status'] ?? '') === 'ACTIVE') {
+                    return $streak['days'] ?? 0;
+                }
+            }
+            return 0; // No active streak
+        }
+        return null;
+    }
+
+    /**
+     * Post activity day to Quran Foundation
+     */
+    public function postActivityDay(User $user): bool
+    {
+        if (empty($user->quran_access_token)) {
+            return false;
+        }
+
+        // Activity day usually requires just posting to /activity-days or /reading-sessions
+        $response = $this->postUserData('/activity-days', [], $user);
+
+        return $response !== null;
     }
 }

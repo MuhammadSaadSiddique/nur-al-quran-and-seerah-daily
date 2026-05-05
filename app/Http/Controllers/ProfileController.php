@@ -34,11 +34,17 @@ class ProfileController extends Controller
         return view('stats', compact('user', 'quizzes'));
     }
 
-    public function bookmarks()
+    public function bookmarks(\App\Services\QuranApiService $quranApiService)
     {
         $user = Auth::user();
         $bookmarks = $user->bookmarked_questions ?? [];
-        return view('bookmarks', compact('user', 'bookmarks'));
+        
+        $quranBookmarks = [];
+        if ($user->quran_access_token) {
+            $quranBookmarks = $quranApiService->getQuranBookmarks($user) ?? [];
+        }
+
+        return view('bookmarks', compact('user', 'bookmarks', 'quranBookmarks'));
     }
 
     public function toggleBookmark(Request $request)

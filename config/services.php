@@ -26,6 +26,8 @@ return [
         'client_id' => env('QURAN_CLIENT_ID'),
         'client_secret' => env('QURAN_CLIENT_SECRET'),
         'redirect_uri' => env('QURAN_REDIRECT_URI', 'http://localhost/auth/quran/callback'),
+        'auth_url' => env('Quran_Endpoint', 'https://oauth2.quran.foundation'),
+        'api_url' => env('Quran_API_Endpoint', 'https://apis.quran.foundation'),
     ],
 
     'ses' => [

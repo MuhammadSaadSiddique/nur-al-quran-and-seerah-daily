@@ -27,7 +27,7 @@
                 <div class="space-y-1">
                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Email</label>
                     <input type="email" x-model="email" placeholder="your@email.com"
-                        class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 outline-none focus:border-emerald-500 font-bold text-slate-800 transition-all"
+                        class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold text-slate-800 transition-all"
                         required>
                 </div>
                 <button type="submit"

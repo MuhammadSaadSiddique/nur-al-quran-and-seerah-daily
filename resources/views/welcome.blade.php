@@ -83,26 +83,17 @@
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20">
                 <div class="flex items-center space-x-3">
-                    <div
-                        class="w-10 h-10 bg-emerald-500 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-500/30">
-                        <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path
-                                d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                                stroke-width="2"></path>
-                        </svg>
+                    <div class="w-12 h-12 rounded-3xl flex items-center justify-center">
+                        <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo"
+                            class="w-full h-full object-contain">
                     </div>
                     <span class="font-extrabold text-xl tracking-tight text-white">The Eternal Echo</span>
                 </div>
                 <div class="flex items-center space-x-6">
-                    <a href="{{ route('themes.index') }}"
-                        class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Explore Themes</a>
                     @auth
                         <a href="{{ route('home') }}"
                             class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Dashboard</a>
                     @else
-                        <a href="{{ route('login') }}"
-                            class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Sign In</a>
-
                         <a href="{{ route('login') }}"
                             class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-full shadow-lg shadow-emerald-600/30 transition-all hover:-translate-y-0.5">Get
                             Started</a>
@@ -148,7 +139,8 @@
                     class="w-full sm:w-auto px-10 py-5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl font-black text-lg transition-all shadow-2xl shadow-emerald-600/40 hover:-translate-y-1 flex items-center justify-center space-x-3">
                     <span>Start Your Journey</span>
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3"
+                            d="M13 7l5 5m0 0l-5 5m5-5H6" />
                     </svg>
                 </a>
                 <a href="{{ route('themes.index') }}"

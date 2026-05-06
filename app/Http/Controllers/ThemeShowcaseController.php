@@ -14,13 +14,11 @@ class ThemeShowcaseController extends Controller
     {
         $quranThemes = Theme::where('is_active', true)
             ->where('type', 'PARA')
-            ->withCount('questions')
             ->orderBy('name')
             ->get();
 
         $seerahThemes = Theme::where('is_active', true)
             ->where('type', 'SEERAH')
-            ->withCount('questions')
             ->orderBy('name')
             ->get();
 

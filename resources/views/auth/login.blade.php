@@ -7,13 +7,10 @@
         <div class="bg-white p-10 rounded-[3.5rem] shadow-2xl max-w-md w-full space-y-8 animate-slideUp relative">
             <div class="text-center space-y-2">
                 <div
-                    class="bg-emerald-100 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-emerald-700 shadow-inner">
-                    <svg class="w-10 h-10" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                            stroke-width="2" />
-                    </svg>
+                    class="bg-emerald-900 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-emerald-700 shadow-inner">
+                    <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo" class="w-12 h-12">
                 </div>
+
                 <h2 class="text-4xl font-black text-slate-900 tracking-tight leading-none">The Eternal Echo</h2>
                 <p class="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Spiritual Knowledge Journey
                 </p>
@@ -28,28 +25,30 @@
             {{-- Email Phase --}}
             <form x-show="!loading && phase === 'email'" @submit.prevent="requestOtp" class="space-y-5">
                 <div class="space-y-1">
-                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Account Email</label>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Email</label>
                     <input type="email" x-model="email" placeholder="your@email.com"
                         class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 outline-none focus:border-emerald-500 font-bold text-slate-800 transition-all"
                         required>
                 </div>
                 <button type="submit"
                     class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-emerald-800 transition-all shadow-xl shadow-slate-200 active:scale-[0.98]">
-                    Request Verification
+                    Login to The Eternal Echo
                 </button>
 
                 <div class="relative py-2 flex items-center">
                     <div class="flex-grow border-t border-slate-100"></div>
-                    <span class="flex-shrink-0 mx-4 text-slate-300 text-[9px] font-black uppercase tracking-[0.2em]">or route via</span>
+                    <span
+                        class="flex-shrink-0 mx-4 text-slate-300 text-[9px] font-black uppercase tracking-[0.2em]">Or</span>
                     <div class="flex-grow border-t border-slate-100"></div>
                 </div>
 
                 <a href="{{ route('quran.redirect') }}"
                     class="w-full flex items-center justify-center gap-3 bg-[#114030] text-[#E0F2EB] py-4 rounded-2xl font-black text-lg hover:bg-[#1a5a44] transition-all shadow-lg shadow-[#114030]/20 active:scale-[0.98]">
                     <svg class="w-6 h-6 opacity-90" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/>
+                        <path
+                            d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" />
                     </svg>
-                    <span>Quran.com Auth</span>
+                    <span>Login with Quran.com</span>
                 </a>
             </form>
 

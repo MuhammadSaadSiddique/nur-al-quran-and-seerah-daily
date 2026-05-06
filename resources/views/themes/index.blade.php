@@ -72,10 +72,8 @@
                 <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Themes</div>
             </div>
             <div class="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-white/50 shadow-xl text-center">
-                <div class="text-3xl font-black text-sky-600 mb-1">
-                    {{ $quranThemes->sum('questions_count') + $seerahThemes->sum('questions_count') }}
-                </div>
-                <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Questions</div>
+                <div class="text-3xl font-black text-sky-600 mb-1">Global</div>
+                <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Knowledge Base</div>
             </div>
             <div class="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-white/50 shadow-xl text-center">
                 <div class="text-3xl font-black text-amber-600 mb-1">100%</div>
@@ -121,7 +119,7 @@
 
                         <div
                             class="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span class="text-sky-600">{{ $theme->questions_count }} Questions</span>
+                            <span class="text-sky-600">Deep Insights</span>
                             <span
                                 class="text-slate-300 group-hover:text-sky-600 group-hover:translate-x-2 transition-all">Explore
                                 &rarr;</span>
@@ -167,7 +165,7 @@
 
                         <div
                             class="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span class="text-amber-600">{{ $theme->questions_count }} Questions</span>
+                            <span class="text-amber-600">Historical Facts</span>
                             <span
                                 class="text-slate-300 group-hover:text-amber-600 group-hover:translate-x-2 transition-all">Explore
                                 &rarr;</span>

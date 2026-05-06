@@ -119,15 +119,11 @@
 <body class="min-h-screen flex flex-col bg-slate-50">
 
     {{-- Header --}}
-    <header class="bg-emerald-800 text-white shadow-lg sticky top-0 z-50">
+    <header class="bg-slate-900/80 backdrop-blur-md border-b border-white/10 text-white shadow-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
             <a href="{{ auth()->check() ? route('home') : route('welcome') }}" class="flex items-center space-x-2">
-                <div class="bg-white/20 p-2 rounded-lg">
-                    <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path
-                            d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"
-                            stroke-width="2" />
-                    </svg>
+                <div class="p-1 rounded-3xl">
+                    <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo" class="w-8 h-8 object-contain">
                 </div>
                 <h1 class="text-xl font-bold tracking-tight hidden sm:block">The Eternal Echo</h1>
             </a>
@@ -177,7 +173,8 @@
                         </button>
                     </form>
                 @else
-                    <a href="{{ route('login') }}" class="bg-white text-emerald-800 px-6 py-2 rounded-xl text-sm font-black hover:bg-emerald-50 transition-all shadow-lg">
+                    <a href="{{ route('login') }}"
+                        class="bg-white text-emerald-800 px-6 py-2 rounded-xl text-sm font-black hover:bg-emerald-50 transition-all shadow-lg">
                         Login
                     </a>
                 @endauth
@@ -207,7 +204,8 @@
             <p class="opacity-50 text-slate-400">&copy; {{ date('Y') }} The Eternal Echo. <a
                     href="https://asloobulhayat.com/">Asloob
                     ul Hayat Project.</a></p>
-            <div class="flex items-center justify-center space-x-6 text-[10px] uppercase font-black tracking-widest text-slate-600">
+            <div
+                class="flex items-center justify-center space-x-6 text-[10px] uppercase font-black tracking-widest text-slate-600">
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
                 <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>
             </div>
@@ -215,7 +213,8 @@
     </footer>
 
     {{-- Mobile Nav --}}
-    <div class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 z-50">
+    <div
+        class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 z-50">
         @foreach($navItems as $item)
             <a href="{{ route($item['route']) }}"
                 class="flex flex-col items-center p-2 flex-1 transition-colors {{ request()->routeIs($item['route']) ? 'text-emerald-600' : 'text-slate-400' }}">

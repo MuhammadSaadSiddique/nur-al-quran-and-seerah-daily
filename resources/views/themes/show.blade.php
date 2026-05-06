@@ -51,8 +51,8 @@
                 
                 <div class="flex items-center space-x-4">
                     <div class="bg-white/10 backdrop-blur-md border border-white/20 p-6 rounded-[2.5rem] text-center min-w-[140px]">
-                        <div class="text-4xl font-black mb-1">{{ $theme->questions()->count() }}</div>
-                        <div class="text-[10px] font-black uppercase tracking-widest text-white/50">Questions</div>
+                        <div class="text-xl font-black mb-1 uppercase tracking-widest">Active</div>
+                        <div class="text-[10px] font-black uppercase tracking-widest text-white/50">Knowledge Base</div>
                     </div>
                 </div>
             </div>
@@ -68,7 +68,7 @@
             <span>Knowledge Challenges</span>
         </h2>
         <div class="flex items-center space-x-2 text-xs font-bold text-slate-400">
-            <span>Showing {{ $questions->firstItem() }}-{{ $questions->lastItem() }} of {{ $questions->total() }}</span>
+            <span>Explore the depth of wisdom</span>
         </div>
     </div>
 
@@ -116,7 +116,7 @@
                 </div>
                 <h3 class="text-3xl font-black text-slate-800 mb-4 tracking-tight">Premium Knowledge Content</h3>
                 <p class="text-slate-500 max-w-lg mx-auto mb-10 text-lg leading-relaxed">
-                    The questions and detailed insights for this theme are reserved for our community of learners. Sign in to access over <span class="font-bold text-emerald-600">{{ $questions->total() }} challenges</span> related to {{ $theme->name }}.
+                    The questions and detailed insights for this theme are reserved for our community of learners. Sign in to access **comprehensive challenges** related to {{ $theme->name }}.
                 </p>
                 <div class="flex flex-col sm:flex-row items-center gap-4">
                     <a href="{{ route('login') }}" class="px-12 py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-emerald-500/20">

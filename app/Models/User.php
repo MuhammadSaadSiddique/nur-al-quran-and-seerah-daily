@@ -28,6 +28,7 @@ class User extends Authenticatable
         'quran_user_id',
         'quran_access_token',
         'quran_refresh_token',
+        'quran_token_expires_at',
     ];
 
     protected $hidden = [
@@ -44,6 +45,7 @@ class User extends Authenticatable
             'difficulty_stats' => 'array',
             'bookmarked_questions' => 'array',
             'seerah_quiz_best_score' => 'array',
+            'quran_token_expires_at' => 'datetime',
         ];
     }
 
@@ -66,5 +68,20 @@ class User extends Authenticatable
         if ($this->total_questions > 10)
             return 'Aspirant';
         return 'Novice';
+    }
+
+    public function hasValidQuranToken(): bool
+    {
+        return $this->quran_access_token && 
+               $this->quran_token_expires_at && 
+               $this->quran_token_expires_at->isFuture();
+    }
+
+    public function needsQuranTokenRefresh(): bool
+    {
+        // Refresh if no token or expires within 5 minutes
+        return !$this->quran_access_token || 
+               !$this->quran_token_expires_at || 
+               $this->quran_token_expires_at->subMinutes(5)->isPast();
     }
 }

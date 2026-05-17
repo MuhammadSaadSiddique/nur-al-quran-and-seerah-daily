@@ -120,17 +120,17 @@ class AuthController extends Controller
 
         $request->session()->put('quran_oauth_state', $state);
         $request->session()->put('quran_oauth_code_verifier', $codeVerifier);
-        
+
         $query = http_build_query([
             'client_id' => config('services.quran.client_id'),
             'redirect_uri' => config('services.quran.redirect_uri'),
             'response_type' => 'code',
-            'scope' => 'openid user bookmark collection reading_session preference streak offline_access',
+            'scope' => 'openid offline_access user collection',
             'state' => $state,
             'nonce' => $nonce,
             'code_challenge' => $codeChallenge,
             'code_challenge_method' => 'S256',
-        ]);
+        ], '', '&', PHP_QUERY_RFC3986);
 
         $authUrl = config('services.quran.auth_url');
         return redirect("{$authUrl}/oauth2/auth?" . $query);
@@ -146,7 +146,7 @@ class AuthController extends Controller
         }
 
         $authUrl = config('services.quran.auth_url');
-        $response = \Illuminate\Support\Facades\Http::asForm()->post("{$authUrl}/oauth2/token", [
+        $response = \Illuminate\Support\Facades\Http::withoutVerifying()->asForm()->post("{$authUrl}/oauth2/token", [
             'grant_type' => 'authorization_code',
             'client_id' => config('services.quran.client_id'),
             'client_secret' => config('services.quran.client_secret'),
@@ -166,23 +166,24 @@ class AuthController extends Controller
         $jwtPayload = $idTokenParts[1] ?? '';
         // Add padding if necessary
         $pad = strlen($jwtPayload) % 4;
-        if ($pad) $jwtPayload .= str_repeat('=', 4 - $pad);
+        if ($pad)
+            $jwtPayload .= str_repeat('=', 4 - $pad);
         $payload = json_decode(base64_decode(strtr($jwtPayload, '-_', '+/')), true);
-        
+
         $quranUserId = $payload['sub'] ?? null;
         $email = $payload['email'] ?? null;
         $name = $payload['name'] ?? null;
-        
+
         if (!$quranUserId) {
             return redirect()->route('login')->withErrors(['email' => 'Could not determine user identity from Quran.com']);
         }
 
         $user = User::where('quran_user_id', $quranUserId)->first();
-        
+
         if (!$user && $email) {
             $user = User::where('email', $email)->first();
         }
-        
+
         if (!$user) {
             $user = User::create([
                 'email' => $email ?? "quran_{$quranUserId}@example.com",
@@ -195,9 +196,14 @@ class AuthController extends Controller
                 $user->quran_user_id = $quranUserId;
             }
         }
-        
+
         $user->quran_access_token = $tokens['access_token'] ?? null;
         $user->quran_refresh_token = $tokens['refresh_token'] ?? $user->quran_refresh_token; // keep old if null
+        
+        if (isset($tokens['expires_in'])) {
+            $user->quran_token_expires_at = now()->addSeconds($tokens['expires_in']);
+        }
+        
         $user->save();
 
         Auth::login($user, true);

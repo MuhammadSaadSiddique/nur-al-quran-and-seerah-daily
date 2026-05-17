@@ -52,7 +52,7 @@ Route::middleware('auth')->group(function () {
     // Insights
     Route::get('/seerah', [InsightController::class, 'seerah'])->name('seerah');
     Route::get('/quran-history', [InsightController::class, 'quranHistory'])->name('quran.history');
-    //Route::get('/daily-dua', [InsightController::class, 'dailyDua'])->name('daily.dua');
+    Route::get('/daily-dua', [InsightController::class, 'dailyDua'])->name('daily.dua');
     Route::post('/insight/answer', [InsightController::class, 'submitInsightAnswer'])->name('insight.answer');
 
     // Profile & Stats

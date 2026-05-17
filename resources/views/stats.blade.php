@@ -21,7 +21,8 @@
             <div class="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 text-center">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Insights</p>
                 <p class="text-4xl font-black text-amber-600">
-                    {{ $user->seerah_read_count + $user->quran_history_read_count }}</p>
+                    {{ $user->seerah_read_count + $user->quran_history_read_count }}
+                </p>
             </div>
         </div>
 
@@ -30,7 +31,7 @@
             <h2 class="text-xl font-black text-slate-900 uppercase tracking-wider">Score Breakdown</h2>
             <div class="flex items-center justify-between">
                 <span class="font-bold text-slate-600">Total Score</span>
-                <span class="font-black text-emerald-600">{{ $user->total_score }} / {{ $user->total_questions }}</span>
+                <span class="font-black text-emerald-600">{{ $user->total_score }} / {{ $user->max_possible_score }}</span>
             </div>
             @if($user->total_questions > 0)
                 <div class="w-full h-4 bg-slate-200 rounded-full overflow-hidden">

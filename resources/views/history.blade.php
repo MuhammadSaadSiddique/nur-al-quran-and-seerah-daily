@@ -37,9 +37,12 @@
                             </div>
                             <div class="text-right flex items-center space-x-4">
                                 <div>
-                                    <p class="text-lg font-black text-slate-900">{{ $quiz->score }}/{{ $quiz->total_questions }}</p>
-                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                                        {{ $quiz->difficulty }}</p>
+                                    <p class="text-lg font-black text-slate-900">{{ $quiz->points_gained }}/{{ $quiz->max_score }}
+                                    </p>
+                                    <p class="text-[10px] font-black text-slate-400 uppercase tracking-widest mt-1">
+                                        {{ $quiz->difficulty }} • {{ $quiz->correct_answers_count }}/{{ $quiz->total_questions }}
+                                        Correct
+                                    </p>
                                 </div>
                                 <svg :class="expanded ? 'rotate-180' : ''" class="w-5 h-5 text-slate-400 transition-transform"
                                     fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -62,7 +65,8 @@
                                         </p>
                                         @if(!$correct && isset($q['options'], $q['correctAnswerIndex']))
                                             <p class="text-xs text-emerald-700 mt-1 font-bold">Correct:
-                                                {{ $q['options'][$q['correctAnswerIndex']] ?? '' }}</p>
+                                                {{ $q['options'][$q['correctAnswerIndex']] ?? '' }}
+                                            </p>
                                         @endif
                                     </div>
                                 @endforeach

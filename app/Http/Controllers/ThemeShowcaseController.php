@@ -14,11 +14,13 @@ class ThemeShowcaseController extends Controller
     {
         $quranThemes = Theme::where('is_active', true)
             ->where('type', 'PARA')
+            ->has('questions', '>=', 5)
             ->orderBy('name')
             ->get();
 
         $seerahThemes = Theme::where('is_active', true)
             ->where('type', 'SEERAH')
+            ->has('questions', '>=', 5)
             ->orderBy('name')
             ->get();
 
@@ -30,12 +32,12 @@ class ThemeShowcaseController extends Controller
      */
     public function show(Theme $theme)
     {
-        if (!$theme->is_active) {
+        if (!$theme->is_active || $theme->questions()->count() < 5) {
             abort(404);
         }
 
         $questions = $theme->questions()->latest()->paginate(12);
-        
+
         return view('themes.show', compact('theme', 'questions'));
     }
 }

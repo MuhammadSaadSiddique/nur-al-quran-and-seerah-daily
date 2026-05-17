@@ -14,12 +14,14 @@ class HomeController extends Controller
 
         $quranThemes = \App\Models\Theme::where('type', 'PARA')
             ->where('is_active', true)
+            ->has('questions', '>=', 5)
             ->select('id', 'name')
             ->orderBy('name')
             ->get();
 
         $seerahThemes = \App\Models\Theme::where('type', 'SEERAH')
             ->where('is_active', true)
+            ->has('questions', '>=', 5)
             ->select('id', 'name')
             ->orderBy('name')
             ->get();

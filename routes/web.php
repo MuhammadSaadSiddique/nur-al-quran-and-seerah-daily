@@ -18,8 +18,8 @@ use Illuminate\Support\Facades\Route;
 // Public routes
 Route::get('/', function () {
     $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();
-    $quranThemes = \App\Models\Theme::where('is_active', true)->where('type', 'PARA')->orderBy('name')->get();
-    $seerahThemes = \App\Models\Theme::where('is_active', true)->where('type', 'SEERAH')->orderBy('name')->get();
+    $quranThemes = \App\Models\Theme::where('is_active', true)->where('type', 'PARA')->has('questions', '>=', 5)->orderBy('name')->get();
+    $seerahThemes = \App\Models\Theme::where('is_active', true)->where('type', 'SEERAH')->has('questions', '>=', 5)->orderBy('name')->get();
     return view('welcome', compact('testimonials', 'quranThemes', 'seerahThemes'));
 })->name('welcome');
 

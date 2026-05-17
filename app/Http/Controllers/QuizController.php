@@ -199,6 +199,9 @@ class QuizController extends Controller
         ]);
 
         $theme = Theme::findOrFail($request->theme_id);
+        if ($theme->questions()->count() < 5) {
+            return back()->with('error', 'This theme is not active yet.');
+        }
         $quantity = $request->quantity;
 
         $dbQuery = GeneratedQuestion::where('theme_id', $theme->id)

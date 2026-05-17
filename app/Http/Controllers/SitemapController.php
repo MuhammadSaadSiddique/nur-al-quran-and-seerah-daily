@@ -32,8 +32,8 @@ class SitemapController extends Controller
             'priority' => '0.9',
         ];
 
-        // 3. Dynamic Themes (Active ones only)
-        $themes = Theme::where('is_active', true)->get();
+        // 3. Dynamic Themes (Active ones only with 5 or more questions)
+        $themes = Theme::where('is_active', true)->has('questions', '>=', 5)->get();
         foreach ($themes as $theme) {
             $urls[] = [
                 'loc' => route('themes.show', $theme->slug),

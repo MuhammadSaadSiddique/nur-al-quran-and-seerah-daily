@@ -37,8 +37,8 @@
                         </svg>
                     </div>
                     <div>
-                        <h3 class="text-2xl font-black text-slate-900">Theme Discovery</h3>
-                        <p class="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">Choose a
+                        <h3 class="text-2xl font-black text-slate-900">Quran Themes</h3>
+                        <p class="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">Choose Quran
                             topic to explore full depth</p>
                     </div>
                 </div>
@@ -106,7 +106,7 @@
                     </div>
                 </div>
 
-                <div class="grid grid-cols-5 sm:grid-cols-6 gap-2 max-h-[220px] overflow-y-auto pr-2 custom-scrollbar">
+                <div class="grid grid-cols-5 sm:grid-cols-6 gap-2 overflow-y-auto pr-2 custom-scrollbar">
                     @php $completedParas = $user->completed_paras ?? []; @endphp
                     @for($n = 1; $n <= 30; $n++)
                         <button @click="selectedPara = {{ $n }}"
@@ -240,7 +240,8 @@
                             </div>
                             <h4 class="text-lg font-black">Grand Seerah Quiz</h4>
                         </div>
-                        <p class="text-indigo-200 text-sm"><span x-text="quantity"></span> questions from all Seerah themes</p>
+                        <p class="text-indigo-200 text-sm"><span x-text="quantity"></span> questions from all Seerah themes
+                        </p>
                         <div class="flex flex-wrap justify-center md:justify-start gap-2">
                             @foreach(['Easy', 'Medium', 'Hard'] as $level)
                                 <form method="POST" action="{{ route('quiz.grand') }}">

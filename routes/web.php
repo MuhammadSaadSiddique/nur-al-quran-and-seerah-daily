@@ -17,7 +17,9 @@ use Illuminate\Support\Facades\Route;
 // Public routes
 Route::get('/', function () {
     $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();
-    return view('welcome', compact('testimonials'));
+    $quranThemes = \App\Models\Theme::where('is_active', true)->where('type', 'PARA')->orderBy('name')->get();
+    $seerahThemes = \App\Models\Theme::where('is_active', true)->where('type', 'SEERAH')->orderBy('name')->get();
+    return view('welcome', compact('testimonials', 'quranThemes', 'seerahThemes'));
 })->name('welcome');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -25,7 +27,7 @@ Route::post('/otp/request', [AuthController::class, 'requestOtp']);
 Route::post('/otp/verify', [AuthController::class, 'verifyOtp']);
 
 Route::get('/auth/quran/redirect', [AuthController::class, 'redirectToQuran'])->name('quran.redirect');
-Route::get('/auth/quran/callback', [AuthController::class, 'handleQuranCallback'])->name('quran.callback');
+Route::get('/oauth/callback', [AuthController::class, 'handleQuranCallback'])->name('quran.callback');
 
 Route::get('/privacy-policy', [LegalController::class, 'privacy'])->name('privacy');
 Route::get('/terms', [LegalController::class, 'terms'])->name('terms');
@@ -34,6 +36,7 @@ Route::get('/terms', [LegalController::class, 'terms'])->name('terms');
 Route::get('/themes', [\App\Http\Controllers\ThemeShowcaseController::class, 'index'])->name('themes.index');
 Route::get('/themes/{theme:slug}', [\App\Http\Controllers\ThemeShowcaseController::class, 'show'])->name('themes.show');
 
+Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [HomeController::class, 'index'])->name('home');
@@ -49,13 +52,13 @@ Route::middleware('auth')->group(function () {
     // Insights
     Route::get('/seerah', [InsightController::class, 'seerah'])->name('seerah');
     Route::get('/quran-history', [InsightController::class, 'quranHistory'])->name('quran.history');
+    //Route::get('/daily-dua', [InsightController::class, 'dailyDua'])->name('daily.dua');
     Route::post('/insight/answer', [InsightController::class, 'submitInsightAnswer'])->name('insight.answer');
 
     // Profile & Stats
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::get('/stats', [ProfileController::class, 'stats'])->name('stats');
-    Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
     Route::get('/bookmarks', [ProfileController::class, 'bookmarks'])->name('bookmarks');
     Route::post('/bookmark/toggle', [ProfileController::class, 'toggleBookmark'])->name('bookmark.toggle');
     Route::post('/testimonials/submit', [ProfileController::class, 'submitTestimonial'])->name('testimonials.submit');
@@ -69,7 +72,7 @@ Route::middleware('auth')->group(function () {
         Route::get('/', function () {
             return redirect()->route('admin.questions.index');
         })->name('dashboard');
-        
+
         Route::get('/questions', [AdminQuestionController::class, 'index'])->name('questions.index');
         Route::get('/questions/create', [AdminQuestionController::class, 'create'])->name('questions.create');
         Route::post('/questions', [AdminQuestionController::class, 'store'])->name('questions.store');

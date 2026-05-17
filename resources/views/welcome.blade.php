@@ -12,6 +12,7 @@
     <meta name="author" content="The Eternal Echo">
     <meta name="robots" content="index, follow">
     <link rel="canonical" href="{{ url('/') }}">
+    <link rel="icon" href="{{ asset('eternal.png') }}" type="image/png">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
@@ -146,6 +147,10 @@
                 <a href="{{ route('themes.index') }}"
                     class="w-full sm:w-auto px-10 py-5 bg-white/5 hover:bg-white/10 text-white border border-white/20 rounded-2xl font-black text-lg transition-all backdrop-blur-sm hover:-translate-y-1 flex items-center justify-center">
                     Explore Themes
+                </a>
+                <a href="{{ route('leaderboard') }}"
+                    class="w-full sm:w-auto px-10 py-5 bg-white/5 hover:bg-white/10 text-white border border-white/20 rounded-2xl font-black text-lg transition-all backdrop-blur-sm hover:-translate-y-1 flex items-center justify-center">
+                    Learners Rankings
                 </a>
             </div>
 

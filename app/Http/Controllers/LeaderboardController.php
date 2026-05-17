@@ -14,35 +14,39 @@ class LeaderboardController extends Controller
         $currentUser = Auth::user();
 
         $quranStreak = 0;
-        if ($currentUser->quran_access_token) {
+        if ($currentUser && $currentUser->quran_access_token) {
             $quranStreak = $quranApiService->getUserStreak($currentUser) ?? 0;
         }
 
         if ($period === 'weekly') {
-            $topUsers = User::withSum(['quizzes' => function ($query) {
-                $query->where('created_at', '>=', now()->startOfWeek());
-            }], 'score')
-            ->orderBy('quizzes_sum_score', 'desc')
-            ->orderBy('total_questions', 'desc')
-            ->limit(100)
-            ->get()
-            ->map(function ($user) {
-                // For the view consistency, we set total_score to the weekly sum
-                $user->display_score = $user->quizzes_sum_score ?: 0;
-                return $user;
-            });
+            $topUsers = User::withSum([
+                'quizzes' => function ($query) {
+                    $query->where('created_at', '>=', now()->startOfWeek());
+                }
+            ], 'score')
+                ->orderBy('quizzes_sum_score', 'desc')
+                ->orderBy('total_questions', 'desc')
+                ->limit(100)
+                ->get()
+                ->map(function ($user) {
+                    // For the view consistency, we set total_score to the weekly sum
+                    $user->display_score = $user->quizzes_sum_score ?: 0;
+                    return $user;
+                });
 
             // Find current user's rank for weekly
-            $currentUserWeeklyScore = $currentUser->quizzes()
+            $currentUserWeeklyScore = $currentUser ? $currentUser->quizzes()
                 ->where('created_at', '>=', now()->startOfWeek())
-                ->sum('score');
-            
-            $currentUserRank = User::withSum(['quizzes' => function ($query) {
-                $query->where('created_at', '>=', now()->startOfWeek());
-            }], 'score')
-            ->having('quizzes_sum_score', '>', $currentUserWeeklyScore)
-            ->count() + 1;
-            
+                ->sum('score') : 0;
+
+            $currentUserRank = User::withSum([
+                'quizzes' => function ($query) {
+                    $query->where('created_at', '>=', now()->startOfWeek());
+                }
+            ], 'score')
+                ->having('quizzes_sum_score', '>', $currentUserWeeklyScore)
+                ->count() + 1;
+
             $currentUser->display_score = $currentUserWeeklyScore;
         } else {
             $topUsers = User::orderBy('total_score', 'desc')
@@ -54,17 +58,22 @@ class LeaderboardController extends Controller
                     return $user;
                 });
 
-            $currentUserRank = User::where(function ($query) use ($currentUser) {
-                $query->where('total_score', '>', $currentUser->total_score)
-                    ->orWhere(function ($q) use ($currentUser) {
-                        $q->where('total_score', $currentUser->total_score)
-                            ->where('total_questions', '>', $currentUser->total_questions);
-                    });
-            })->count() + 1;
-            
-            $currentUser->display_score = $currentUser->total_score;
+            $currentUserRank = 0;
+            if ($currentUser) {
+                $currentUserRank = User::where(function ($query) use ($currentUser) {
+                    $query->where('total_score', '>', $currentUser->total_score)
+                        ->orWhere(function ($q) use ($currentUser) {
+                            $q->where('total_score', $currentUser->total_score)
+                                ->where('total_questions', '>', $currentUser->total_questions);
+                        });
+                })->count() + 1;
+            }
+            if ($currentUser) {
+                $currentUser->display_score = $currentUser->total_score;
+            }
         }
 
         return view('leaderboard', compact('topUsers', 'currentUserRank', 'currentUser', 'period', 'quranStreak'));
     }
+
 }

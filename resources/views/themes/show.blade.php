@@ -146,14 +146,48 @@
         <p class="text-emerald-700/70 max-w-2xl mx-auto mb-10 text-lg font-medium">
             Take a personalized quiz on <span class="font-black text-emerald-800">{{ $theme->name }}</span> and track your progress against thousands of other learners.
         </p>
-        <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="{{ route('login') }}" class="w-full sm:w-auto px-10 py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-emerald-600/20">
-                Start Theme Quiz
-            </a>
-            <a href="{{ route('themes.index') }}" class="w-full sm:w-auto px-10 py-5 bg-white text-emerald-700 border border-emerald-200 rounded-2xl font-black hover:bg-emerald-100 transition-all">
-                Back to All Themes
-            </a>
-        </div>
+
+        @auth
+            <form action="{{ route('quiz.theme') }}" method="POST" class="max-w-xl mx-auto">
+                @csrf
+                <input type="hidden" name="theme_id" value="{{ $theme->id }}">
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-3 mb-6">
+                    <select name="difficulty"
+                        class="w-full sm:w-auto bg-white border border-emerald-200 rounded-2xl px-5 py-3 text-sm font-bold text-emerald-800 outline-none focus:border-emerald-500 transition-all">
+                        <option value="Easy">Easy</option>
+                        <option value="Medium" selected>Medium</option>
+                        <option value="Hard">Hard</option>
+                    </select>
+                    <select name="quantity"
+                        class="w-full sm:w-auto bg-white border border-emerald-200 rounded-2xl px-5 py-3 text-sm font-bold text-emerald-800 outline-none focus:border-emerald-500 transition-all">
+                        <option value="20" selected>20 Questions</option>
+                        <option value="50">50 Questions</option>
+                        <option value="100">100 Questions</option>
+                    </select>
+                </div>
+                <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                    <button type="submit"
+                        class="w-full sm:w-auto px-10 py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-emerald-600/20">
+                        Start Theme Quiz
+                    </button>
+                    <a href="{{ route('themes.index') }}"
+                        class="w-full sm:w-auto px-10 py-5 bg-white text-emerald-700 border border-emerald-200 rounded-2xl font-black hover:bg-emerald-100 transition-all text-center">
+                        Back to All Themes
+                    </a>
+                </div>
+            </form>
+        @else
+            <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+                <a href="{{ route('login') }}"
+                    class="w-full sm:w-auto px-10 py-5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl font-black transition-all shadow-xl shadow-emerald-600/20">
+                    Sign In to Start Quiz
+                </a>
+                <a href="{{ route('themes.index') }}"
+                    class="w-full sm:w-auto px-10 py-5 bg-white text-emerald-700 border border-emerald-200 rounded-2xl font-black hover:bg-emerald-100 transition-all text-center">
+                    Back to All Themes
+                </a>
+            </div>
+        @endauth
     </div>
 </div>
 

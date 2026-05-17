@@ -52,11 +52,30 @@ class User extends Authenticatable
         return $this->hasMany(Quiz::class)->orderBy('created_at', 'desc');
     }
 
+    public function getMaxPossibleScoreAttribute(): int
+    {
+        if (!$this->difficulty_stats || !isset($this->difficulty_stats['total'])) {
+            return $this->total_questions > 0 ? $this->total_questions * 5 : 0;
+        }
+
+        $easyTotal = $this->difficulty_stats['total']['Easy'] ?? 0;
+        $mediumTotal = $this->difficulty_stats['total']['Medium'] ?? 0;
+        $hardTotal = $this->difficulty_stats['total']['Hard'] ?? 0;
+
+        // Insight questions give 1 point each. We calculate them as the remaining questions.
+        $insightTotal = max(0, $this->total_questions - ($easyTotal + $mediumTotal + $hardTotal));
+
+        return ($easyTotal * 5) + ($mediumTotal * 10) + ($hardTotal * 15) + $insightTotal;
+    }
+
     public function getAccuracyAttribute(): int
     {
-        return $this->total_questions > 0
-            ? (int) round(($this->total_score / $this->total_questions) * 100)
-            : 0;
+        $maxPossible = $this->max_possible_score;
+        if ($maxPossible <= 0) {
+            return 0;
+        }
+        $accuracy = (int) round(($this->total_score / $maxPossible) * 100);
+        return min(100, max(0, $accuracy));
     }
 
     public function getSpiritualLevelAttribute(): string

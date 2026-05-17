@@ -8,11 +8,25 @@ use App\Models\Theme;
 
 class ThemeController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $quranThemes = Theme::where('type', 'PARA')->orderBy('name')->get();
-        $seerahThemes = Theme::where('type', 'SEERAH')->orderBy('name')->get();
-        return view('admin.themes.index', compact('quranThemes', 'seerahThemes'));
+        $filter = $request->get('type', 'all');
+
+        $query = Theme::orderBy('name');
+        if ($filter === 'PARA') {
+            $query->where('type', 'PARA');
+        } elseif ($filter === 'SEERAH') {
+            $query->where('type', 'SEERAH');
+        }
+
+        $themes = $query->paginate(15)->appends(['type' => $filter]);
+
+        // Counts for stats cards
+        $paraCount = Theme::where('type', 'PARA')->count();
+        $seerahCount = Theme::where('type', 'SEERAH')->count();
+        $activeCount = Theme::where('is_active', true)->count();
+
+        return view('admin.themes.index', compact('themes', 'filter', 'paraCount', 'seerahCount', 'activeCount'));
     }
 
     public function store(Request $request)
@@ -37,10 +51,14 @@ class ThemeController extends Controller
     {
         $validated = $request->validate([
             'name' => 'required|string|max:255',
-            'slug' => 'required|string|max:255|unique:themes,slug,' . $theme->id,
+            'slug' => 'nullable|string|max:255|unique:themes,slug,' . $theme->id,
             'description' => 'nullable|string',
             'is_active' => 'required|boolean',
         ]);
+
+        if (empty($validated['slug'])) {
+            $validated['slug'] = \Illuminate\Support\Str::slug($validated['name']);
+        }
 
         $theme->update($validated);
 
@@ -69,5 +87,11 @@ class ThemeController extends Controller
         }
 
         return redirect()->back()->with('success', count($mergeThemes) . ' themes merged into ' . $keepTheme->name);
+    }
+
+    public function destroy(Theme $theme)
+    {
+        $theme->delete();
+        return redirect()->back()->with('success', 'Theme deleted successfully.');
     }
 }

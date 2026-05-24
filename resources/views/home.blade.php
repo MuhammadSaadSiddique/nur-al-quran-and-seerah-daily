@@ -259,6 +259,45 @@
             </div>
         </div>
 
+        {{-- Future Vision & Roadmap --}}
+        <div class="bg-white rounded-[3rem] p-10 shadow-xl border border-slate-100 space-y-8">
+            <div class="flex items-center space-x-4">
+                <div class="bg-indigo-100 p-4 rounded-2xl text-indigo-700">
+                    <svg class="w-8 h-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 class="text-2xl font-black text-slate-900 font-sans">Future Roadmap & Vision</h3>
+                    <p class="text-[10px] font-black uppercase text-slate-400 tracking-widest leading-none">The path forward for The Eternal Echo</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 space-y-3 hover:border-indigo-500/30 transition-all duration-300">
+                    <span class="text-2xl">👥</span>
+                    <h4 class="font-bold text-slate-800 text-base">Study Clubs & Halaqas</h4>
+                    <p class="text-slate-500 text-xs leading-relaxed">Collaborative circles with peer discussions, group tasks, and shared dashboards for mutual growth.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 space-y-3 hover:border-indigo-500/30 transition-all duration-300">
+                    <span class="text-2xl">📚</span>
+                    <h4 class="font-bold text-slate-800 text-base">Scholarly Literature Quizzes</h4>
+                    <p class="text-slate-500 text-xs leading-relaxed">Quizzes taken directly from classic Hadith books, *Ar-Raheeq Al-Makhtum*, and major theological works.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 space-y-3 hover:border-indigo-500/30 transition-all duration-300">
+                    <span class="text-2xl">🎓</span>
+                    <h4 class="font-bold text-slate-800 text-base">Literature of Every Scholar</h4>
+                    <p class="text-slate-500 text-xs leading-relaxed">Structured learning modules focusing on the specific books, fatwas, and literatures of every historical scholar.</p>
+                </div>
+                <div class="p-6 rounded-2xl bg-slate-50 border border-slate-100 space-y-3 hover:border-indigo-500/30 transition-all duration-300">
+                    <span class="text-2xl">🤖</span>
+                    <h4 class="font-bold text-slate-800 text-base">AI Virtual Tutors</h4>
+                    <p class="text-slate-500 text-xs leading-relaxed">Interactive Quranic study buddies to analyze weak areas and customize daily spiritual regimens.</p>
+                </div>
+            </div>
+        </div>
+
         {{-- Para Selection Modal --}}
         <div x-show="selectedPara" x-cloak
             class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6 animate-fadeIn"

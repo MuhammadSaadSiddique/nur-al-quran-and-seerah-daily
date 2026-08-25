@@ -26,6 +26,11 @@
                         placeholder="Enter a display name..."
                         class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all">
                 </div>
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Password (Leave blank to keep current)</label>
+                    <input type="password" name="password" placeholder="Enter new password..."
+                        class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all">
+                </div>
                 <button type="submit"
                     class="w-full bg-emerald-600 text-white py-4 rounded-xl font-black hover:bg-emerald-700 transition-all active:scale-[0.99]">
                     Update Profile

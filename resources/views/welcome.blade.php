@@ -55,7 +55,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700;800;900&family=Scheherazade+New:wght@400;700&display=swap"
         rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -67,7 +67,7 @@
         }
 
         .font-arabic {
-            font-family: 'Amiri', serif;
+            font-family: 'Scheherazade New', 'Amiri', serif;
         }
 
         [x-cloak] {
@@ -83,13 +83,13 @@
         id="navbar">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20">
-                <div class="flex items-center space-x-3">
+                <a href="{{ route('lens.landing') }}" class="flex items-center space-x-3 hover:opacity-90 transition-opacity">
                     <div class="w-12 h-12 rounded-3xl flex items-center justify-center">
                         <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo"
                             class="w-full h-full object-contain">
                     </div>
                     <span class="font-extrabold text-xl tracking-tight text-white">The Eternal Echo</span>
-                </div>
+                </a>
                 <div class="flex items-center space-x-6">
                     @auth
                         <a href="{{ route('home') }}"

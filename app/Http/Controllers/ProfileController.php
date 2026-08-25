@@ -18,10 +18,16 @@ class ProfileController extends Controller
     {
         $request->validate([
             'display_name' => 'nullable|string|max:255',
+            'password' => 'nullable|string|min:6|max:100',
         ]);
 
         $user = Auth::user();
-        $user->display_name = $request->display_name;
+        if ($request->filled('display_name')) {
+            $user->display_name = $request->display_name;
+        }
+        if ($request->filled('password')) {
+            $user->password = \Illuminate\Support\Facades\Hash::make($request->password);
+        }
         $user->save();
 
         return back()->with('success', 'Profile updated successfully!');

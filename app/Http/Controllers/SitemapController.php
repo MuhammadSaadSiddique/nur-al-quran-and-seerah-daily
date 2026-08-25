@@ -16,12 +16,20 @@ class SitemapController extends Controller
     {
         $urls = [];
 
-        // 1. Homepage
+        // 1. Homepage (Quranic Research Landing)
+        $urls[] = [
+            'loc' => route('lens.landing'),
+            'lastmod' => now()->startOfDay()->toAtomString(),
+            'changefreq' => 'daily',
+            'priority' => '1.0',
+        ];
+
+        // 2. Quranic Research Cockpit
         $urls[] = [
             'loc' => route('welcome'),
             'lastmod' => now()->startOfDay()->toAtomString(),
             'changefreq' => 'daily',
-            'priority' => '1.0',
+            'priority' => '0.9',
         ];
 
         // 2. Themes index page (Public showcase)

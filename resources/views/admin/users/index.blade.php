@@ -25,7 +25,7 @@
                         <th scope="col" class="px-6 py-4">Accuracy</th>
                         <th scope="col" class="px-6 py-4">Score</th>
                         <th scope="col" class="px-6 py-4">Joined</th>
-                        <th scope="col" class="px-6 py-4 text-center">Admin Access</th>
+                        <th scope="col" class="px-6 py-4 text-center">Role Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -64,19 +64,31 @@
                                 {{ $user->created_at ? $user->created_at->format('M d, Y') : 'Unknown' }}
                             </td>
                             <td class="px-6 py-4 text-center">
-                                @if($user->id !== auth()->id())
-                                    <form action="{{ route('admin.users.toggle-admin', $user) }}" method="POST">
+                                <div class="flex items-center justify-center space-x-2">
+                                    {{-- Admin access toggle --}}
+                                    @if($user->id !== auth()->id())
+                                        <form action="{{ route('admin.users.toggle-admin', $user) }}" method="POST" class="inline">
+                                            @csrf
+                                            @method('PATCH')
+                                            <button type="submit" class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all border {{ $user->is_admin ? 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' : 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' }}">
+                                                {{ $user->is_admin ? 'Revoke Admin' : 'Make Admin' }}
+                                            </button>
+                                        </form>
+                                    @else
+                                        <span class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed">
+                                            Admin (You)
+                                        </span>
+                                    @endif
+
+                                    {{-- Researcher access toggle --}}
+                                    <form action="{{ route('admin.users.toggle-researcher', $user) }}" method="POST" class="inline">
                                         @csrf
                                         @method('PATCH')
-                                        <button type="submit" class="px-3 py-1 text-xs font-bold rounded-lg transition-all border {{ $user->is_admin ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-rose-50 hover:text-rose-700 hover:border-rose-200' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50 hover:text-emerald-700 hover:border-emerald-200' }}">
-                                            {{ $user->is_admin ? 'Revoke Admin' : 'Make Admin' }}
+                                        <button type="submit" class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg transition-all border {{ $user->is_researcher ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100' }}">
+                                            {{ $user->is_researcher ? 'Revoke Researcher' : 'Make Researcher' }}
                                         </button>
                                     </form>
-                                @else
-                                    <span class="px-3 py-1 text-xs font-bold rounded-lg bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed">
-                                        Current You
-                                    </span>
-                                @endif
+                                </div>
                             </td>
                         </tr>
                     @empty

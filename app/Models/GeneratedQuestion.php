@@ -20,6 +20,8 @@ class GeneratedQuestion extends Model
         'reference',
         'times_answered',
         'times_correct',
+        'insight_title',
+        'insight_content',
     ];
 
     protected function casts(): array

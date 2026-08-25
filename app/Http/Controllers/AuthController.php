@@ -204,4 +204,54 @@ class AuthController extends Controller
 
         return redirect()->route('home');
     }
+
+    public function loginWithPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        $email = strtolower(trim($request->email));
+
+        // Find user
+        $user = User::where('email', $email)->first();
+
+        if ($user) {
+            // Check if they have a password set
+            if (empty($user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'You registered via OTP and do not have a password set yet. Please log in via OTP first, then set a password in your Profile.'
+                ], 400);
+            }
+
+            if (\Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+                Auth::login($user, true);
+                return response()->json([
+                    'success' => true,
+                    'redirect' => route('home')
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid email or password.'
+            ], 400);
+        }
+
+        // If user doesn't exist, create a new one (registration)
+        $user = User::create([
+            'email' => $email,
+            'name' => explode('@', $email)[0],
+            'password' => \Illuminate\Support\Facades\Hash::make($request->password)
+        ]);
+
+        Auth::login($user, true);
+
+        return response()->json([
+            'success' => true,
+            'redirect' => route('home')
+        ]);
+    }
 }

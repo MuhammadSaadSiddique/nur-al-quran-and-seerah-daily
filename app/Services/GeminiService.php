@@ -315,4 +315,19 @@ Respond with a JSON object with keys: title (string), content (string), question
 
         return null;
     }
+
+    public function generateVerseLensAnalysis(int $chapter, int $verse, string $arabic, string $translation, string $lensType): ?string
+    {
+        $prompt = "Provide an academic and educational analysis of Surah {$chapter}, Ayat {$verse} from the perspective of the '{$lensType}' lens.
+Arabic Text: '{$arabic}'
+Translation: '{$translation}'
+
+Requirements:
+- Structure the analysis professionally.
+- Highlight classical commentary or scientific/historical parallels depending on the lens.
+- Keep the response clear, structured, and insightful (2-3 paragraphs max).
+- Do not use markdown headers like # or ##. Use bold text for sections if needed.";
+
+        return $this->callGemini($prompt);
+    }
 }

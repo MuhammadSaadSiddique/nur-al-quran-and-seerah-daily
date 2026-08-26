@@ -25,3 +25,4 @@ Thumbs.db
 app/Console/*
 scratch/*
 scratch/migrate_question_themes.php
+quraniclens_mysql_dump.sql

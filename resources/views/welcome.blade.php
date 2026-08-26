@@ -55,7 +55,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
-        href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700;800;900&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Inter:wght@300;400;500;600;700;800;900&family=Scheherazade+New:wght@400;700&display=swap"
         rel="stylesheet">
 
     <script src="https://cdn.tailwindcss.com"></script>
@@ -67,7 +67,7 @@
         }
 
         .font-arabic {
-            font-family: 'Amiri', serif;
+            font-family: 'Scheherazade New', 'Amiri', serif;
         }
 
         [x-cloak] {
@@ -83,23 +83,33 @@
         id="navbar">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="flex justify-between items-center h-20">
-                <div class="flex items-center space-x-3">
-                    <div class="w-12 h-12 rounded-3xl flex items-center justify-center">
+                <a href="{{ route('lens.landing') }}"
+                    class="flex items-center space-x-2 hover:opacity-90 transition-opacity">
+                    <div class="w-8 h-8 rounded-3xl flex items-center justify-center">
                         <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo"
                             class="w-full h-full object-contain">
                     </div>
+
                     <span class="font-extrabold text-xl tracking-tight text-white">The Eternal Echo</span>
-                </div>
+
+                </a>
                 <div class="flex items-center space-x-6">
+                    <a href="{{ route('welcome') }}"
+                        class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Explorer
+                        Research</a>
+                    <a href="{{ route('quiz.learning') }}"
+                        class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Quiz Platform</a>
                     @auth
                         <a href="{{ route('home') }}"
-                            class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Dashboard</a>
+                            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-full shadow-lg shadow-emerald-600/30 transition-all">My
+                            Profile</a>
                     @else
                         <a href="{{ route('login') }}"
-                            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-full shadow-lg shadow-emerald-600/30 transition-all hover:-translate-y-0.5">Get
-                            Started</a>
+                            class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-full shadow-lg shadow-emerald-600/30 transition-all">Sign
+                            In</a>
                     @endauth
                 </div>
+
             </div>
         </div>
     </nav>
@@ -230,6 +240,92 @@
                     <h3 class="text-2xl font-bold text-white mb-3">AI Engine</h3>
                     <p class="text-slate-400 leading-relaxed text-sm">Utilizing Google's Gemini models to generate
                         personalized, highly contextual explanations for every question you answer.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Future Roadmap Section -->
+    <section id="roadmap" class="py-24 bg-slate-950 border-t border-white/5 relative z-10 overflow-hidden">
+        <div class="absolute inset-0 opacity-5 pointer-events-none">
+            <div
+                class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-emerald-500 rounded-full blur-[120px]">
+            </div>
+        </div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
+            <div class="text-center max-w-3xl mx-auto mb-20">
+                <div
+                    class="inline-flex items-center space-x-2 bg-emerald-500/10 backdrop-blur-md rounded-full px-4 py-1.5 mb-4 border border-emerald-500/20">
+                    <span class="text-xs font-bold tracking-widest uppercase text-emerald-400">Future Vision</span>
+                </div>
+                <h2 class="text-3xl md:text-5xl font-black text-white mb-4">The Journey Ahead</h2>
+                <p class="text-slate-400 text-lg">Our roadmap is designed to build the ultimate digital gateway for
+                    comprehensive Islamic learning and interactive scholarship.</p>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+                <!-- Roadmap Card 1 -->
+                <div
+                    class="bg-gradient-to-b from-slate-900 to-slate-900/40 p-8 rounded-3xl border border-white/10 hover:border-emerald-500/50 transition-all duration-300 group hover:-translate-y-2 relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full group-hover:bg-emerald-500/10 transition-colors">
+                    </div>
+                    <div
+                        class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/20 text-emerald-400 font-bold group-hover:scale-110 transition-transform">
+                        👥
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Study Clubs & Halaqas</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Form collaborative study circles and learn
+                        alongside peers. Participate in group challenges, share notes, and climb the team leaderboards
+                        together.</p>
+                </div>
+
+                <!-- Roadmap Card 2 -->
+                <div
+                    class="bg-gradient-to-b from-slate-900 to-slate-900/40 p-8 rounded-3xl border border-white/10 hover:border-teal-500/50 transition-all duration-300 group hover:-translate-y-2 relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-bl-full group-hover:bg-teal-500/10 transition-colors">
+                    </div>
+                    <div
+                        class="w-12 h-12 bg-teal-500/10 rounded-2xl flex items-center justify-center mb-6 border border-teal-500/20 text-teal-400 font-bold group-hover:scale-110 transition-transform">
+                        📚
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Scholarly Literature</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Dynamically generate interactive tests directly
+                        from famous works like Hadith collections, *Ar-Raheeq Al-Makhtum*, and commentaries of classic
+                        scholars.</p>
+                </div>
+
+                <!-- Roadmap Card 3 -->
+                <div
+                    class="bg-gradient-to-b from-slate-900 to-slate-900/40 p-8 rounded-3xl border border-white/10 hover:border-emerald-500/50 transition-all duration-300 group hover:-translate-y-2 relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 w-24 h-24 bg-emerald-500/5 rounded-bl-full group-hover:bg-emerald-500/10 transition-colors">
+                    </div>
+                    <div
+                        class="w-12 h-12 bg-emerald-500/10 rounded-2xl flex items-center justify-center mb-6 border border-emerald-500/20 text-emerald-400 font-bold group-hover:scale-110 transition-transform">
+                        🎓
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">Literature of Every Scholar</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Explore structured learning paths featuring custom
+                        quizzes derived from the comprehensive books, works, and fatwas of historical and modern
+                        scholars.</p>
+                </div>
+
+                <!-- Roadmap Card 4 -->
+                <div
+                    class="bg-gradient-to-b from-slate-900 to-slate-900/40 p-8 rounded-3xl border border-white/10 hover:border-teal-500/50 transition-all duration-300 group hover:-translate-y-2 relative overflow-hidden">
+                    <div
+                        class="absolute top-0 right-0 w-24 h-24 bg-teal-500/5 rounded-bl-full group-hover:bg-teal-500/10 transition-colors">
+                    </div>
+                    <div
+                        class="w-12 h-12 bg-teal-500/10 rounded-2xl flex items-center justify-center mb-6 border border-teal-500/20 text-teal-400 font-bold group-hover:scale-110 transition-transform">
+                        🤖
+                    </div>
+                    <h3 class="text-xl font-bold text-white mb-3">AI Virtual Tutors</h3>
+                    <p class="text-slate-400 text-sm leading-relaxed">Interact with specialized AI study companions that
+                        answer your scriptural and historical questions, identify learning gaps, and guide your daily
+                        reading plans.</p>
                 </div>
             </div>
         </div>

@@ -26,4 +26,13 @@ class UserController extends Controller
         $status = $user->is_admin ? 'granted admin privileges.' : 'removed from admin role.';
         return back()->with('success', "User {$user->email} has been {$status}");
     }
+
+    public function toggleResearcher(User $user)
+    {
+        $user->is_researcher = !$user->is_researcher;
+        $user->save();
+
+        $status = $user->is_researcher ? 'granted researcher privileges.' : 'removed from researcher role.';
+        return back()->with('success', "User {$user->email} has been {$status}");
+    }
 }

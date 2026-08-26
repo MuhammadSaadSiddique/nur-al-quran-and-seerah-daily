@@ -24,7 +24,8 @@ We are constantly working to expand **The Eternal Echo** to make it the ultimate
     - **Hadith Collections:** *Sahih al-Bukhari*, *Sahih Muslim*, and *Riyadh as-Salihin*.
     - **Seerah Classics:** *Ar-Raheeq Al-Makhtum* (The Sealed Nectar).
     - **Tafsir & Theology:** *Tafsir Ibn Kathir* and foundational creed texts.
-  - Ability to choose a specific book, chapter, or topic as a custom quiz source.
+  - **Literatures of Every Scholar:** Explore custom quizzes derived from the comprehensive books, publications, rulings, and works of renowned historical and contemporary Islamic scholars across all major schools of thought.
+  - Ability to choose a specific book, scholar, chapter, or topic as a custom quiz source.
 
 - **🌐 Broadened Knowledge Sources:**
   - Integration with open-source Islamic APIs, verified academic databases, and digital libraries.

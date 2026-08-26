@@ -5,10 +5,11 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
-    use HasFactory, Notifiable;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $fillable = [
         'name',
@@ -28,6 +29,9 @@ class User extends Authenticatable
         'quran_user_id',
         'quran_access_token',
         'quran_refresh_token',
+        'is_admin',
+        'is_researcher',
+        'expert_category_id',
     ];
 
     protected $hidden = [
@@ -44,12 +48,20 @@ class User extends Authenticatable
             'difficulty_stats' => 'array',
             'bookmarked_questions' => 'array',
             'seerah_quiz_best_score' => 'array',
+            'is_admin' => 'boolean',
+            'is_researcher' => 'boolean',
+            'expert_category_id' => 'integer',
         ];
     }
 
     public function quizzes()
     {
         return $this->hasMany(Quiz::class)->orderBy('created_at', 'desc');
+    }
+
+    public function expertCategory()
+    {
+        return $this->belongsTo(ScienceCategory::class, 'expert_category_id');
     }
 
     public function getMaxPossibleScoreAttribute(): int

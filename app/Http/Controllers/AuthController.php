@@ -100,8 +100,14 @@ class AuthController extends Controller
         );
 
         Auth::login($user, true);
+        $request->session()->regenerate();
 
-        return response()->json(['success' => true, 'redirect' => route('home')]);
+        return response()->json([
+            'success' => true,
+            'redirect' => route('home'),
+            'has_password' => !empty($user->password),
+            'csrf_token' => csrf_token()
+        ]);
     }
 
     public function logout(Request $request)
@@ -203,5 +209,47 @@ class AuthController extends Controller
         Auth::login($user, true);
 
         return redirect()->route('home');
+    }
+
+    public function loginWithPassword(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email',
+            'password' => 'required|string',
+        ]);
+
+        $email = strtolower(trim($request->email));
+
+        // Find user
+        $user = User::where('email', $email)->first();
+
+        if ($user) {
+            // Check if they have a password set
+            if (empty($user->password)) {
+                return response()->json([
+                    'success' => false,
+                    'error' => 'You registered via OTP and do not have a password set yet. Please log in via OTP first, then set a password in your Profile.'
+                ], 400);
+            }
+
+            if (\Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+                Auth::login($user, true);
+                return response()->json([
+                    'success' => true,
+                    'redirect' => route('home')
+                ]);
+            }
+
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid email or password.'
+            ], 400);
+        }
+
+        // Return error for non-existent users, registration must be via OTP
+        return response()->json([
+            'success' => false,
+            'error' => 'Account not found. Please register/sign up using OTP first.'
+        ], 400);
     }
 }

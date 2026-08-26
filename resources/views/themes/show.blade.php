@@ -2,6 +2,7 @@
 
 @section('title', $theme->name . ' - Islamic Knowledge & Quranic Insights')
 @section('meta_description', $theme->description ?? 'Explore in-depth questions and knowledge regarding ' . $theme->name . '. Build your understanding of this Islamic theme with our AI-powered learning platform.')
+@section('keywords', $theme->name . ', Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app,Islamic Knowledge, Quranic Insights, Hadith, Tafsir, Sunnah, Islamic Teachings, Holy Quran, Seerah, Fiqh, Islamic Studies, Prophetic Traditions, Quranic Exegesis, Daily Adhkar, Dua, Islamic Theology, Sharia')
 
 @push('styles')
 <style>

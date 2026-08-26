@@ -61,7 +61,7 @@ class ResearchApiController extends Controller
      */
     public function index(Request $request)
     {
-        $query = QuranicLensAnalysis::with(['user:id,name,display_name,email', 'theme:id,title,slug']);
+        $query = QuranicLensAnalysis::with(['user:id,name,display_name,email', 'theme:id,title,slug', 'moderator:id,name,display_name,email']);
 
         // Check if requester has researcher or admin access
         $user = Auth::guard('sanctum')->user();
@@ -108,10 +108,17 @@ class ResearchApiController extends Controller
      */
     public function store(Request $request)
     {
+        $validLensTypes = ['tafsir', 'hadith', 'seerat', 'science', 'maths', 'history', 'bible', 'torah', 'psychology'];
+        try {
+            $dbSlugs = \App\Models\ScienceCategory::pluck('slug')->toArray();
+            $validLensTypes = array_merge($validLensTypes, $dbSlugs);
+        } catch (\Exception $e) {}
+
         $validator = Validator::make($request->all(), [
             'chapter_number' => 'required|integer|min:1|max:114',
             'verse_number' => 'required|integer|min:1',
-            'lens_type' => 'required|string|in:tafsir,hadith,seerat,science,biology,maths,history,bible,torah,psychology',
+            'lens_type' => 'required|string|in:' . implode(',', array_unique($validLensTypes)),
+            'science_category' => 'nullable|string|in:' . implode(',', array_unique($dbSlugs ?? [])),
             'title' => 'required|string|max:255',
             'content' => 'required|string|min:10',
             'theme_id' => 'nullable|integer|exists:themes,id',
@@ -125,11 +132,16 @@ class ResearchApiController extends Controller
         $isModerator = $user->is_researcher || $user->is_admin;
         $status = $isModerator ? 'approved' : 'pending';
 
+        $lensType = $request->lens_type;
+        if ($lensType === 'science' && $request->filled('science_category')) {
+            $lensType = $request->science_category;
+        }
+
         $analysis = QuranicLensAnalysis::create([
             'user_id' => $user->id,
             'chapter_number' => $request->chapter_number,
             'verse_number' => $request->verse_number,
-            'lens_type' => $request->lens_type,
+            'lens_type' => $lensType,
             'title' => $request->title,
             'content' => $request->content,
             'theme_id' => $request->theme_id,

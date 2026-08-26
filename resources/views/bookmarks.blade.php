@@ -19,40 +19,43 @@
         </template>
 
         <!-- Quran.com Bookmarks Section -->
-        @if(count($quranBookmarks) > 0)
-        <div class="mt-8 mb-4">
-            <h2 class="text-xl font-black text-[#114030] flex items-center gap-2">
-                <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z"/></svg>
-                Quran.com Bookmarks
-            </h2>
-        </div>
-        <div class="space-y-4">
-            @foreach($quranBookmarks as $quranBm)
-            <div class="bg-white rounded-2xl p-6 shadow-lg border border-[#114030]/20 space-y-4">
-                <div class="flex items-start justify-between">
-                    <div>
-                        <p class="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">
-                            Quran Verse
-                        </p>
-                        <h3 class="text-lg font-bold text-slate-900">
-                            Verse Key: {{ $quranBm['verse_key'] ?? 'Unknown' }}
-                        </h3>
-                    </div>
+        <!-- @if(count($quranBookmarks) > 0)
+                <div class="mt-8 mb-4">
+                    <h2 class="text-xl font-black text-[#114030] flex items-center gap-2">
+                        <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+                            <path
+                                d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm-1 1.5L18.5 9H13V3.5zM6 20V4h5v7h7v9H6z" />
+                        </svg>
+                        Quran.com Bookmarks
+                    </h2>
                 </div>
-            </div>
-            @endforeach
-        </div>
-        <hr class="my-8 border-slate-200">
-        @elseif(Auth::user()->quran_access_token)
-        <div class="mt-8 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100 text-center">
-            <p class="text-slate-500 font-bold">No Quran.com bookmarks found.</p>
-        </div>
-        @else
-        <div class="mt-8 mb-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
-            <p class="text-emerald-800 font-bold mb-4">Link your Quran.com account to sync verses.</p>
-            <a href="{{ route('quran.redirect') }}" class="inline-block bg-[#114030] text-[#E0F2EB] px-6 py-2 rounded-xl font-black text-sm hover:bg-[#1a5a44] transition-all">Link Quran.com</a>
-        </div>
-        @endif
+                <div class="space-y-4">
+                    @foreach($quranBookmarks as $quranBm)
+                        <div class="bg-white rounded-2xl p-6 shadow-lg border border-[#114030]/20 space-y-4">
+                            <div class="flex items-start justify-between">
+                                <div>
+                                    <p class="text-[10px] font-black uppercase tracking-widest text-emerald-600 mb-1">
+                                        Quran Verse
+                                    </p>
+                                    <h3 class="text-lg font-bold text-slate-900">
+                                        Verse Key: {{ $quranBm['verse_key'] ?? 'Unknown' }}
+                                    </h3>
+                                </div>
+                            </div>
+                        </div>
+                    @endforeach
+                </div>
+                 <hr class="my-8 border-slate-200">
+                        @elseif(Auth::user()->quran_access_token)
+                        <div class="mt-8 mb-8 p-6 bg-slate-50 rounded-2xl border border-slate-100 text-center">
+                            <p class="text-slate-500 font-bold">No Quran.com bookmarks found.</p>
+                        </div>
+                        @else
+                        <div class="mt-8 mb-8 p-6 bg-emerald-50 rounded-2xl border border-emerald-100 text-center">
+                            <p class="text-emerald-800 font-bold mb-4">Link your Quran.com account to sync verses.</p>
+                            <a href="{{ route('quran.redirect') }}" class="inline-block bg-[#114030] text-[#E0F2EB] px-6 py-2 rounded-xl font-black text-sm hover:bg-[#1a5a44] transition-all">Link Quran.com</a>
+                        </div>
+            @endif-->
 
         <h2 class="text-xl font-black text-slate-900 mb-4">Local Quiz Bookmarks</h2>
         <div class="space-y-4">

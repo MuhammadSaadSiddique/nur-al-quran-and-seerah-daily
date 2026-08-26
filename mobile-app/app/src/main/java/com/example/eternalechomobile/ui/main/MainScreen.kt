@@ -32,6 +32,9 @@ import com.example.eternalechomobile.data.*
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.Lifecycle
 import kotlinx.coroutines.launch
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 
 @Composable
 fun MainScreen(
@@ -62,6 +65,107 @@ fun MainScreen(
     val userName = remember(loginStateRefresh) { prefs.getString("user_name", "") ?: "" }
     val isLoggedIn = userId != -1
 
+    val repository = remember { DefaultDataRepository() }
+    val scope = rememberCoroutineScope()
+    
+    var showPasswordDialog by remember { mutableStateOf(false) }
+    var passwordText by remember { mutableStateOf("") }
+    var passwordSaving by remember { mutableStateOf(false) }
+    var passwordMessage by remember { mutableStateOf("") }
+
+    if (showPasswordDialog) {
+        AlertDialog(
+            onDismissRequest = { 
+                if (!passwordSaving) {
+                    showPasswordDialog = false 
+                    passwordText = ""
+                    passwordMessage = ""
+                }
+            },
+            title = { Text("Change Password", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = "Enter your new password (minimum 6 characters):",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = passwordText,
+                        onValueChange = { passwordText = it },
+                        label = { Text("New Password") },
+                        visualTransformation = PasswordVisualTransformation(),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        enabled = !passwordSaving
+                    )
+                    if (passwordMessage.isNotEmpty()) {
+                        Text(
+                            text = passwordMessage,
+                            color = if (passwordMessage.startsWith("Success")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (passwordText.length < 6) {
+                            passwordMessage = "Password must be at least 6 characters."
+                            return@Button
+                        }
+                        passwordSaving = true
+                        passwordMessage = ""
+                        scope.launch {
+                            try {
+                                val success = repository.changePassword(userId, passwordText)
+                                if (success) {
+                                    passwordMessage = "Success! Password updated."
+                                    kotlinx.coroutines.delay(1000)
+                                    showPasswordDialog = false
+                                    passwordText = ""
+                                    passwordMessage = ""
+                                } else {
+                                    passwordMessage = "Failed to update password."
+                                }
+                            } catch (t: Throwable) {
+                                passwordMessage = t.message ?: "Failed to update password."
+                            } finally {
+                                passwordSaving = false
+                            }
+                        }
+                    },
+                    enabled = !passwordSaving && passwordText.isNotEmpty()
+                ) {
+                    if (passwordSaving) {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    } else {
+                        Text("Update")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showPasswordDialog = false 
+                        passwordText = ""
+                        passwordMessage = ""
+                    },
+                    enabled = !passwordSaving
+                ) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             @OptIn(ExperimentalMaterial3Api::class)
@@ -69,12 +173,17 @@ fun MainScreen(
                 title = { Text("Eternal Echo", fontWeight = FontWeight.Bold) },
                 actions = {
                     if (isLoggedIn) {
-                        Text(
-                            text = userName,
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
+                        TextButton(
+                            onClick = { showPasswordDialog = true },
                             modifier = Modifier.padding(end = 8.dp)
-                        )
+                        ) {
+                            Text(
+                                text = userName,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        }
                         IconButton(onClick = {
                             prefs.edit().remove("user_id").remove("user_name").remove("user_email").apply()
                             loginStateRefresh++

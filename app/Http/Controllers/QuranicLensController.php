@@ -24,7 +24,7 @@ class QuranicLensController extends Controller
     {
         $tab = $request->input('tab', 'surahs');
         $search = $request->input('search');
-        
+
         try {
             $chapters = \Illuminate\Support\Facades\DB::table('surahs')
                 ->orderBy('number')
@@ -62,11 +62,11 @@ class QuranicLensController extends Controller
                     $query->where('surahs.number', $matches[1])
                         ->where('verses.verse_number', $matches[2]);
                 } else {
-                    $query->where(function($q) use ($search) {
+                    $query->where(function ($q) use ($search) {
                         $q->where('verses.text_arabic', 'LIKE', '%' . $search . '%')
-                          ->orWhere('verses.text_transliteration', 'LIKE', '%' . $search . '%')
-                          ->orWhere('translations.text', 'LIKE', '%' . $search . '%')
-                          ->orWhere('surahs.name_transliteration', 'LIKE', '%' . $search . '%');
+                            ->orWhere('verses.text_transliteration', 'LIKE', '%' . $search . '%')
+                            ->orWhere('translations.text', 'LIKE', '%' . $search . '%')
+                            ->orWhere('surahs.name_transliteration', 'LIKE', '%' . $search . '%');
                     });
                 }
 
@@ -76,12 +76,12 @@ class QuranicLensController extends Controller
                     'surahs.number as surah_number',
                     'translations.text as translation_text'
                 )
-                ->paginate(15)
-                ->withQueryString();
+                    ->paginate(15)
+                    ->withQueryString();
 
                 $items = collect($paginated->items())->map(function ($item) {
                     $item->translation = strip_tags($item->translation_text);
-                    
+
                     // Fetch relational mapping indicators
                     $item->has_hadith = \Illuminate\Support\Facades\DB::table('quran_hadith_links')->where('verse_id', $item->id)->where('status', 'approved')->exists();
                     $item->has_seerat = \Illuminate\Support\Facades\DB::table('quran_seerat_links')->where('verse_id', $item->id)->where('status', 'approved')->exists();
@@ -89,7 +89,7 @@ class QuranicLensController extends Controller
                     $item->has_history = \Illuminate\Support\Facades\DB::table('quran_history_links')->where('verse_id', $item->id)->where('status', 'approved')->exists();
                     $item->has_bible = \Illuminate\Support\Facades\DB::table('quran_scripture_links')->where('verse_id', $item->id)->whereNotNull('bible_verse_id')->where('status', 'approved')->exists();
                     $item->has_torah = \Illuminate\Support\Facades\DB::table('quran_scripture_links')->where('verse_id', $item->id)->whereNotNull('torah_section_id')->where('status', 'approved')->exists();
-                    
+
                     return $item;
                 });
 
@@ -103,7 +103,11 @@ class QuranicLensController extends Controller
             } catch (\Exception $e) {
                 Log::error("Failed to execute global search for '{$search}'", ['error' => $e->getMessage()]);
                 $searchResults = new \Illuminate\Pagination\LengthAwarePaginator(
-                    collect(), 0, 15, 1, ['path' => $request->url(), 'query' => $request->query()]
+                    collect(),
+                    0,
+                    15,
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
                 );
             }
         } elseif ($tab !== 'surahs' && !in_array($tab, ['biology', 'maths'])) {
@@ -193,7 +197,7 @@ class QuranicLensController extends Controller
                 }
 
                 $paginated = $query->paginate(15)->withQueryString();
-                
+
                 $items = collect($paginated->items())->map(function ($item) {
                     $trans = \Illuminate\Support\Facades\DB::table('translations')
                         ->where('verse_id', $item->id)
@@ -213,7 +217,11 @@ class QuranicLensController extends Controller
             } catch (\Exception $e) {
                 Log::error("Failed to query tab {$tab} in QuranicLensController", ['error' => $e->getMessage()]);
                 $paginatedData = new \Illuminate\Pagination\LengthAwarePaginator(
-                    collect(), 0, 15, 1, ['path' => $request->url(), 'query' => $request->query()]
+                    collect(),
+                    0,
+                    15,
+                    1,
+                    ['path' => $request->url(), 'query' => $request->query()]
                 );
             }
         }
@@ -388,16 +396,31 @@ class QuranicLensController extends Controller
             return redirect()->route('lens.surah', $chapter)->with('error', 'Could not load verse details.');
         }
 
-        // Get translation
+        // Get translations
         try {
-            $localTranslation = \Illuminate\Support\Facades\DB::table('translations')
+            $localTranslations = \Illuminate\Support\Facades\DB::table('translations')
                 ->where('verse_id', $localVerse->id)
-                ->where('language', 'en')
-                ->first();
+                // ->where('language', 'en')
+                ->get();
         } catch (\Illuminate\Database\QueryException $e) {
-            $localTranslation = null;
+            $localTranslations = collect();
         }
-        $translationText = $localTranslation ? $localTranslation->text : '';
+
+        $translationsList = [];
+        foreach ($localTranslations as $trans) {
+            $translationsList[] = [
+                'author_name' => $trans->translator ?: 'Unknown Translator',
+                'text' => $trans->text
+            ];
+        }
+
+        // Default fallback if no translations found
+        if (empty($translationsList)) {
+            $translationsList[] = [
+                'author_name' => 'Default Translator',
+                'text' => ''
+            ];
+        }
 
         // Build word list by splitting Arabic text and transliteration
         $arabicWords = preg_split('/\s+/u', trim($localVerse->text_arabic));
@@ -405,11 +428,12 @@ class QuranicLensController extends Controller
 
         $words = [];
         foreach ($arabicWords as $index => $arWord) {
+            //  ۚ  ۖ 
             $words[] = [
                 'position' => $index + 1,
                 'text_uthmani' => $arWord,
                 'transliteration' => [
-                    'text' => $transliterationWords[$index] ?? ''
+                    'text' => ''
                 ],
                 'translation' => [
                     'text' => ''
@@ -419,11 +443,7 @@ class QuranicLensController extends Controller
 
         $verseDetail = [
             'text_uthmani' => $localVerse->text_arabic,
-            'translations' => [
-                [
-                    'text' => $translationText
-                ]
-            ],
+            'translations' => $translationsList,
             'words' => $words
         ];
 
@@ -431,7 +451,7 @@ class QuranicLensController extends Controller
         $analyses = QuranicLensAnalysis::where('chapter_number', $chapter)
             ->where('verse_number', $verse)
             ->approved()
-            ->with(['user', 'theme'])
+            ->with(['user', 'theme', 'moderator'])
             ->get();
 
         $wordTags = QuranicLensWordTag::where('chapter_number', $chapter)
@@ -520,8 +540,23 @@ class QuranicLensController extends Controller
         $scienceCategories = $this->getScienceCategories();
 
         return view('quranic-lens.verse', compact(
-            'surahInfo', 'verseDetail', 'analyses', 'wordTags', 'verseTags', 'chapter', 'verse',
-            'juz', 'localTafsir', 'localSeerat', 'localHadith', 'localHistory', 'localScience', 'localBible', 'localTorah', 'themes', 'scienceCategories'
+            'surahInfo',
+            'verseDetail',
+            'analyses',
+            'wordTags',
+            'verseTags',
+            'chapter',
+            'verse',
+            'juz',
+            'localTafsir',
+            'localSeerat',
+            'localHadith',
+            'localHistory',
+            'localScience',
+            'localBible',
+            'localTorah',
+            'themes',
+            'scienceCategories'
         ));
     }
 
@@ -530,20 +565,33 @@ class QuranicLensController extends Controller
      */
     public function storeAnalysis(Request $request)
     {
+        $validLensTypes = ['tafsir', 'hadith', 'seerat', 'science', 'history', 'bible', 'torah'];
+        try {
+            $dbSlugs = \App\Models\ScienceCategory::pluck('slug')->toArray();
+            $validLensTypes = array_merge($validLensTypes, $dbSlugs);
+        } catch (\Exception $e) {
+        }
+
         $request->validate([
             'chapter_number' => 'required|integer|min:1|max:114',
             'verse_number' => 'required|integer|min:1',
-            'lens_type' => 'required|string|in:tafsir,hadith,seerat,science,biology,maths,history,bible,torah,psychology',
+            'lens_type' => 'required|string|in:' . implode(',', array_unique($validLensTypes)),
+            'science_category' => 'nullable|string|in:' . implode(',', array_unique($dbSlugs ?? [])),
             'title' => 'required|string|max:255',
             'content' => 'required|string|min:10',
             'theme_id' => 'nullable|integer|exists:themes,id',
         ]);
 
+        $lensType = $request->lens_type;
+        if ($lensType === 'science' && $request->filled('science_category')) {
+            $lensType = $request->science_category;
+        }
+
         QuranicLensAnalysis::create([
             'user_id' => Auth::id(),
             'chapter_number' => $request->chapter_number,
             'verse_number' => $request->verse_number,
-            'lens_type' => $request->lens_type,
+            'lens_type' => $lensType,
             'title' => $request->title,
             'content' => $request->content,
             'theme_id' => $request->theme_id,
@@ -828,27 +876,33 @@ class QuranicLensController extends Controller
 
         try {
             $stats['science'] = \Illuminate\Support\Facades\DB::table('quran_science_links')->where('status', 'approved')->count();
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         try {
             $stats['seerah'] = \Illuminate\Support\Facades\DB::table('quran_seerat_links')->where('status', 'approved')->count();
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         try {
             $stats['hadith'] = \Illuminate\Support\Facades\DB::table('quran_hadith_links')->where('status', 'approved')->count();
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         try {
             $stats['history'] = \Illuminate\Support\Facades\DB::table('quran_history_links')->where('status', 'approved')->count();
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         try {
             $stats['scripture'] = \Illuminate\Support\Facades\DB::table('quran_scripture_links')->where('status', 'approved')->count();
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         try {
             $stats['researchers'] = \App\Models\User::where('is_researcher', true)->orWhere('is_admin', true)->count();
-        } catch (\Exception $e) {}
+        } catch (\Exception $e) {
+        }
 
         $scienceCategories = $this->getScienceCategories();
 

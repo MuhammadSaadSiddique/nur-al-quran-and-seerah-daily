@@ -319,6 +319,44 @@ object ApiClient {
         )
     }
 
+    suspend fun requestOtp(email: String): Boolean {
+        val params = mapOf("email" to email)
+        val jsonStr = makePostRequest("$BASE_URL?action=request_otp", params)
+        val jsonObj = JSONObject(jsonStr)
+        return jsonObj.getString("status") == "success"
+    }
+
+    suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse {
+        val params = mapOf("email" to email, "otp" to otp)
+        val jsonStr = makePostRequest("$BASE_URL?action=verify_otp", params)
+        val jsonObj = JSONObject(jsonStr)
+        val data = jsonObj.getJSONObject("data")
+        val session = UserSession(
+            userId = data.getInt("user_id"),
+            name = data.getString("name"),
+            email = data.getString("email"),
+            totalScore = data.getInt("total_score")
+        )
+        return UserSessionOtpResponse(
+            session = session,
+            hasPassword = data.getBoolean("has_password")
+        )
+    }
+
+    suspend fun setPassword(userId: Int, password: String): Boolean {
+        val params = mapOf("user_id" to userId.toString(), "password" to password)
+        val jsonStr = makePostRequest("$BASE_URL?action=set_password", params)
+        val jsonObj = JSONObject(jsonStr)
+        return jsonObj.getString("status") == "success"
+    }
+
+    suspend fun changePassword(userId: Int, password: String): Boolean {
+        val params = mapOf("user_id" to userId.toString(), "password" to password)
+        val jsonStr = makePostRequest("$BASE_URL?action=change_password", params)
+        val jsonObj = JSONObject(jsonStr)
+        return jsonObj.getString("status") == "success"
+    }
+
     suspend fun submitQuiz(
         userId: Int,
         type: String,

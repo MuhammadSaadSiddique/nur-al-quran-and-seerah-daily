@@ -72,7 +72,7 @@ class QuranicLensApprovalController extends Controller
         $analysesQuery = QuranicLensAnalysis::pending()->with(['user', 'theme'])->latest();
         $wordTagsQuery = QuranicLensWordTag::pending()->with('user')->latest();
         $verseTagsQuery = QuranicLensVerseTag::pending()->with('user')->latest();
-        $approvedAnalysesQuery = QuranicLensAnalysis::approved()->with(['user', 'theme'])->latest();
+        $approvedAnalysesQuery = QuranicLensAnalysis::approved()->with(['user', 'theme', 'moderator'])->latest();
 
         if ($activeCategory) {
             $categoryFields = array_merge([$activeCategory->slug], $activeCategory->fields);
@@ -324,6 +324,7 @@ class QuranicLensApprovalController extends Controller
         $item->moderated_by = Auth::id();
         $item->moderated_at = now();
         $item->save();
+        $item->delete();
 
         return back()->with('success', 'Item has been rejected.');
     }

@@ -2,7 +2,12 @@
 
 @header('Content-Type: application/json; charset=utf-8');
 @header('Access-Control-Allow-Origin: *');
-@header('Access-Control-Allow-Methods: GET');
+@header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+
+require __DIR__ . '/../../../vendor/autoload.php';
+$app = require_once __DIR__ . '/../../../bootstrap/app.php';
+$kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
+$kernel->bootstrap();
 
 if (!function_exists('check_rate_limit')) {
     function check_rate_limit()
@@ -539,16 +544,33 @@ try {
             $stmt->execute(['email' => $email]);
             $user = $stmt->fetch();
 
-            if ($user && password_verify($password, $user['password'])) {
-                echo json_encode([
-                    'status' => 'success',
-                    'data' => [
-                        'user_id' => (int)$user['id'],
-                        'name' => $user['name'] ?: $user['display_name'] ?: 'User',
-                        'email' => $user['email'],
-                        'total_score' => (int)$user['total_score']
-                    ]
-                ]);
+            if ($user) {
+                if (empty($user['password'])) {
+                    @http_response_code(400);
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => 'You registered via OTP and do not have a password set yet. Please log in via OTP first.'
+                    ]);
+                    break;
+                }
+                
+                if (password_verify($password, $user['password'])) {
+                    echo json_encode([
+                        'status' => 'success',
+                        'data' => [
+                            'user_id' => (int)$user['id'],
+                            'name' => $user['name'] ?: $user['display_name'] ?: 'User',
+                            'email' => $user['email'],
+                            'total_score' => (int)$user['total_score']
+                        ]
+                    ]);
+                } else {
+                    @http_response_code(401);
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => 'Invalid email or password.'
+                    ]);
+                }
             } else {
                 @http_response_code(401);
                 echo json_encode([
@@ -559,52 +581,173 @@ try {
             break;
 
         case 'register':
-            $name = isset($_POST['name']) ? $_POST['name'] : '';
-            $email = isset($_POST['email']) ? $_POST['email'] : '';
-            $password = isset($_POST['password']) ? $_POST['password'] : '';
+            @http_response_code(400);
+            echo json_encode([
+                'status' => 'error',
+                'message' => 'Registration must be completed using OTP.'
+            ]);
+            break;
 
-            if (empty($name) || empty($email) || empty($password)) {
+        case 'request_otp':
+            $email = isset($_POST['email']) ? strtolower(trim($_POST['email'])) : '';
+            if (empty($email)) {
                 @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'Name, email, and password are required.'
+                    'message' => 'Email is required.'
                 ]);
                 break;
             }
 
-            $stmt = $pdo->prepare("SELECT id FROM users WHERE email = :email");
-            $stmt->execute(['email' => $email]);
-            if ($stmt->fetch()) {
-                @http_response_code(409);
-                echo json_encode([
-                    'status' => 'error',
-                    'message' => 'User with this email already exists.'
-                ]);
-                break;
-            }
+            // Generate OTP
+            $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
 
-            $hashedPassword = password_hash($password, PASSWORD_BCRYPT);
-            $now = date('Y-m-d H:i:s');
-            $stmt = $pdo->prepare("INSERT INTO users (name, email, password, total_score, total_questions, seerah_read_count, created_at, updated_at) 
-                                   VALUES (:name, :email, :password, 0, 0, 0, :created_at, :updated_at)");
-            $stmt->execute([
-                'name' => $name,
+            // Delete old OTPs and create new
+            \App\Models\OtpCode::where('email', $email)->delete();
+            \App\Models\OtpCode::create([
                 'email' => $email,
-                'password' => $hashedPassword,
-                'created_at' => $now,
-                'updated_at' => $now
+                'otp' => $otp,
+                'expires_at' => now()->addMinutes(5),
             ]);
 
-            $userId = $pdo->lastInsertId();
+            // Send OTP email
+            try {
+                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\OtpMail($otp));
+            } catch (\Exception $e) {
+                \Illuminate\Support\Facades\Log::error('Mobile: Failed to send OTP email', ['error' => $e->getMessage()]);
+            }
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Verification code sent successfully.'
+            ]);
+            break;
+
+        case 'verify_otp':
+            $email = isset($_POST['email']) ? strtolower(trim($_POST['email'])) : '';
+            $otp = isset($_POST['otp']) ? trim($_POST['otp']) : '';
+
+            if (empty($email) || empty($otp)) {
+                @http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Email and verification code are required.'
+                ]);
+                break;
+            }
+
+            $record = \App\Models\OtpCode::where('email', $email)->latest()->first();
+
+            if (!$record) {
+                @http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Verification code not found. Please request a new one.'
+                ]);
+                break;
+            }
+
+            if ($record->isExpired()) {
+                $record->delete();
+                @http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Verification code expired. Please request a new one.'
+                ]);
+                break;
+            }
+
+            if ($record->otp !== $otp) {
+                @http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Invalid verification code.'
+                ]);
+                break;
+            }
+
+            // Valid - clean up
+            $record->delete();
+
+            // Find or create user
+            $user = \App\Models\User::firstOrCreate(
+                ['email' => $email],
+                ['name' => explode('@', $email)[0]]
+            );
 
             echo json_encode([
                 'status' => 'success',
                 'data' => [
-                    'user_id' => (int)$userId,
-                    'name' => $name,
-                    'email' => $email,
-                    'total_score' => 0
+                    'user_id' => (int)$user->id,
+                    'name' => $user->name ?: $user->display_name ?: 'User',
+                    'email' => $user->email,
+                    'total_score' => (int)$user->total_score,
+                    'has_password' => !empty($user->password)
                 ]
+            ]);
+            break;
+
+        case 'set_password':
+            $userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
+            $password = isset($_POST['password']) ? $_POST['password'] : '';
+
+            if ($userId <= 0 || empty($password)) {
+                @http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User ID and password are required.'
+                ]);
+                break;
+            }
+
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                @http_response_code(404);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+
+            $user->password = \Illuminate\Support\Facades\Hash::make($password);
+            $user->save();
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Password set successfully.'
+            ]);
+            break;
+
+        case 'change_password':
+            $userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
+            $password = isset($_POST['password']) ? $_POST['password'] : '';
+
+            if ($userId <= 0 || empty($password)) {
+                @http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User ID and password are required.'
+                ]);
+                break;
+            }
+
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                @http_response_code(404);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+
+            $user->password = \Illuminate\Support\Facades\Hash::make($password);
+            $user->save();
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Password updated successfully.'
             ]);
             break;
 

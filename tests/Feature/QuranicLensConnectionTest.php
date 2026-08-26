@@ -176,7 +176,7 @@ class QuranicLensConnectionTest extends TestCase
         $response->assertStatus(302);
         $response->assertSessionHas('success', 'Analysis record has been deleted successfully.');
 
-        $this->assertDatabaseMissing('quranic_lens_analyses', [
+        $this->assertSoftDeleted('quranic_lens_analyses', [
             'id' => $analysis->id,
         ]);
     }

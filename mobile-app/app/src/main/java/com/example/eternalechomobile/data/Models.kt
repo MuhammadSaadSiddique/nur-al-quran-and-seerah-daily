@@ -119,3 +119,9 @@ data class UserSession(
     val email: String,
     val totalScore: Int
 )
+
+@Serializable
+data class UserSessionOtpResponse(
+    val session: UserSession,
+    val hasPassword: Boolean
+)

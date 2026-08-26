@@ -18,6 +18,16 @@
                 <p class="text-slate-500 font-bold">{{ $user->email }}</p>
             </div>
 
+            @if(empty($user->password))
+                <div class="bg-amber-50 border border-amber-200 text-amber-800 p-5 rounded-2xl text-sm font-bold text-center leading-relaxed">
+                    ⚠️ You haven't set a password yet. Please set a password below to allow password-based login in the future.
+                </div>
+            @else
+                <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-5 rounded-2xl text-sm font-bold text-center leading-relaxed">
+                    ✅ Your account is secured with a password. You can sign in using both password and OTP.
+                </div>
+            @endif
+
             <form action="{{ route('profile.update') }}" method="POST" class="space-y-4">
                 @csrf
                 <div class="space-y-2">
@@ -27,9 +37,16 @@
                         class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all">
                 </div>
                 <div class="space-y-2">
-                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Password (Leave blank to keep current)</label>
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">
+                        @if(empty($user->password))
+                            Set Your Password
+                        @else
+                            Password (Leave blank to keep current)
+                        @endif
+                    </label>
                     <input type="password" name="password" placeholder="Enter new password..."
-                        class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all">
+                        class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all"
+                        {{ empty($user->password) ? 'required' : '' }}>
                 </div>
                 <button type="submit"
                     class="w-full bg-emerald-600 text-white py-4 rounded-xl font-black hover:bg-emerald-700 transition-all active:scale-[0.99]">

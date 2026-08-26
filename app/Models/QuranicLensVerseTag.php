@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class QuranicLensVerseTag extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'quranic_lens_verse_tags';
 
     protected $fillable = [

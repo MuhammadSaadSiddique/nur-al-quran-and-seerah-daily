@@ -18,6 +18,10 @@ interface DataRepository {
     suspend fun getThemeQuiz(themeId: Int, difficulty: String): List<QuizQuestion>
     suspend fun login(email: String, password: String): UserSession
     suspend fun register(name: String, email: String, password: String): UserSession
+    suspend fun requestOtp(email: String): Boolean
+    suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse
+    suspend fun setPassword(userId: Int, password: String): Boolean
+    suspend fun changePassword(userId: Int, password: String): Boolean
     suspend fun submitQuiz(
         userId: Int,
         type: String,
@@ -70,6 +74,22 @@ class DefaultDataRepository : DataRepository {
 
     override suspend fun register(name: String, email: String, password: String): UserSession {
         return ApiClient.register(name, email, password)
+    }
+
+    override suspend fun requestOtp(email: String): Boolean {
+        return ApiClient.requestOtp(email)
+    }
+
+    override suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse {
+        return ApiClient.verifyOtp(email, otp)
+    }
+
+    override suspend fun setPassword(userId: Int, password: String): Boolean {
+        return ApiClient.setPassword(userId, password)
+    }
+
+    override suspend fun changePassword(userId: Int, password: String): Boolean {
+        return ApiClient.changePassword(userId, password)
     }
 
     override suspend fun submitQuiz(

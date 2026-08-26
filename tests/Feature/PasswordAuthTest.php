@@ -11,24 +11,74 @@ class PasswordAuthTest extends TestCase
     use RefreshDatabase;
 
     /** @test */
-    public function new_user_can_register_via_password()
+    public function new_user_cannot_register_via_password_directly()
     {
         $response = $this->postJson(route('login.password'), [
             'email' => 'newuser@example.com',
             'password' => 'password123',
         ]);
 
-        $response->assertStatus(200);
+        $response->assertStatus(400);
         $response->assertJson([
-            'success' => true,
-            'redirect' => route('home'),
+            'success' => false,
+            'error' => 'Account not found. Please register/sign up using OTP first.',
         ]);
 
-        $this->assertDatabaseHas('users', [
+        $this->assertDatabaseMissing('users', [
             'email' => 'newuser@example.com',
         ]);
 
+        $this->assertFalse(auth()->check());
+    }
+
+    /** @test */
+    public function user_can_verify_otp_and_then_set_password()
+    {
+        // 1. Request OTP
+        $response = $this->postJson('/otp/request', [
+            'email' => 'otpuser@example.com',
+        ]);
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+        ]);
+
+        $this->assertDatabaseHas('otp_codes', [
+            'email' => 'otpuser@example.com',
+        ]);
+
+        $otpRecord = \App\Models\OtpCode::where('email', 'otpuser@example.com')->first();
+        $this->assertNotNull($otpRecord);
+
+        // 2. Verify OTP
+        $response = $this->postJson('/otp/verify', [
+            'email' => 'otpuser@example.com',
+            'otp' => $otpRecord->otp,
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+            'has_password' => false,
+        ]);
+
         $this->assertTrue(auth()->check());
+        $user = auth()->user();
+        $this->assertEquals('otpuser@example.com', $user->email);
+        $this->assertEmpty($user->password);
+
+        // 3. Set password via profile update route
+        $response = $this->actingAs($user)->postJson(route('profile.update'), [
+            'password' => 'securepassword123',
+        ]);
+
+        $response->assertStatus(200);
+        $response->assertJson([
+            'success' => true,
+        ]);
+
+        $user->refresh();
+        $this->assertTrue(\Illuminate\Support\Facades\Hash::check('securepassword123', $user->password));
     }
 
     /** @test */

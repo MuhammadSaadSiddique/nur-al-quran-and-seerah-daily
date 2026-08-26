@@ -26,9 +26,58 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+import com.example.eternalechomobile.data.UserSessionOtpResponse
+
 class AuthViewModel(private val repository: DataRepository) : ViewModel() {
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
+
+    fun requestOtp(email: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+            try {
+                val success = repository.requestOtp(email)
+                if (success) {
+                    _uiState.value = AuthUiState.Idle
+                    onSuccess()
+                } else {
+                    _uiState.value = AuthUiState.Error("Failed to send verification code.")
+                }
+            } catch (t: Throwable) {
+                _uiState.value = AuthUiState.Error(t.message ?: "Failed to send verification code.")
+            }
+        }
+    }
+
+    fun verifyOtp(email: String, otp: String, onSuccess: (UserSessionOtpResponse) -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+            try {
+                val response = repository.verifyOtp(email, otp)
+                _uiState.value = AuthUiState.Success(response.session)
+                onSuccess(response)
+            } catch (t: Throwable) {
+                _uiState.value = AuthUiState.Error(t.message ?: "Verification failed.")
+            }
+        }
+    }
+
+    fun setPassword(userId: Int, password: String, onSuccess: () -> Unit) {
+        viewModelScope.launch {
+            _uiState.value = AuthUiState.Loading
+            try {
+                val success = repository.setPassword(userId, password)
+                if (success) {
+                    _uiState.value = AuthUiState.Idle
+                    onSuccess()
+                } else {
+                    _uiState.value = AuthUiState.Error("Failed to set password.")
+                }
+            } catch (t: Throwable) {
+                _uiState.value = AuthUiState.Error(t.message ?: "Failed to set password.")
+            }
+        }
+    }
 
     fun login(email: String, password: String, onSuccess: (UserSession) -> Unit) {
         viewModelScope.launch {
@@ -39,19 +88,6 @@ class AuthViewModel(private val repository: DataRepository) : ViewModel() {
                 onSuccess(session)
             } catch (t: Throwable) {
                 _uiState.value = AuthUiState.Error(t.message ?: "Authentication failed.")
-            }
-        }
-    }
-
-    fun register(name: String, email: String, password: String, onSuccess: (UserSession) -> Unit) {
-        viewModelScope.launch {
-            _uiState.value = AuthUiState.Loading
-            try {
-                val session = repository.register(name, email, password)
-                _uiState.value = AuthUiState.Success(session)
-                onSuccess(session)
-            } catch (t: Throwable) {
-                _uiState.value = AuthUiState.Error(t.message ?: "Registration failed.")
             }
         }
     }
@@ -76,11 +112,14 @@ fun AuthScreen(
     viewModel: AuthViewModel = viewModel { AuthViewModel(DefaultDataRepository()) }
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    var isSignUpMode by remember { mutableStateOf(false) }
-
-    var name by remember { mutableStateOf("") }
+    
+    var method by remember { mutableStateOf("otp") } // "otp" or "password"
+    var phase by remember { mutableStateOf("email") } // "email", "otp", "set_password"
+    
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var otp by remember { mutableStateOf("") }
+    var sessionForSetPassword by remember { mutableStateOf<UserSession?>(null) }
 
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
@@ -88,7 +127,17 @@ fun AuthScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (isSignUpMode) "Create Account" else "Sign In", fontWeight = FontWeight.Bold) },
+                title = { 
+                    Text(
+                        text = when {
+                            method == "otp" && phase == "otp" -> "Verify Code"
+                            method == "otp" && phase == "set_password" -> "Set Password"
+                            method == "otp" -> "OTP Sign Up / In"
+                            else -> "Password Sign In"
+                        }, 
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -130,34 +179,93 @@ fun AuthScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                if (isSignUpMode) {
-                    OutlinedTextField(
-                        value = name,
-                        onValueChange = { name = it },
-                        label = { Text("Name") },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    )
+                // Method Selection Tab (only in email phase)
+                if (phase == "email") {
+                    TabRow(selectedTabIndex = if (method == "otp") 0 else 1) {
+                        Tab(
+                            selected = method == "otp",
+                            onClick = { 
+                                method = "otp"
+                                viewModel.clearState()
+                            },
+                            text = { Text("🔑 OTP") }
+                        )
+                        Tab(
+                            selected = method == "password",
+                            onClick = { 
+                                method = "password"
+                                viewModel.clearState()
+                            },
+                            text = { Text("🔒 Password") }
+                        )
+                    }
                 }
 
-                OutlinedTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = { Text("Email Address") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                OutlinedTextField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = { Text("Password") },
-                    visualTransformation = PasswordVisualTransformation(),
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                // Phase forms
+                when {
+                    method == "otp" && phase == "email" -> {
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Email Address") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                    method == "otp" && phase == "otp" -> {
+                        Text(
+                            text = "A verification code has been sent to $email",
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        OutlinedTextField(
+                            value = otp,
+                            onValueChange = { otp = it },
+                            label = { Text("Verification Code") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                    method == "otp" && phase == "set_password" -> {
+                        Text(
+                            text = "Success! Secure your account by setting a password now, or skip and set it later in your profile.",
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Set Password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                    method == "password" -> {
+                        OutlinedTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = { Text("Email Address") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+                }
 
                 if (uiState is AuthUiState.Error) {
                     Text(
@@ -171,21 +279,56 @@ fun AuthScreen(
 
                 Spacer(modifier = Modifier.height(8.dp))
 
+                // Submit Button
                 Button(
                     onClick = {
-                        val onAuthSuccess: (UserSession) -> Unit = { session ->
+                        val saveSessionToPrefs: (UserSession) -> Unit = { session ->
                             prefs.edit()
                                 .putInt("user_id", session.userId)
                                 .putString("user_name", session.name)
                                 .putString("user_email", session.email)
                                 .apply()
-                            onBackClick()
                         }
 
-                        if (isSignUpMode) {
-                            viewModel.register(name, email, password, onAuthSuccess)
-                        } else {
-                            viewModel.login(email, password, onAuthSuccess)
+                        when {
+                            method == "otp" && phase == "email" -> {
+                                if (email.contains("@")) {
+                                    viewModel.requestOtp(email) {
+                                        phase = "otp"
+                                    }
+                                } else {
+                                    viewModel.clearState()
+                                }
+                            }
+                            method == "otp" && phase == "otp" -> {
+                                if (otp.isNotEmpty()) {
+                                    viewModel.verifyOtp(email, otp) { response ->
+                                        saveSessionToPrefs(response.session)
+                                        if (response.hasPassword) {
+                                            onBackClick()
+                                        } else {
+                                            sessionForSetPassword = response.session
+                                            phase = "set_password"
+                                        }
+                                    }
+                                }
+                            }
+                            method == "otp" && phase == "set_password" -> {
+                                if (password.length >= 6) {
+                                    val uId = sessionForSetPassword?.userId ?: -1
+                                    viewModel.setPassword(uId, password) {
+                                        onBackClick()
+                                    }
+                                }
+                            }
+                            method == "password" -> {
+                                if (email.contains("@") && password.isNotEmpty()) {
+                                    viewModel.login(email, password) { session ->
+                                        saveSessionToPrefs(session)
+                                        onBackClick()
+                                    }
+                                }
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth(),
@@ -198,21 +341,35 @@ fun AuthScreen(
                             modifier = Modifier.size(24.dp)
                         )
                     } else {
-                        Text(if (isSignUpMode) "Sign Up" else "Sign In")
+                        Text(
+                            text = when {
+                                method == "otp" && phase == "email" -> "Send Verification Code"
+                                method == "otp" && phase == "otp" -> "Verify & Enter"
+                                method == "otp" && phase == "set_password" -> "Save Password"
+                                else -> "Sign In"
+                            }
+                        )
                     }
                 }
 
-                TextButton(
-                    onClick = {
-                        isSignUpMode = !isSignUpMode
-                        viewModel.clearState()
-                    },
-                    enabled = uiState !is AuthUiState.Loading
-                ) {
-                    Text(
-                        if (isSignUpMode) "Already have an account? Sign In"
-                        else "Don't have an account? Sign Up"
-                    )
+                // Cancel/Back/Skip buttons
+                if (method == "otp" && phase == "set_password") {
+                    TextButton(
+                        onClick = onBackClick,
+                        enabled = uiState !is AuthUiState.Loading
+                    ) {
+                        Text("Skip & Enter Dashboard")
+                    }
+                } else if (method == "otp" && phase == "otp") {
+                    TextButton(
+                        onClick = {
+                            phase = "email"
+                            viewModel.clearState()
+                        },
+                        enabled = uiState !is AuthUiState.Loading
+                    ) {
+                        Text("Back to Email Form")
+                    }
                 }
             }
         }

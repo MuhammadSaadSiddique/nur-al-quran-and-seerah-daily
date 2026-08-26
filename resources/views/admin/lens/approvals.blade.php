@@ -364,7 +364,7 @@
                                         {{ strtoupper($analysis->lens_type) }}</span>
                                     <h4 class="font-bold text-slate-900 text-lg">{{ $analysis->title }}</h4>
                                     <span class="text-xs text-slate-500 font-medium">Submitted by:
-                                        {{ $analysis->user ? $analysis->user->email : 'System' }}</span>
+                                        {{ $analysis->user ? $analysis->user->email : 'System' }} (Approved by: {{ $analysis->moderator ? ($analysis->moderator->name ?: $analysis->moderator->email) : 'Admin Name' }})</span>
                                     @if($analysis->theme)
                                         <span
                                             class="text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-800 border border-emerald-200/50 px-2 py-0.5 rounded block w-max mt-1.5">

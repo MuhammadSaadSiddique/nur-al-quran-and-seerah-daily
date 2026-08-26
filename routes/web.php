@@ -12,6 +12,7 @@ use App\Http\Controllers\Admin\QuestionController as AdminQuestionController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
 use App\Http\Controllers\Admin\ThemeController as AdminThemeController;
 use App\Http\Controllers\Admin\TestimonialController as AdminTestimonialController;
+use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementController;
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\QuranicLensController;
 use App\Http\Controllers\Admin\QuranicLensApprovalController;
@@ -119,6 +120,8 @@ Route::middleware('auth')->group(function () {
         Route::resource('themes', AdminThemeController::class)->except(['create', 'edit', 'show']);
         Route::resource('testimonials', AdminTestimonialController::class)->except(['create', 'edit', 'show']);
 
+        Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->name('announcements.index');
+        Route::post('/announcements', [AdminAnnouncementController::class, 'send'])->name('announcements.send');
     });
 
     // Quranic Lens approvals (accessible by Researchers and Admins)

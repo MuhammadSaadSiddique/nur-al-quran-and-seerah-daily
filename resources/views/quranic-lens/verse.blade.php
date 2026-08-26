@@ -60,9 +60,23 @@
         </div>
 
         {{-- English Translation --}}
-        <div class="text-slate-600 font-medium text-base leading-relaxed border-t border-slate-50 pt-4 max-w-4xl">
-            <p class="italic text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">Dr. Mustafa Khattab (The Clear Quran)</p>
-            {{ strip_tags($verseDetail['translations'][0]['text'] ?? '') }}
+        <div class="text-slate-600 font-medium text-base leading-relaxed border-t border-slate-50 pt-4 max-w-4xl space-y-3">
+            <template x-if="translations.length > 1">
+                <div class="flex items-center gap-2">
+                    <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider">Translation:</span>
+                    <select x-model="selectedTranslationIndex" class="p-1 px-2.5 rounded-xl border-2 border-slate-100 text-xs font-black text-slate-700 bg-white focus:border-emerald-500 outline-none transition-all cursor-pointer">
+                        <template x-for="(trans, index) in translations" :key="index">
+                            <option :value="index" x-text="trans.author_name"></option>
+                        </template>
+                    </select>
+                </div>
+            </template>
+            <div>
+                <p class="italic text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
+                    BY <span x-text="translations[selectedTranslationIndex].author_name"></span>
+                </p>
+                <p x-text="translations[selectedTranslationIndex].text" class="text-slate-800 text-lg leading-relaxed font-medium"></p>
+            </div>
         </div>
     </div>
 
@@ -282,62 +296,110 @@
 
                     {{-- Local database Science links --}}
                     @if($localScience->count() > 0)
-                        <div x-show="activeLens === 'science'" class="space-y-4" x-cloak>
-                            @foreach($localScience as $sci)
-                                <div class="p-6 rounded-3xl border border-slate-100 bg-purple-50/10 hover:border-purple-200 transition-all space-y-4">
-                                    <div class="flex items-center justify-between border-b border-purple-50 pb-3">
-                                        <span class="text-xs font-black text-purple-800 uppercase tracking-widest bg-purple-50/80 border border-purple-100/50 px-3 py-1 rounded-full">
-                                            {{ $sci->title }}
-                                        </span>
-                                        @if($sci->field)
-                                            @php
-                                                $fLower = strtolower($sci->field);
-                                                $displayLabel = $sci->field;
-                                                $emoji = '🔬';
-                                                
-                                                if (isset($scienceCategories)) {
-                                                    foreach ($scienceCategories as $cat) {
-                                                        if (in_array($fLower, $cat['fields'])) {
-                                                            $displayLabel = $cat['label'];
-                                                            $emoji = $cat['emoji'];
-                                                            break;
-                                                        }
-                                                    }
-                                                } else {
-                                                    if ($fLower === 'astronomy' || $fLower === 'cosmology') $emoji = '🪐';
-                                                    elseif ($fLower === 'geology') $emoji = '🪨';
-                                                    elseif ($fLower === 'neuroscience' || $fLower === 'psychology') $emoji = '🧠';
-                                                    elseif ($fLower === 'biology') $emoji = '🧬';
-                                                    elseif ($fLower === 'embryology') $emoji = '🍼';
-                                                    elseif ($fLower === 'oceanography') $emoji = '🌊';
-                                                    elseif ($fLower === 'hydrology') $emoji = '💧';
-                                                    elseif ($fLower === 'meteorology') $emoji = '🌀';
-                                                    elseif ($fLower === 'physics') $emoji = '⚡';
-                                                }
-                                            @endphp
-                                            <span class="text-[10px] text-purple-600 bg-purple-50/80 border border-purple-100/50 rounded-full px-2.5 py-0.5 font-bold uppercase tracking-widest flex items-center gap-1 select-none">
-                                                <span>{{ $emoji }}</span>
-                                                <span>{{ $displayLabel }}</span>
-                                            </span>
-                                        @endif
+                        <div x-show="activeLens === 'science'" class="space-y-6" x-cloak>
+                            @php
+                                $categorizedScience = [];
+                                $uncategorizedScience = [];
+                                
+                                foreach($localScience as $sci) {
+                                    $matched = false;
+                                    $fLower = strtolower($sci->field ?? '');
+                                    
+                                    if (isset($scienceCategories)) {
+                                        foreach ($scienceCategories as $catSlug => $cat) {
+                                            if (in_array($fLower, $cat['fields'])) {
+                                                $categorizedScience[$catSlug]['category'] = $cat;
+                                                $categorizedScience[$catSlug]['items'][] = $sci;
+                                                $matched = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    
+                                    if (!$matched) {
+                                        $uncategorizedScience[] = $sci;
+                                    }
+                                }
+                            @endphp
+q
+                            @foreach($categorizedScience as $catSlug => $group)
+                                <div class="space-y-3">
+                                    <h4 class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 ml-1">
+                                        <span>{{ $group['category']['emoji'] ?? '🔬' }}</span>
+                                        <span>{{ $group['category']['label'] }}</span>
+                                    </h4>
+                                    <div class="space-y-4">
+                                        @foreach($group['items'] as $sci)
+                                            <div class="p-6 rounded-3xl border border-slate-100 bg-purple-50/10 hover:border-purple-200 transition-all space-y-4">
+                                                <div class="flex items-center justify-between border-b border-purple-50 pb-3">
+                                                    <span class="text-xs font-black text-purple-800 uppercase tracking-widest bg-purple-50/80 border border-purple-100/50 px-3 py-1 rounded-full">
+                                                        {{ $sci->title }}
+                                                    </span>
+                                                    <span class="text-[10px] text-purple-600 bg-purple-50/80 border border-purple-100/50 rounded-full px-2.5 py-0.5 font-bold uppercase tracking-widest flex items-center gap-1 select-none">
+                                                        <span>{{ $group['category']['emoji'] ?? '🔬' }}</span>
+                                                        <span>{{ $sci->field }}</span>
+                                                    </span>
+                                                </div>
+                                                <p class="text-slate-700 text-sm leading-relaxed font-medium">{{ $sci->description }}</p>
+                                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-50">
+                                                    @if($sci->source_name)
+                                                        <div>🔬 Study Source: <span class="font-bold text-slate-700">{{ $sci->source_name }}</span></div>
+                                                    @endif
+                                                    @if($sci->credibility_score)
+                                                        <div>Credibility Score: <span class="font-black text-purple-700 bg-purple-50 border border-purple-100 px-2.5 py-0.5 rounded-lg">{{ $sci->credibility_score }}/10</span></div>
+                                                    @endif
+                                                </div>
+                                                @if($sci->link_description)
+                                                    <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                        <span class="font-bold uppercase tracking-wider text-[10px] block text-slate-400 mb-1">Relevance Context</span>
+                                                        {{ $sci->link_description }}
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
                                     </div>
-                                    <p class="text-slate-700 text-sm leading-relaxed font-medium">{{ $sci->description }}</p>
-                                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-50">
-                                        @if($sci->source_name)
-                                            <div>🔬 Study Source: <span class="font-bold text-slate-700">{{ $sci->source_name }}</span></div>
-                                        @endif
-                                        @if($sci->credibility_score)
-                                            <div>Credibility Score: <span class="font-black text-purple-700 bg-purple-50 border border-purple-100 px-2.5 py-0.5 rounded-lg">{{ $sci->credibility_score }}/10</span></div>
-                                        @endif
-                                    </div>
-                                    @if($sci->link_description)
-                                        <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
-                                            <span class="font-bold uppercase tracking-wider text-[10px] block text-slate-400 mb-1">Relevance Context</span>
-                                            {{ $sci->link_description }}
-                                        </div>
-                                    @endif
                                 </div>
                             @endforeach
+
+                            @if(count($uncategorizedScience) > 0)
+                                <div class="space-y-3">
+                                    <h4 class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 ml-1">
+                                        <span>🔬</span>
+                                        <span>Other Science Fields</span>
+                                    </h4>
+                                    <div class="space-y-4">
+                                        @foreach($uncategorizedScience as $sci)
+                                            <div class="p-6 rounded-3xl border border-slate-100 bg-purple-50/10 hover:border-purple-200 transition-all space-y-4">
+                                                <div class="flex items-center justify-between border-b border-purple-50 pb-3">
+                                                    <span class="text-xs font-black text-purple-800 uppercase tracking-widest bg-purple-50/80 border border-purple-100/50 px-3 py-1 rounded-full">
+                                                        {{ $sci->title }}
+                                                    </span>
+                                                    @if($sci->field)
+                                                        <span class="text-[10px] text-purple-600 bg-purple-50/80 border border-purple-100/50 rounded-full px-2.5 py-0.5 font-bold uppercase tracking-widest">
+                                                            {{ $sci->field }}
+                                                        </span>
+                                                    @endif
+                                                </div>
+                                                <p class="text-slate-700 text-sm leading-relaxed font-medium">{{ $sci->description }}</p>
+                                                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 pt-2 border-t border-slate-50">
+                                                    @if($sci->source_name)
+                                                        <div>🔬 Study Source: <span class="font-bold text-slate-700">{{ $sci->source_name }}</span></div>
+                                                    @endif
+                                                    @if($sci->credibility_score)
+                                                        <div>Credibility Score: <span class="font-black text-purple-700 bg-purple-50 border border-purple-100 px-2.5 py-0.5 rounded-lg">{{ $sci->credibility_score }}/10</span></div>
+                                                    @endif
+                                                </div>
+                                                @if($sci->link_description)
+                                                    <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl border border-slate-100">
+                                                        <span class="font-bold uppercase tracking-wider text-[10px] block text-slate-400 mb-1">Relevance Context</span>
+                                                        {{ $sci->link_description }}
+                                                    </div>
+                                                @endif
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </div>
+                            @endif
                         </div>
                     @endif
 
@@ -433,10 +495,17 @@
 
                     {{-- Community Submitted Analyses --}}
                     @foreach($analyses as $analysis)
-                        <div x-show="activeLens === '{{ $analysis->lens_type }}'" class="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 space-y-3" x-cloak>
+                        <div x-show="activeLens === '{{ $analysis->lens_type }}' || (activeLens === 'science' && isScienceLens('{{ $analysis->lens_type }}'))" class="p-6 rounded-3xl border border-slate-100 bg-slate-50/50 space-y-3" x-cloak>
                             <div class="flex items-center justify-between">
-                                <h4 class="font-bold text-slate-800 text-base">{{ $analysis->title }}</h4>
-                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest">By {{ $analysis->user ? ($analysis->user->display_name ?: explode('@', $analysis->user->email)[0]) : 'System' }}</span>
+                                <div class="space-y-1">
+                                    <h4 class="font-bold text-slate-800 text-base">{{ $analysis->title }}</h4>
+                                    @if($analysis->lens_type !== 'science' && isset($scienceCategories[$analysis->lens_type]))
+                                        <span class="text-[9px] font-black uppercase tracking-wider bg-purple-50 text-purple-800 border border-purple-200/50 px-2 py-0.5 rounded block w-max mt-1">
+                                            {{ $scienceCategories[$analysis->lens_type]['emoji'] ?? '🔬' }} {{ $scienceCategories[$analysis->lens_type]['label'] }}
+                                        </span>
+                                    @endif
+                                </div>
+                                <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">By {{ $analysis->user ? ($analysis->user->display_name ?: explode('@', $analysis->user->email)[0]) : 'System' }} (Approved by: {{ $analysis->moderator ? ($analysis->moderator->display_name ?: $analysis->moderator->name ?: explode('@', $analysis->moderator->email)[0]) : 'Admin Name' }})</span>
                             </div>
                             <p class="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{{ $analysis->content }}</p>
 
@@ -489,11 +558,31 @@
 
                         {{-- Submission Form --}}
                         <div x-show="showSubmitForm" x-transition class="bg-slate-50 border border-slate-100 p-6 rounded-3xl space-y-4">
+                            @if ($errors->any())
+                                <div class="bg-red-50 border border-red-200 text-red-800 p-5 rounded-2xl text-xs font-bold space-y-1">
+                                    @foreach ($errors->all() as $error)
+                                        <p>⚠️ {{ $error }}</p>
+                                    @endforeach
+                                </div>
+                            @endif
+
                             <form action="{{ route('lens.analysis.store') }}" method="POST" class="space-y-4">
                                 @csrf
                                 <input type="hidden" name="chapter_number" value="{{ $chapter }}">
                                 <input type="hidden" name="verse_number" value="{{ $verse }}">
                                 <input type="hidden" name="lens_type" :value="activeLens">
+
+                                @if(isset($scienceCategories))
+                                    <div x-show="activeLens === 'science'" class="space-y-2" x-cloak>
+                                        <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Science Category / Field</label>
+                                        <select name="science_category" class="w-full p-4 rounded-2xl border-2 border-slate-100 bg-white font-bold text-slate-700 focus:border-emerald-500 outline-none transition-all text-sm">
+                                            <option value="science">-- Select Category (Default: General) --</option>
+                                            @foreach($scienceCategories as $slug => $cat)
+                                                <option value="{{ $slug }}">{{ $cat['emoji'] ?? '🔬' }} {{ $cat['label'] }}</option>
+                                            @endforeach
+                                        </select>
+                                    </div>
+                                @endif
 
                                 <div class="space-y-2">
                                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Analysis Title</label>
@@ -664,7 +753,7 @@
     function verseAnalysisPage() {
         return {
             activeLens: (new URLSearchParams(window.location.search)).get('lens') || 'science',
-            showSubmitForm: false,
+            showSubmitForm: {{ $errors->any() ? 'true' : 'false' }},
             showWordTagModal: false,
             showVerseTagModal: false,
             selectedWordPosition: null,
@@ -675,31 +764,39 @@
             formTitle: '',
             formContent: '',
                     lenses: [
-                { id: 'tafsir', label: 'Tafsir' },
+               // { id: 'tafsir', label: 'Tafsir' },
                 { id: 'hadith', label: 'Hadith' },
                 { id: 'seerat', label: 'Seerah' },
                 { id: 'science', label: 'Science' },
-                { id: 'biology', label: 'Biology' },
-                { id: 'maths', label: 'Mathematics' },
+                //{ id: 'biology', label: 'Biology' },
+                //{ id: 'maths', label: 'Mathematics' },
                 { id: 'history', label: 'History' },
                 { id: 'bible', label: 'Bible' },
                 { id: 'torah', label: 'Torah' },
-                { id: 'psychology', label: 'Psychology' }
+              //  { id: 'psychology', label: 'Psychology' }
             ],
 
             approvedAnalenses: @json($analyses),
+            scienceCategoriesMap: @json($scienceCategories),
+            translations: @json($verseDetail['translations']),
+            selectedTranslationIndex: 0,
+
+            isScienceLens(type) {
+                return type === 'science' || !!this.scienceCategoriesMap[type];
+            },
 
             hasDataForActiveLens() {
-                if (this.approvedAnalenses.some(a => a.lens_type === this.activeLens)) {
-                    return true;
+                if (this.activeLens === 'science') {
+                    if (this.approvedAnalenses.some(a => this.isScienceLens(a.lens_type))) return true;
+                    if ({{ $localScience->count() }} > 0) return true;
+                } else {
+                    if (this.approvedAnalenses.some(a => a.lens_type === this.activeLens)) return true;
+                    if (this.activeLens === 'hadith' && {{ $localHadith->count() }} > 0) return true;
+                    if (this.activeLens === 'seerat' && {{ $localSeerat->count() }} > 0) return true;
+                    if (this.activeLens === 'history' && {{ $localHistory->count() }} > 0) return true;
+                    if (this.activeLens === 'bible' && {{ $localBible->count() }} > 0) return true;
+                    if (this.activeLens === 'torah' && {{ $localTorah->count() }} > 0) return true;
                 }
-                if (this.activeLens === 'tafsir' && {{ $localTafsir->count() }} > 0) return true;
-                if (this.activeLens === 'hadith' && {{ $localHadith->count() }} > 0) return true;
-                if (this.activeLens === 'seerat' && {{ $localSeerat->count() }} > 0) return true;
-                if (this.activeLens === 'science' && {{ $localScience->count() }} > 0) return true;
-                if (this.activeLens === 'history' && {{ $localHistory->count() }} > 0) return true;
-                if (this.activeLens === 'bible' && {{ $localBible->count() }} > 0) return true;
-                if (this.activeLens === 'torah' && {{ $localTorah->count() }} > 0) return true;
                 return false;
             },
 

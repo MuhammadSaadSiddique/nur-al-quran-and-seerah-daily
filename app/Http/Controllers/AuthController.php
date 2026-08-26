@@ -100,8 +100,14 @@ class AuthController extends Controller
         );
 
         Auth::login($user, true);
+        $request->session()->regenerate();
 
-        return response()->json(['success' => true, 'redirect' => route('home')]);
+        return response()->json([
+            'success' => true,
+            'redirect' => route('home'),
+            'has_password' => !empty($user->password),
+            'csrf_token' => csrf_token()
+        ]);
     }
 
     public function logout(Request $request)
@@ -240,18 +246,10 @@ class AuthController extends Controller
             ], 400);
         }
 
-        // If user doesn't exist, create a new one (registration)
-        $user = User::create([
-            'email' => $email,
-            'name' => explode('@', $email)[0],
-            'password' => \Illuminate\Support\Facades\Hash::make($request->password)
-        ]);
-
-        Auth::login($user, true);
-
+        // Return error for non-existent users, registration must be via OTP
         return response()->json([
-            'success' => true,
-            'redirect' => route('home')
-        ]);
+            'success' => false,
+            'error' => 'Account not found. Please register/sign up using OTP first.'
+        ], 400);
     }
 }

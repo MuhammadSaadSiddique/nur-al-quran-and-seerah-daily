@@ -19,6 +19,9 @@ return new class extends Migration
                 $table->string('name_transliteration')->nullable();
                 $table->string('revelation_place')->nullable();
                 $table->integer('verses_count')->nullable();
+                $table->integer('verse_count')->nullable();
+                $table->string('name_english')->nullable();
+                $table->string('revelation_type')->nullable();
                 $table->timestamps();
             });
         }
@@ -30,6 +33,7 @@ return new class extends Migration
                 $table->integer('verse_number')->nullable();
                 $table->string('verse_key')->nullable();
                 $table->integer('juz_number')->nullable();
+                $table->integer('juz')->nullable();
                 $table->text('text_arabic')->nullable();
                 $table->text('text_transliteration')->nullable();
                 $table->timestamps();
@@ -42,6 +46,8 @@ return new class extends Migration
                 $table->string('title')->nullable();
                 $table->text('description')->nullable();
                 $table->string('field')->nullable();
+                $table->string('source_name')->nullable();
+                $table->integer('credibility_score')->nullable();
                 $table->timestamps();
             });
         }
@@ -51,6 +57,7 @@ return new class extends Migration
                 $table->id();
                 $table->foreignId('verse_id')->nullable();
                 $table->foreignId('science_fact_id')->nullable();
+                $table->text('relevance_description')->nullable();
                 $table->timestamps();
             });
         }

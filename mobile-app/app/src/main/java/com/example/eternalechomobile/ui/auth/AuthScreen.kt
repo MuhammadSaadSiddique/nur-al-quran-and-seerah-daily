@@ -112,31 +112,31 @@ fun AuthScreen(
     viewModel: AuthViewModel = viewModel { AuthViewModel(DefaultDataRepository()) }
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    
+
     var method by remember { mutableStateOf("otp") } // "otp" or "password"
     var phase by remember { mutableStateOf("email") } // "email", "otp", "set_password"
-    
+
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var otp by remember { mutableStateOf("") }
     var sessionForSetPassword by remember { mutableStateOf<UserSession?>(null) }
 
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    val prefs = remember { com.example.eternalechomobile.security.SecurePreferences.getInstance(context) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Text(
                         text = when {
                             method == "otp" && phase == "otp" -> "Verify Code"
                             method == "otp" && phase == "set_password" -> "Set Password"
                             method == "otp" -> "OTP Sign Up / In"
                             else -> "Password Sign In"
-                        }, 
+                        },
                         fontWeight = FontWeight.Bold
-                    ) 
+                    )
                 },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
@@ -184,15 +184,15 @@ fun AuthScreen(
                     TabRow(selectedTabIndex = if (method == "otp") 0 else 1) {
                         Tab(
                             selected = method == "otp",
-                            onClick = { 
+                            onClick = {
                                 method = "otp"
                                 viewModel.clearState()
                             },
-                            text = { Text("🔑 OTP") }
+                            text = { Text("🔑 Sign UP") }
                         )
                         Tab(
                             selected = method == "password",
-                            onClick = { 
+                            onClick = {
                                 method = "password"
                                 viewModel.clearState()
                             },
@@ -205,7 +205,7 @@ fun AuthScreen(
                 when {
                     method == "otp" && phase == "email" -> {
                         OutlinedTextField(
-                            value = email,
+                            value = email, maxLines = 1,
                             onValueChange = { email = it },
                             label = { Text("Email Address") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
@@ -283,11 +283,9 @@ fun AuthScreen(
                 Button(
                     onClick = {
                         val saveSessionToPrefs: (UserSession) -> Unit = { session ->
-                            prefs.edit()
-                                .putInt("user_id", session.userId)
-                                .putString("user_name", session.name)
-                                .putString("user_email", session.email)
-                                .apply()
+                            prefs.putInt("user_id", session.userId)
+                            prefs.putString("user_name", session.name)
+                            prefs.putString("user_email", session.email)
                         }
 
                         when {

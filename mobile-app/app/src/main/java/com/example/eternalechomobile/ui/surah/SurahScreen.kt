@@ -6,7 +6,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,18 +30,15 @@ fun SurahScreen(
     surahNumber: Int,
     onBackClick: () -> Unit,
     modifier: Modifier = Modifier,
-    viewModel: SurahScreenViewModel = viewModel { SurahScreenViewModel(surahNumber, DefaultDataRepository()) }
+    viewModel: SurahScreenViewModel = viewModel(key = "surah_$surahNumber") { SurahScreenViewModel(surahNumber, DefaultDataRepository()) }
 ) {
-    val versesState by viewModel.versesState.collectAsStateWithLifecycle()
-    val connectionsState by viewModel.connectionsState.collectAsStateWithLifecycle()
-
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Surah #$surahNumber", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(imageVector = Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -51,11 +48,26 @@ fun SurahScreen(
             )
         }
     ) { paddingValues ->
-        Box(
+        SurahReaderContent(
+            surahNumber = surahNumber,
             modifier = modifier
                 .fillMaxSize()
-                .padding(paddingValues)
-        ) {
+                .padding(paddingValues),
+            viewModel = viewModel
+        )
+    }
+}
+
+@Composable
+fun SurahReaderContent(
+    surahNumber: Int,
+    modifier: Modifier = Modifier,
+    viewModel: SurahScreenViewModel = viewModel(key = "surah_$surahNumber") { SurahScreenViewModel(surahNumber, DefaultDataRepository()) }
+) {
+    val versesState by viewModel.versesState.collectAsStateWithLifecycle()
+    val connectionsState by viewModel.connectionsState.collectAsStateWithLifecycle()
+
+    Box(modifier = modifier.fillMaxSize()) {
             when (val state = versesState) {
                 is VersesUiState.Loading -> {
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
@@ -167,7 +179,6 @@ fun SurahScreen(
             }
         }
     }
-}
 
 @Composable
 fun VerseItem(verse: Verse, onClick: () -> Unit) {

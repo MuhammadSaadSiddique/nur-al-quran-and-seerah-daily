@@ -125,3 +125,38 @@ data class UserSessionOtpResponse(
     val session: UserSession,
     val hasPassword: Boolean
 )
+
+@Serializable
+data class DuaWord(
+    val arabic: String,
+    val transliteration: String,
+    val meaningEn: String,
+    val meaningUr: String? = null
+)
+
+@Serializable
+data class Dua(
+    val id: Int,
+    val title: String,
+    val slug: String,
+    val category: String,
+    val description: String? = null,
+    val arabicText: String,
+    val transliteration: String? = null,
+    val translationEn: String,
+    val translationUr: String? = null,
+    val wordByWord: List<DuaWord>? = null,
+    val meaningExplanation: String? = null,
+    val benefitsAndVirtues: String? = null,
+    val whenToRecite: String? = null,
+    val repeatCount: Int = 1,
+    val sourceType: String = "hadith",
+    val quranReference: String? = null,
+    val surahNumber: Int? = null,
+    val verseNumber: Int? = null,
+    val hadithReference: String? = null,
+    val hadithBook: String? = null,
+    val hadithNumber: String? = null,
+    val hadithGrading: String? = null
+)
+

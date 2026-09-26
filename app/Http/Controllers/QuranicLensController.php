@@ -482,7 +482,9 @@ class QuranicLensController extends Controller
             $localTafsir = \Illuminate\Support\Facades\DB::table('tafsirs')
                 ->where('verse_id', $localVerse->id)
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Seerat events
             $localSeerat = \Illuminate\Support\Facades\DB::table('seerat_events')
                 ->join('quran_seerat_links', 'seerat_events.id', '=', 'quran_seerat_links.seerat_event_id')
@@ -490,7 +492,9 @@ class QuranicLensController extends Controller
                 ->where('quran_seerat_links.status', 'approved')
                 ->select('seerat_events.*', 'quran_seerat_links.description as link_description', 'quran_seerat_links.context_type')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Hadith items
             $localHadith = \Illuminate\Support\Facades\DB::table('ahadith')
                 ->join('quran_hadith_links', 'ahadith.id', '=', 'quran_hadith_links.hadith_id')
@@ -500,7 +504,9 @@ class QuranicLensController extends Controller
                 ->where('quran_hadith_links.status', 'approved')
                 ->select('ahadith.*', 'quran_hadith_links.description as link_description', 'quran_hadith_links.relevance_type', 'hadith_collections.name_english as collection_name', 'hadith_books.name_english as book_name')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Historical events
             $localHistory = \Illuminate\Support\Facades\DB::table('historical_events')
                 ->join('quran_history_links', 'historical_events.id', '=', 'quran_history_links.historical_event_id')
@@ -508,15 +514,20 @@ class QuranicLensController extends Controller
                 ->where('quran_history_links.status', 'approved')
                 ->select('historical_events.*', 'quran_history_links.description as link_description')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Science facts
             $localScience = \Illuminate\Support\Facades\DB::table('science_facts')
                 ->join('quran_science_links', 'science_facts.id', '=', 'quran_science_links.science_fact_id')
                 ->where('quran_science_links.verse_id', $localVerse->id)
                 ->where('quran_science_links.status', 'approved')
                 ->select('science_facts.*', 'quran_science_links.relevance_description as link_description')
-                ->get();
+                ->paginate(5, ['*'], 'science_page')
+                ->withQueryString();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Scripture links (Bible)
             $localBible = \Illuminate\Support\Facades\DB::table('bible_verses')
                 ->join('quran_scripture_links', 'bible_verses.id', '=', 'quran_scripture_links.bible_verse_id')
@@ -524,7 +535,9 @@ class QuranicLensController extends Controller
                 ->where('quran_scripture_links.status', 'approved')
                 ->select('bible_verses.*', 'quran_scripture_links.description as link_description', 'quran_scripture_links.relationship_type')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Scripture links (Torah)
             $localTorah = \Illuminate\Support\Facades\DB::table('torah_sections')
                 ->join('quran_scripture_links', 'torah_sections.id', '=', 'quran_scripture_links.torah_section_id')
@@ -532,9 +545,7 @@ class QuranicLensController extends Controller
                 ->where('quran_scripture_links.status', 'approved')
                 ->select('torah_sections.*', 'quran_scripture_links.description as link_description', 'quran_scripture_links.relationship_type')
                 ->get();
-        } catch (\Illuminate\Database\QueryException $e) {
-            Log::warning('Local link tables are missing', ['error' => $e->getMessage()]);
-        }
+        } catch (\Illuminate\Database\QueryException $e) {}
 
         $themes = \App\Models\Theme::where('is_active', true)->orderBy('name')->get();
         $scienceCategories = $this->getScienceCategories();
@@ -579,6 +590,7 @@ class QuranicLensController extends Controller
             'science_category' => 'nullable|string|in:' . implode(',', array_unique($dbSlugs ?? [])),
             'title' => 'required|string|max:255',
             'content' => 'required|string|min:10',
+            'reference_link' => 'nullable|url|max:2048',
             'theme_id' => 'nullable|integer|exists:themes,id',
         ]);
 
@@ -594,6 +606,7 @@ class QuranicLensController extends Controller
             'lens_type' => $lensType,
             'title' => $request->title,
             'content' => $request->content,
+            'reference_link' => $request->reference_link,
             'theme_id' => $request->theme_id,
             'status' => (Auth::user() && Auth::user()->is_researcher) ? 'approved' : 'pending',
         ]);

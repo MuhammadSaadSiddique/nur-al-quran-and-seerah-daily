@@ -16,11 +16,16 @@ use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementContro
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\QuranicLensController;
 use App\Http\Controllers\Admin\QuranicLensApprovalController;
+use App\Http\Controllers\DuaController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
-// Public routes
 Route::get('/', [QuranicLensController::class, 'landing'])->name('lens.landing');
+
+// Authentic Duas & Meanings
+Route::get('/duas', [DuaController::class, 'index'])->name('duas.index');
+Route::get('/duas/{dua:slug}', [DuaController::class, 'show'])->name('duas.show');
+Route::get('/daily-dua', [DuaController::class, 'daily'])->name('daily.dua');
 
 Route::get('/quiz-learning', function () {
     $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();

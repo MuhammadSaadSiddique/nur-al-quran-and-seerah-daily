@@ -6,10 +6,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.example.eternalechomobile.ui.adaptive.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -176,7 +177,7 @@ fun ThemeSelectionScreen(
     var selectedDifficulty by remember { mutableStateOf("Medium") }
 
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+    val prefs = remember { com.example.eternalechomobile.security.SecurePreferences.getInstance(context) }
     var completedQuizzes by remember { mutableIntStateOf(prefs.getInt("completed_quizzes", 0)) }
     var showLimitDialog by remember { mutableStateOf(false) }
 
@@ -207,7 +208,7 @@ fun ThemeSelectionScreen(
                 title = { Text("Thematic Quizzes", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -348,8 +349,8 @@ fun PlayThemeQuizScreen(
     modifier: Modifier = Modifier,
     viewModel: PlayThemeQuizViewModel = viewModel(key = "theme_${themeId}_${difficulty}") {
         PlayThemeQuizViewModel(themeId, difficulty, DefaultDataRepository())
-    }
-
+    },
+    adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
 
@@ -359,7 +360,7 @@ fun PlayThemeQuizScreen(
                 title = { Text(themeName, fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -404,20 +405,20 @@ fun PlayThemeQuizScreen(
                     } else if (viewModel.quizFinished) {
                         // Increment completed quizzes in SharedPreferences on finish
                         val context = LocalContext.current
-                        val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
+                        val prefs = remember { com.example.eternalechomobile.security.SecurePreferences.getInstance(context) }
                         LaunchedEffect(Unit) {
                             val userId = prefs.getInt("user_id", -1)
                             val isLoggedIn = userId != -1
                             if (!isLoggedIn) {
                                 val current = prefs.getInt("completed_quizzes", 0)
-                                prefs.edit().putInt("completed_quizzes", current + 1).apply()
+                                prefs.putInt("completed_quizzes", current + 1)
                             } else {
                                 viewModel.finishAndSubmit(userId, themeName, questions)
                             }
                         }
 
                         Card(
-                            modifier = Modifier.align(Alignment.Center).fillMaxWidth(),
+                            modifier = Modifier.align(Alignment.Center).fillMaxWidth().widthIn(max = 500.dp),
                             shape = RoundedCornerShape(24.dp)
                         ) {
                             Column(
@@ -454,144 +455,110 @@ fun PlayThemeQuizScreen(
                         val currentQuestion = questions[viewModel.currentQuestionIndex]
                         val hasAnswered = viewModel.selectedOptionIndex != null
 
-                        Column(modifier = Modifier.fillMaxSize()) {
-                            // Progress bar
-                            LinearProgressIndicator(
-                                progress = { (viewModel.currentQuestionIndex + 1).toFloat() / questions.size.toFloat() },
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                            )
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = "Question ${viewModel.currentQuestionIndex + 1} of ${questions.size}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    text = "Difficulty: ${currentQuestion.difficulty}",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-
-                            Text(
-                                text = currentQuestion.text,
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(bottom = 24.dp)
-                            )
-
-                            LazyColumn(
-                                modifier = Modifier.weight(1f),
-                                verticalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
-                                items(currentQuestion.options.size) { index ->
-                                    val option = currentQuestion.options[index]
-                                    val isCorrect = index == currentQuestion.correctAnswerIndex
-                                    val isSelected = index == viewModel.selectedOptionIndex
-
-                                    val containerColor = when {
-                                        !hasAnswered -> MaterialTheme.colorScheme.surface
-                                        isCorrect -> MaterialTheme.colorScheme.primaryContainer
-                                        isSelected -> MaterialTheme.colorScheme.errorContainer
-                                        else -> MaterialTheme.colorScheme.surface
-                                    }
-
-                                    val contentColor = when {
-                                        !hasAnswered -> MaterialTheme.colorScheme.onSurface
-                                        isCorrect -> MaterialTheme.colorScheme.onPrimaryContainer
-                                        isSelected -> MaterialTheme.colorScheme.onErrorContainer
-                                        else -> MaterialTheme.colorScheme.onSurface
-                                    }
-
-                                    val borderColor = when {
-                                        !hasAnswered -> MaterialTheme.colorScheme.outline
-                                        isCorrect -> MaterialTheme.colorScheme.primary
-                                        isSelected -> MaterialTheme.colorScheme.error
-                                        else -> MaterialTheme.colorScheme.outlineVariant
-                                    }
-
-                                    OutlinedButton(
-                                        onClick = { viewModel.submitAnswer(index, currentQuestion.correctAnswerIndex) },
-                                        modifier = Modifier.fillMaxWidth(),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.outlinedButtonColors(
-                                            containerColor = containerColor,
-                                            contentColor = contentColor
-                                        ),
-                                        border = BorderStroke(1.dp, borderColor)
+                        if (adaptiveInfo.isTableTop) {
+                            // Flip phone TableTop (Flex) mode
+                            AdaptiveTwoPane(
+                                adaptiveInfo = adaptiveInfo,
+                                firstPane = {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(12.dp)
                                     ) {
+                                        LinearProgressIndicator(
+                                            progress = { (viewModel.currentQuestionIndex + 1).toFloat() / questions.size.toFloat() },
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                        )
                                         Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween
                                         ) {
                                             Text(
-                                                text = "${(65 + index).toChar()}. $option",
-                                                modifier = Modifier.weight(1f)
+                                                text = "Question ${viewModel.currentQuestionIndex + 1} of ${questions.size}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                fontWeight = FontWeight.Bold
                                             )
-                                            if (hasAnswered) {
-                                                if (isCorrect) {
-                                                    Text("✓", fontWeight = FontWeight.Bold)
-                                                } else if (isSelected) {
-                                                    Text("✗", fontWeight = FontWeight.Bold)
-                                                }
-                                            }
+                                            Text(
+                                                text = "Difficulty: ${currentQuestion.difficulty}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.secondary
+                                            )
                                         }
+                                        Text(
+                                            text = currentQuestion.text,
+                                            style = MaterialTheme.typography.titleLarge,
+                                            fontWeight = FontWeight.Bold
+                                        )
                                     }
-                                }
-
-                                if (hasAnswered && !currentQuestion.explanation.isNullOrEmpty()) {
-                                    item {
-                                        Card(
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer
-                                            ),
-                                            shape = RoundedCornerShape(12.dp),
-                                            modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
-                                        ) {
-                                            Column(modifier = Modifier.padding(16.dp)) {
-                                                Text(
-                                                    text = "Explanation",
-                                                    style = MaterialTheme.typography.titleSmall,
-                                                    fontWeight = FontWeight.Bold
-                                                )
-                                                Spacer(modifier = Modifier.height(4.dp))
-                                                Text(
-                                                    text = currentQuestion.explanation,
-                                                    style = MaterialTheme.typography.bodyMedium
-                                                )
-                                                if (!currentQuestion.reference.isNullOrEmpty()) {
-                                                    Spacer(modifier = Modifier.height(8.dp))
-                                                    Text(
-                                                        text = "Ref: ${currentQuestion.reference}",
-                                                        style = MaterialTheme.typography.labelSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.tertiary
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if (hasAnswered) {
-                                Button(
-                                    onClick = { viewModel.nextQuestion(questions.size) },
-                                    modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
-                                ) {
-                                    Row(
-                                        horizontalArrangement = Arrangement.Center,
-                                        verticalAlignment = Alignment.CenterVertically
+                                },
+                                secondPane = {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(12.dp)
                                     ) {
-                                        Text(if (viewModel.currentQuestionIndex + 1 == questions.size) "Finish" else "Next")
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Icon(Icons.Default.ArrowForward, contentDescription = "Next")
+                                        QuizOptionsSection(
+                                            currentQuestion = currentQuestion,
+                                            hasAnswered = hasAnswered,
+                                            selectedOptionIndex = viewModel.selectedOptionIndex,
+                                            onSelectOption = { index ->
+                                                viewModel.submitAnswer(index, currentQuestion.correctAnswerIndex)
+                                            },
+                                            onNextQuestion = { viewModel.nextQuestion(questions.size) },
+                                            isLastQuestion = viewModel.currentQuestionIndex + 1 == questions.size
+                                        )
                                     }
+                                }
+                            )
+                        } else {
+                            // Standard layout with ergonomic wide-screen centering
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.TopCenter
+                            ) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .widthIn(max = 760.dp)
+                                ) {
+                                    LinearProgressIndicator(
+                                        progress = { (viewModel.currentQuestionIndex + 1).toFloat() / questions.size.toFloat() },
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                    )
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(
+                                            text = "Question ${viewModel.currentQuestionIndex + 1} of ${questions.size}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            text = "Difficulty: ${currentQuestion.difficulty}",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.secondary
+                                        )
+                                    }
+
+                                    Text(
+                                        text = currentQuestion.text,
+                                        style = MaterialTheme.typography.titleLarge,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(bottom = 20.dp)
+                                    )
+
+                                    QuizOptionsSection(
+                                        currentQuestion = currentQuestion,
+                                        hasAnswered = hasAnswered,
+                                        selectedOptionIndex = viewModel.selectedOptionIndex,
+                                        onSelectOption = { index ->
+                                            viewModel.submitAnswer(index, currentQuestion.correctAnswerIndex)
+                                        },
+                                        onNextQuestion = { viewModel.nextQuestion(questions.size) },
+                                        isLastQuestion = viewModel.currentQuestionIndex + 1 == questions.size,
+                                        modifier = Modifier.weight(1f)
+                                    )
                                 }
                             }
                         }
@@ -601,3 +568,129 @@ fun PlayThemeQuizScreen(
         }
     }
 }
+
+@Composable
+fun QuizOptionsSection(
+    currentQuestion: QuizQuestion,
+    hasAnswered: Boolean,
+    selectedOptionIndex: Int?,
+    onSelectOption: (Int) -> Unit,
+    onNextQuestion: () -> Unit,
+    isLastQuestion: Boolean,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        LazyColumn(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            items(currentQuestion.options.size) { index ->
+                val option = currentQuestion.options[index]
+                val isCorrect = index == currentQuestion.correctAnswerIndex
+                val isSelected = index == selectedOptionIndex
+
+                val containerColor = when {
+                    !hasAnswered -> MaterialTheme.colorScheme.surface
+                    isCorrect -> MaterialTheme.colorScheme.primaryContainer
+                    isSelected -> MaterialTheme.colorScheme.errorContainer
+                    else -> MaterialTheme.colorScheme.surface
+                }
+
+                val contentColor = when {
+                    !hasAnswered -> MaterialTheme.colorScheme.onSurface
+                    isCorrect -> MaterialTheme.colorScheme.onPrimaryContainer
+                    isSelected -> MaterialTheme.colorScheme.onErrorContainer
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+
+                val borderColor = when {
+                    !hasAnswered -> MaterialTheme.colorScheme.outline
+                    isCorrect -> MaterialTheme.colorScheme.primary
+                    isSelected -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.outlineVariant
+                }
+
+                OutlinedButton(
+                    onClick = { onSelectOption(index) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        containerColor = containerColor,
+                        contentColor = contentColor
+                    ),
+                    border = BorderStroke(1.dp, borderColor)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "${(65 + index).toChar()}. $option",
+                            modifier = Modifier.weight(1f)
+                        )
+                        if (hasAnswered) {
+                            if (isCorrect) {
+                                Text("✓", fontWeight = FontWeight.Bold)
+                            } else if (isSelected) {
+                                Text("✗", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (hasAnswered && !currentQuestion.explanation.isNullOrEmpty()) {
+                item {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(16.dp)) {
+                            Text(
+                                text = "Explanation",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = currentQuestion.explanation,
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (!currentQuestion.reference.isNullOrEmpty()) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text(
+                                    text = "Ref: ${currentQuestion.reference}",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (hasAnswered) {
+            Button(
+                onClick = onNextQuestion,
+                modifier = Modifier.fillMaxWidth().padding(top = 16.dp)
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (isLastQuestion) "Finish" else "Next")
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next")
+                }
+            }
+        }
+    }
+}
+

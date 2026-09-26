@@ -9,14 +9,17 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import com.example.eternalechomobile.ui.adaptive.*
+import com.example.eternalechomobile.ui.surah.SurahReaderContent
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -28,6 +31,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import com.example.eternalechomobile.ThemeQuizSelection
 import com.example.eternalechomobile.AuthRoute
+import com.example.eternalechomobile.OnboardingRoute
+import com.example.eternalechomobile.DuasRoute
+import com.example.eternalechomobile.config.AppConfig
+import com.example.eternalechomobile.ui.duas.DuasContent
 import com.example.eternalechomobile.data.*
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.Lifecycle
@@ -35,6 +42,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material.icons.filled.Favorite
+
 
 @Composable
 fun MainScreen(
@@ -43,6 +52,7 @@ fun MainScreen(
     viewModel: MainScreenViewModel = viewModel { MainScreenViewModel(DefaultDataRepository()) }
 ) {
     var selectedTab by remember { mutableStateOf(0) }
+    val adaptiveInfo = rememberWindowAdaptiveInfo()
 
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences("app_prefs", android.content.Context.MODE_PRIVATE) }
@@ -67,7 +77,7 @@ fun MainScreen(
 
     val repository = remember { DefaultDataRepository() }
     val scope = rememberCoroutineScope()
-    
+
     var showPasswordDialog by remember { mutableStateOf(false) }
     var passwordText by remember { mutableStateOf("") }
     var passwordSaving by remember { mutableStateOf(false) }
@@ -75,9 +85,9 @@ fun MainScreen(
 
     if (showPasswordDialog) {
         AlertDialog(
-            onDismissRequest = { 
+            onDismissRequest = {
                 if (!passwordSaving) {
-                    showPasswordDialog = false 
+                    showPasswordDialog = false
                     passwordText = ""
                     passwordMessage = ""
                 }
@@ -153,8 +163,8 @@ fun MainScreen(
             },
             dismissButton = {
                 TextButton(
-                    onClick = { 
-                        showPasswordDialog = false 
+                    onClick = {
+                        showPasswordDialog = false
                         passwordText = ""
                         passwordMessage = ""
                     },
@@ -166,12 +176,18 @@ fun MainScreen(
         )
     }
 
-    Scaffold(
+    AdaptiveNavigationScaffold(
+        adaptiveInfo = adaptiveInfo,
+        selectedTab = selectedTab,
+        onTabSelected = { selectedTab = it },
         topBar = {
             @OptIn(ExperimentalMaterial3Api::class)
             TopAppBar(
                 title = { Text("Eternal Echo", fontWeight = FontWeight.Bold) },
                 actions = {
+                    IconButton(onClick = { onItemClick(OnboardingRoute) }) {
+                        Icon(Icons.Default.Info, contentDescription = "App Guide")
+                    }
                     if (isLoggedIn) {
                         TextButton(
                             onClick = { showPasswordDialog = true },
@@ -188,7 +204,7 @@ fun MainScreen(
                             prefs.edit().remove("user_id").remove("user_name").remove("user_email").apply()
                             loginStateRefresh++
                         }) {
-                            Icon(Icons.Default.ExitToApp, contentDescription = "Log Out")
+                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Log Out")
                         }
                     } else {
                         Button(
@@ -204,36 +220,6 @@ fun MainScreen(
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 )
             )
-        },
-        bottomBar = {
-            NavigationBar(
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Default.List, contentDescription = "Surahs") },
-                    label = { Text("Surahs") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Default.Star, contentDescription = "Leaderboard") },
-                    label = { Text("Leaderboard") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Default.Person, contentDescription = "Seerah") },
-                    label = { Text("Seerah") }
-                )
-                NavigationBarItem(
-                    selected = selectedTab == 3,
-                    onClick = { selectedTab = 3 },
-                    icon = { Icon(Icons.Default.Info, contentDescription = "History") },
-                    label = { Text("History") }
-                )
-            }
         }
     ) { paddingValues ->
         Box(
@@ -245,11 +231,30 @@ fun MainScreen(
                 0 -> SurahsTab(
                     viewModel = viewModel,
                     onSurahClick = { onItemClick(SurahNavKey(it.number)) },
-                    onThemeQuizClick = { onItemClick(ThemeQuizSelection) }
+                    onThemeQuizClick = { onItemClick(ThemeQuizSelection) },
+                    adaptiveInfo = adaptiveInfo
                 )
-                1 -> LeaderboardTab(viewModel = viewModel)
-                2 -> SeerahTab(viewModel = viewModel, onAuthClick = { onItemClick(AuthRoute) })
-                3 -> HistoryTab(viewModel = viewModel, onAuthClick = { onItemClick(AuthRoute) })
+                1 -> LeaderboardTab(
+                    viewModel = viewModel,
+                    adaptiveInfo = adaptiveInfo,
+                    onThemeQuizClick = { onItemClick(ThemeQuizSelection) },
+                )
+                2 -> SeerahTab(
+                    viewModel = viewModel,
+                    onAuthClick = { onItemClick(AuthRoute) },
+                    adaptiveInfo = adaptiveInfo
+                )
+                3 -> HistoryTab(
+                    viewModel = viewModel,
+                    onAuthClick = { onItemClick(AuthRoute) },
+                    adaptiveInfo = adaptiveInfo
+                )
+                4 -> if (AppConfig.IS_DUAS_FEATURE_ENABLED) {
+                    DuasContent(
+                        repository = repository,
+                        adaptiveInfo = adaptiveInfo
+                    )
+                }
             }
         }
     }
@@ -260,148 +265,157 @@ fun MainScreen(
 fun SurahsTab(
     viewModel: MainScreenViewModel,
     onSurahClick: (Surah) -> Unit,
-    onThemeQuizClick: () -> Unit
+    onThemeQuizClick: () -> Unit,
+    adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
 ) {
     val state by viewModel.surahsState.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
+    var selectedSurahNumber by rememberSaveable { mutableIntStateOf(1) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.onSecondaryContainer
-            ),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Thematic Quizzes",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Spacer(modifier = Modifier.height(2.dp))
-                    Text(
-                        text = "Practice quizzes by Quranic and Seerah themes.",
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-                Button(
-                    onClick = onThemeQuizClick,
-                    shape = RoundedCornerShape(8.dp)
-                ) {
-                    Text("Explore", fontSize = 12.sp)
-                }
+    when (val uiState = state) {
+        is SurahsUiState.Loading -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
             }
         }
-
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("Search Surah...") },
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp),
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-            shape = RoundedCornerShape(12.dp)
-        )
-
-        when (val uiState = state) {
-            is SurahsUiState.Loading -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator()
-                }
-            }
-            is SurahsUiState.Error -> {
-                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("Error loading Surahs", color = MaterialTheme.colorScheme.error)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Button(onClick = { viewModel.loadSurahs() }) {
-                            Text("Retry")
-                        }
+        is SurahsUiState.Error -> {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Error loading Surahs", color = MaterialTheme.colorScheme.error)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Button(onClick = { viewModel.loadSurahs() }) {
+                        Text("Retry")
                     }
                 }
             }
-            is SurahsUiState.Success -> {
-                val filteredSurahs = uiState.data.filter {
-                    it.nameSimple.contains(searchQuery, ignoreCase = true) ||
-                            it.nameTranslated.contains(searchQuery, ignoreCase = true) ||
-                            it.number.toString() == searchQuery
-                }
+        }
+        is SurahsUiState.Success -> {
+            val filteredSurahs = uiState.data.filter {
+                it.nameSimple.contains(searchQuery, ignoreCase = true) ||
+                        it.nameTranslated.contains(searchQuery, ignoreCase = true) ||
+                        it.number.toString() == searchQuery
+            }
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(filteredSurahs) { surah ->
-                        Card(
+            val currentSelectedSurah = filteredSurahs.find { it.number == selectedSurahNumber }
+                ?: filteredSurahs.firstOrNull() ?: uiState.data.firstOrNull()
+
+            if (adaptiveInfo.isDualPane && currentSelectedSurah != null) {
+                AdaptiveTwoPane(
+                    adaptiveInfo = adaptiveInfo,
+                    firstPane = {
+                        Column(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { onSurahClick(surah) },
-                            shape = RoundedCornerShape(12.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant
-                            )
+                                .fillMaxSize()
+                                .padding(12.dp)
                         ) {
-                            Row(
+                            SurahThematicQuizCard(onThemeQuizClick)
+                            OutlinedTextField(
+                                value = searchQuery,
+                                onValueChange = { searchQuery = it },
+                                placeholder = { Text("Search Surah...") },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(bottom = 12.dp),
+                                leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                                shape = RoundedCornerShape(12.dp),
+                                singleLine = true
+                            )
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(40.dp),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Badge(containerColor = MaterialTheme.colorScheme.primary) {
-                                            Text(
-                                                text = surah.number.toString(),
-                                                color = MaterialTheme.colorScheme.onPrimary,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                        }
-                                    }
-                                    Spacer(modifier = Modifier.width(12.dp))
-                                    Column {
-                                        Text(
-                                            text = surah.nameSimple,
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            text = surah.nameTranslated,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                }
-                                Column(horizontalAlignment = Alignment.End) {
-                                    Text(
-                                        text = surah.nameArabic,
-                                        fontSize = 20.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                    Text(
-                                        text = "${surah.versesCount} Verses",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                items(filteredSurahs, key = { it.number }) { surah ->
+                                    val isSelected = surah.number == currentSelectedSurah.number
+                                    SurahListItemCard(
+                                        surah = surah,
+                                        isSelected = isSelected,
+                                        onClick = { selectedSurahNumber = surah.number },
+                                        onOpenFullScreen = { onSurahClick(surah) }
                                     )
                                 }
                             }
+                        }
+                    },
+                    secondPane = {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(12.dp)
+                        ) {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer
+                                ),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 14.dp, vertical = 8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = "Surah ${currentSelectedSurah.nameSimple} (${currentSelectedSurah.nameArabic})",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                                        )
+                                        Text(
+                                            text = "${currentSelectedSurah.versesCount} Verses • ${currentSelectedSurah.nameTranslated}",
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+                                        )
+                                    }
+                                    Button(
+                                        onClick = { onSurahClick(currentSelectedSurah) },
+                                        shape = RoundedCornerShape(8.dp),
+                                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("Full Screen", fontSize = 11.sp)
+                                    }
+                                }
+                            }
+
+                            SurahReaderContent(
+                                surahNumber = currentSelectedSurah.number,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                )
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    SurahThematicQuizCard(onThemeQuizClick)
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        placeholder = { Text("Search Surah...") },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(bottom = 16.dp),
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
+                        shape = RoundedCornerShape(12.dp),
+                        singleLine = true
+                    )
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(filteredSurahs, key = { it.number }) { surah ->
+                            SurahListItemCard(
+                                surah = surah,
+                                isSelected = false,
+                                onClick = { onSurahClick(surah) }
+                            )
                         }
                     }
                 }
@@ -411,17 +425,133 @@ fun SurahsTab(
 }
 
 @Composable
-fun LeaderboardTab(viewModel: MainScreenViewModel) {
+fun SurahThematicQuizCard(onThemeQuizClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(bottom = 14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+        ),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Thematic Quizzes",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = "Practice quizzes by Quranic and Seerah themes.",
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+            Button(
+                onClick = onThemeQuizClick,
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("Explore", fontSize = 12.sp)
+            }
+        }
+    }
+}
+
+@Composable
+fun SurahListItemCard(
+    surah: Surah,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    onOpenFullScreen: (() -> Unit)? = null
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        shape = RoundedCornerShape(12.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
+                Box(
+                    modifier = Modifier.size(38.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Badge(containerColor = MaterialTheme.colorScheme.primary) {
+                        Text(
+                            text = surah.number.toString(),
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Column {
+                    Text(
+                        text = surah.nameSimple,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = surah.nameTranslated,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = surah.nameArabic,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "${surah.versesCount} Verses",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LeaderboardTab(
+    viewModel: MainScreenViewModel,
+    adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo(),
+    onThemeQuizClick: () -> Unit
+) {
     val state by viewModel.leaderboardState.collectAsStateWithLifecycle()
 
-    Column(modifier = Modifier.fillMaxSize()) {
-        Text(
-            text = "Leaderboard Challenges",
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
-
+    Box(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.TopCenter
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .widthIn(max = 760.dp)
+                .padding(horizontal = if (adaptiveInfo.widthClass != WindowWidthClass.Compact) 16.dp else 0.dp)
+        ) {
+            SurahThematicQuizCard(onThemeQuizClick)
         when (val uiState = state) {
             is LeaderboardUiState.Loading -> {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -445,6 +575,7 @@ fun LeaderboardTab(viewModel: MainScreenViewModel) {
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     items(uiState.data.withIndex().toList()) { (index, user) ->
+                        if (user.totalScore == 0) return@items
                         Card(
                             modifier = Modifier.fillMaxWidth(),
                             shape = RoundedCornerShape(12.dp),
@@ -469,12 +600,12 @@ fun LeaderboardTab(viewModel: MainScreenViewModel) {
                                     )
                                     Column {
                                         Text(
-                                            text = user.displayName.ifEmpty { user.name },
+                                            text = if (user.displayName.isNotEmpty() && user.displayName != "null") user.displayName else if (user.name.isNotEmpty() && user.name != "null") user.name else "User",
                                             style = MaterialTheme.typography.bodyLarge,
                                             fontWeight = FontWeight.Bold
                                         )
                                         Text(
-                                            text = "Seerah read: ${user.seerahReadCount}",
+                                            text = "${user.totalQuestions} Questions",
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -487,11 +618,7 @@ fun LeaderboardTab(viewModel: MainScreenViewModel) {
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.primary
                                     )
-                                    Text(
-                                        text = "${user.totalQuestions} Questions",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+
                                 }
                             }
                         }
@@ -500,6 +627,7 @@ fun LeaderboardTab(viewModel: MainScreenViewModel) {
             }
         }
     }
+}
 }
 
 @Composable
@@ -928,12 +1056,17 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
     }
 }
 @Composable
-fun SeerahTab(viewModel: MainScreenViewModel, onAuthClick: () -> Unit) {
+fun SeerahTab(
+    viewModel: MainScreenViewModel,
+    onAuthClick: () -> Unit,
+    adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
+) {
     val state by viewModel.insightsState.collectAsStateWithLifecycle()
+    var selectedEventId by rememberSaveable { mutableIntStateOf(-1) }
 
     Column(modifier = Modifier.fillMaxSize()) {
         Text(
-            text = "Daily Seerah & Historical Insights",
+            text = "Seerah & Historical Insights",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             modifier = Modifier.padding(bottom = 16.dp)
@@ -958,79 +1091,212 @@ fun SeerahTab(viewModel: MainScreenViewModel, onAuthClick: () -> Unit) {
             }
             is InsightsUiState.Success -> {
                 val categories = listOf("All") + uiState.data.seerahCategories
+                val selectedEvent = uiState.data.seerahEvents.find { it.id == selectedEventId }
+                    ?: uiState.data.seerahEvents.firstOrNull()
 
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(categories) { category ->
-                        val isSelected = (category == "All" && viewModel.currentSeerahCategory == "") ||
-                                         (category == viewModel.currentSeerahCategory)
-                        Surface(
-                            onClick = {
-                                val filterVal = if (category == "All") "" else category
-                                viewModel.filterSeerahByCategory(filterVal)
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = category,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                if (adaptiveInfo.isDualPane && selectedEvent != null) {
+                    AdaptiveTwoPane(
+                        adaptiveInfo = adaptiveInfo,
+                        firstPane = {
+                            Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(categories) { category ->
+                                        val isSelected = (category == "All" && viewModel.currentSeerahCategory == "") ||
+                                                (category == viewModel.currentSeerahCategory)
+                                        Surface(
+                                            onClick = {
+                                                val filterVal = if (category == "All") "" else category
+                                                viewModel.filterSeerahByCategory(filterVal)
+                                            },
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                            modifier = Modifier.padding(vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = category,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                style = MaterialTheme.typography.labelMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (uiState.data.seerahEvents.isEmpty()) {
-                        item {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    if (uiState.data.seerahEvents.isEmpty()) {
+                                        item {
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "No events found for this category.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        items(uiState.data.seerahEvents, key = { it.id }) { event ->
+                                            val isSelected = event.id == selectedEvent.id
+                                            Card(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { selectedEventId = event.id },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                                ),
+                                                border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp)) {
+                                                    Text(
+                                                        text = event.title,
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (event.category.isNotEmpty()) {
+                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                        Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                                                            Text(
+                                                                text = event.category,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                                style = MaterialTheme.typography.labelSmall
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    item {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Button(
+                                                onClick = { viewModel.prevPageSeerah() },
+                                                enabled = uiState.data.seerahPage > 1
+                                            ) {
+                                                Text("Previous")
+                                            }
+                                            Text(
+                                                text = "Page ${uiState.data.seerahPage} of ${uiState.data.seerahTotalPages}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Button(
+                                                onClick = { viewModel.nextPageSeerah() },
+                                                enabled = uiState.data.seerahPage < uiState.data.seerahTotalPages
+                                            ) {
+                                                Text("Next")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        secondPane = {
                             Box(
-                                modifier = Modifier.fillMaxWidth().padding(32.dp),
-                                contentAlignment = Alignment.Center
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp)
+                            ) {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    item {
+                                        SeerahItem(selectedEvent, onAuthClick)
+                                    }
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(categories) { category ->
+                            val isSelected = (category == "All" && viewModel.currentSeerahCategory == "") ||
+                                             (category == viewModel.currentSeerahCategory)
+                            Surface(
+                                onClick = {
+                                    val filterVal = if (category == "All") "" else category
+                                    viewModel.filterSeerahByCategory(filterVal)
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.padding(vertical = 4.dp)
                             ) {
                                 Text(
-                                    text = "No events found for this category.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = category,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                    } else {
-                        items(uiState.data.seerahEvents) { event ->
-                            SeerahItem(event, onAuthClick)
-                        }
                     }
 
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Button(
-                                onClick = { viewModel.prevPageSeerah() },
-                                enabled = uiState.data.seerahPage > 1
-                            ) {
-                                Text("Previous")
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (uiState.data.seerahEvents.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No events found for this category.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            Text(
-                                text = "Page ${uiState.data.seerahPage} of ${uiState.data.seerahTotalPages}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Button(
-                                onClick = { viewModel.nextPageSeerah() },
-                                enabled = uiState.data.seerahPage < uiState.data.seerahTotalPages
+                        } else {
+                            items(uiState.data.seerahEvents) { event ->
+                                SeerahItem(event, onAuthClick)
+                            }
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Next")
+                                Button(
+                                    onClick = { viewModel.prevPageSeerah() },
+                                    enabled = uiState.data.seerahPage > 1
+                                ) {
+                                    Text("Previous")
+                                }
+                                Text(
+                                    text = "Page ${uiState.data.seerahPage} of ${uiState.data.seerahTotalPages}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Button(
+                                    onClick = { viewModel.nextPageSeerah() },
+                                    enabled = uiState.data.seerahPage < uiState.data.seerahTotalPages
+                                ) {
+                                    Text("Next")
+                                }
                             }
                         }
                     }
@@ -1041,17 +1307,22 @@ fun SeerahTab(viewModel: MainScreenViewModel, onAuthClick: () -> Unit) {
 }
 
 @Composable
-fun HistoryTab(viewModel: MainScreenViewModel, onAuthClick: () -> Unit) {
+fun HistoryTab(
+    viewModel: MainScreenViewModel,
+    onAuthClick: () -> Unit,
+    adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
+) {
     val state by viewModel.insightsState.collectAsStateWithLifecycle()
+    var selectedEventId by rememberSaveable { mutableIntStateOf(-1) }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 4.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "General History",
+                text = "History Insights",
                 style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -1076,79 +1347,212 @@ fun HistoryTab(viewModel: MainScreenViewModel, onAuthClick: () -> Unit) {
             }
             is InsightsUiState.Success -> {
                 val categories = listOf("All") + uiState.data.historyCategories
+                val selectedEvent = uiState.data.historyEvents.find { it.id == selectedEventId }
+                    ?: uiState.data.historyEvents.firstOrNull()
 
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(categories) { category ->
-                        val isSelected = (category == "All" && viewModel.currentHistoryCategory == "") ||
-                                         (category == viewModel.currentHistoryCategory)
-                        Surface(
-                            onClick = {
-                                val filterVal = if (category == "All") "" else category
-                                viewModel.filterHistoryByCategory(filterVal)
-                            },
-                            shape = RoundedCornerShape(16.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = category,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                }
+                if (adaptiveInfo.isDualPane && selectedEvent != null) {
+                    AdaptiveTwoPane(
+                        adaptiveInfo = adaptiveInfo,
+                        firstPane = {
+                            Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    items(categories) { category ->
+                                        val isSelected = (category == "All" && viewModel.currentHistoryCategory == "") ||
+                                                (category == viewModel.currentHistoryCategory)
+                                        Surface(
+                                            onClick = {
+                                                val filterVal = if (category == "All") "" else category
+                                                viewModel.filterHistoryByCategory(filterVal)
+                                            },
+                                            shape = RoundedCornerShape(16.dp),
+                                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                            modifier = Modifier.padding(vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = category,
+                                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (uiState.data.historyEvents.isEmpty()) {
-                        item {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                                ) {
+                                    if (uiState.data.historyEvents.isEmpty()) {
+                                        item {
+                                            Box(
+                                                modifier = Modifier.fillMaxWidth().padding(24.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    text = "No events found for this category.",
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        items(uiState.data.historyEvents, key = { it.id }) { event ->
+                                            val isSelected = event.id == selectedEvent.id
+                                            Card(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable { selectedEventId = event.id },
+                                                shape = RoundedCornerShape(12.dp),
+                                                colors = CardDefaults.cardColors(
+                                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+                                                ),
+                                                border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp)) {
+                                                    Text(
+                                                        text = event.title,
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                    if (event.category.isNotEmpty()) {
+                                                        Spacer(modifier = Modifier.height(4.dp))
+                                                        Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                                                            Text(
+                                                                text = event.category,
+                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
+                                                                style = MaterialTheme.typography.labelSmall
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    item {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Button(
+                                                onClick = { viewModel.prevPageHistory() },
+                                                enabled = uiState.data.historyPage > 1
+                                            ) {
+                                                Text("Previous")
+                                            }
+                                            Text(
+                                                text = "Page ${uiState.data.historyPage} of ${uiState.data.historyTotalPages}",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Button(
+                                                onClick = { viewModel.nextPageHistory() },
+                                                enabled = uiState.data.historyPage < uiState.data.historyTotalPages
+                                            ) {
+                                                Text("Next")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        },
+                        secondPane = {
                             Box(
-                                modifier = Modifier.fillMaxWidth().padding(32.dp),
-                                contentAlignment = Alignment.Center
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(12.dp)
+                            ) {
+                                LazyColumn(
+                                    modifier = Modifier.fillMaxSize(),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    item {
+                                        HistoryItem(selectedEvent, onAuthClick)
+                                    }
+                                }
+                            }
+                        }
+                    )
+                } else {
+                    LazyRow(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        items(categories) { category ->
+                            val isSelected = (category == "All" && viewModel.currentHistoryCategory == "") ||
+                                             (category == viewModel.currentHistoryCategory)
+                            Surface(
+                                onClick = {
+                                    val filterVal = if (category == "All") "" else category
+                                    viewModel.filterHistoryByCategory(filterVal)
+                                },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                                modifier = Modifier.padding(vertical = 4.dp)
                             ) {
                                 Text(
-                                    text = "No events found for this category.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    text = category,
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                    } else {
-                        items(uiState.data.historyEvents) { event ->
-                            HistoryItem(event, onAuthClick)
-                        }
                     }
 
-                    item {
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Button(
-                                onClick = { viewModel.prevPageHistory() },
-                                enabled = uiState.data.historyPage > 1
-                            ) {
-                                Text("Previous")
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (uiState.data.historyEvents.isEmpty()) {
+                            item {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "No events found for this category.",
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                             }
-                            Text(
-                                text = "Page ${uiState.data.historyPage} of ${uiState.data.historyTotalPages}",
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Button(
-                                onClick = { viewModel.nextPageHistory() },
-                                enabled = uiState.data.historyPage < uiState.data.historyTotalPages
+                        } else {
+                            items(uiState.data.historyEvents) { event ->
+                                HistoryItem(event, onAuthClick)
+                            }
+                        }
+
+                        item {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("Next")
+                                Button(
+                                    onClick = { viewModel.prevPageHistory() },
+                                    enabled = uiState.data.historyPage > 1
+                                ) {
+                                    Text("Previous")
+                                }
+                                Text(
+                                    text = "Page ${uiState.data.historyPage} of ${uiState.data.historyTotalPages}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Button(
+                                    onClick = { viewModel.nextPageHistory() },
+                                    enabled = uiState.data.historyPage < uiState.data.historyTotalPages
+                                ) {
+                                    Text("Next")
+                                }
                             }
                         }
                     }
@@ -1157,3 +1561,4 @@ fun HistoryTab(viewModel: MainScreenViewModel, onAuthClick: () -> Unit) {
         }
     }
 }
+

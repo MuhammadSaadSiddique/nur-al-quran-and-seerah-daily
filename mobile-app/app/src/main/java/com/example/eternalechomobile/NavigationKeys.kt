@@ -7,3 +7,6 @@ import kotlinx.serialization.Serializable
 @Serializable data object ThemeQuizSelection : NavKey
 @Serializable data class PlayThemeQuiz(val themeId: Int, val themeName: String, val difficulty: String,val sessionId: Long = System.currentTimeMillis()) : NavKey
 @Serializable data object AuthRoute : NavKey
+@Serializable data object OnboardingRoute : NavKey
+@Serializable data object DuasRoute : NavKey
+

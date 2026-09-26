@@ -8,11 +8,29 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import javax.net.ssl.HttpsURLConnection
+import com.example.eternalechomobile.security.AppSecurity
 
 object ApiClient {
-    private const val BASE_URL = "http://192.168.1.75:8000/api/v1/mobile.php"
+    private val OBFUSCATED_BASE_URL = byteArrayOf(
+        50.toByte(), 46.toByte(), 46.toByte(), 42.toByte(), 41.toByte(), 96.toByte(), 117.toByte(), 117.toByte(),
+        46.toByte(), 50.toByte(), 63.toByte(), 63.toByte(), 46.toByte(), 63.toByte(), 40.toByte(), 52.toByte(),
+        59.toByte(), 54.toByte(), 63.toByte(), 57.toByte(), 50.toByte(), 53.toByte(), 116.toByte(), 59.toByte(),
+        41.toByte(), 54.toByte(), 53.toByte(), 53.toByte(), 56.toByte(), 47.toByte(), 54.toByte(), 50.toByte(),
+        59.toByte(), 35.toByte(), 59.toByte(), 46.toByte(), 116.toByte(), 57.toByte(), 53.toByte(), 55.toByte(),
+        117.toByte(), 59.toByte(), 42.toByte(), 51.toByte(), 117.toByte(), 44.toByte(), 107.toByte(), 117.toByte(),
+        55.toByte(), 53.toByte(), 56.toByte(), 51.toByte(), 54.toByte(), 63.toByte(), 116.toByte(), 42.toByte(),
+        50.toByte(), 42.toByte()
+    )
+    private const val OBFUSCATION_KEY: Byte = 0x5A
+
+    val BASE_URL: String
+        get() = AppSecurity.deobfuscate(OBFUSCATED_BASE_URL, OBFUSCATION_KEY)
 
     private suspend fun makeGetRequest(urlStr: String): String = withContext(Dispatchers.IO) {
+        if (!urlStr.startsWith("https://", ignoreCase = true)) {
+            throw SecurityException("Insecure HTTP connections are strictly prohibited.")
+        }
         val url = URL(urlStr)
         try {
             val conn = url.openConnection() as HttpURLConnection
@@ -254,7 +272,70 @@ object ApiClient {
         return questions
     }
 
+    suspend fun fetchDuas(category: String = "", search: String = "", sourceType: String = ""): List<Dua> {
+        val queryParams = mutableListOf<String>()
+        if (category.isNotBlank() && category != "all") queryParams.add("category=" + java.net.URLEncoder.encode(category, "UTF-8"))
+        if (search.isNotBlank()) queryParams.add("search=" + java.net.URLEncoder.encode(search, "UTF-8"))
+        if (sourceType.isNotBlank() && sourceType != "all") queryParams.add("source_type=" + java.net.URLEncoder.encode(sourceType, "UTF-8"))
+
+        val queryString = if (queryParams.isNotEmpty()) "&" + queryParams.joinToString("&") else ""
+        val jsonStr = makeGetRequest("$BASE_URL?action=duas$queryString")
+        val jsonObj = JSONObject(jsonStr)
+        val dataArr = jsonObj.optJSONArray("data") ?: return emptyList()
+
+        val duas = mutableListOf<Dua>()
+        for (i in 0 until dataArr.length()) {
+            val item = dataArr.getJSONObject(i)
+            val wbwArr = item.optJSONArray("word_by_word")
+            val wbwList = mutableListOf<DuaWord>()
+            if (wbwArr != null) {
+                for (j in 0 until wbwArr.length()) {
+                    val wObj = wbwArr.getJSONObject(j)
+                    wbwList.add(
+                        DuaWord(
+                            arabic = wObj.optString("arabic", ""),
+                            transliteration = wObj.optString("transliteration", ""),
+                            meaningEn = wObj.optString("meaning_en", ""),
+                            meaningUr = wObj.optString("meaning_ur").takeIf { it.isNotBlank() }
+                        )
+                    )
+                }
+            }
+
+            duas.add(
+                Dua(
+                    id = item.optInt("id"),
+                    title = item.optString("title", ""),
+                    slug = item.optString("slug", ""),
+                    category = item.optString("category", ""),
+                    description = item.optString("description", "").takeIf { it.isNotBlank() },
+                    arabicText = item.optString("arabic_text", ""),
+                    transliteration = item.optString("transliteration", "").takeIf { it.isNotBlank() },
+                    translationEn = item.optString("translation_en", ""),
+                    translationUr = item.optString("translation_ur", "").takeIf { it.isNotBlank() },
+                    wordByWord = if (wbwList.isNotEmpty()) wbwList else null,
+                    meaningExplanation = item.optString("meaning_explanation", "").takeIf { it.isNotBlank() },
+                    benefitsAndVirtues = item.optString("benefits_and_virtues", "").takeIf { it.isNotBlank() },
+                    whenToRecite = item.optString("when_to_recite", "").takeIf { it.isNotBlank() },
+                    repeatCount = item.optInt("repeat_count", 1),
+                    sourceType = item.optString("source_type", "hadith"),
+                    quranReference = item.optString("quran_reference", "").takeIf { it.isNotBlank() },
+                    surahNumber = item.optInt("surah_number", 0).takeIf { it > 0 },
+                    verseNumber = item.optInt("verse_number", 0).takeIf { it > 0 },
+                    hadithReference = item.optString("hadith_reference", "").takeIf { it.isNotBlank() },
+                    hadithBook = item.optString("hadith_book", "").takeIf { it.isNotBlank() },
+                    hadithNumber = item.optString("hadith_number", "").takeIf { it.isNotBlank() },
+                    hadithGrading = item.optString("hadith_grading", "").takeIf { it.isNotBlank() }
+                )
+            )
+        }
+        return duas
+    }
+
     private suspend fun makePostRequest(urlStr: String, params: Map<String, String>): String = withContext(Dispatchers.IO) {
+        if (!urlStr.startsWith("https://", ignoreCase = true)) {
+            throw SecurityException("Insecure HTTP connections are strictly prohibited.")
+        }
         val url = URL(urlStr)
         try {
             val conn = url.openConnection() as HttpURLConnection
@@ -264,8 +345,8 @@ object ApiClient {
             conn.readTimeout = 10000
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
 
-            val postData = params.map { (k, v) -> 
-                java.net.URLEncoder.encode(k, "UTF-8") + "=" + java.net.URLEncoder.encode(v, "UTF-8") 
+            val postData = params.map { (k, v) ->
+                java.net.URLEncoder.encode(k, "UTF-8") + "=" + java.net.URLEncoder.encode(v, "UTF-8")
             }.joinToString("&")
 
             conn.outputStream.use { os ->

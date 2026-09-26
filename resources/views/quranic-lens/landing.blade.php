@@ -104,6 +104,8 @@
                     </a>
                 </div>
                 <div class="flex items-center space-x-4">
+                    <a href="{{ route('duas.index') }}"
+                        class="text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors">Duas Library</a>
                     <a href="{{ route('welcome') }}"
                         class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Explorer
                         Research</a>
@@ -147,6 +149,10 @@
                 <a href="{{ route('welcome') }}"
                     class="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white text-base font-bold rounded-full shadow-xl shadow-emerald-900/40 transition-all hover:-translate-y-0.5">
                     Launch Research Cockpit
+                </a>
+                <a href="{{ route('duas.index') }}"
+                    class="w-full sm:w-auto px-8 py-4 bg-teal-800/50 hover:bg-teal-700/60 text-teal-200 border border-teal-500/30 text-base font-bold rounded-full transition-all">
+                    ✨ Duas with Meanings
                 </a>
                 <a href="{{ route('researchers.index') }}"
                     class="w-full sm:w-auto px-8 py-4 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-white/10 hover:border-white/20 text-base font-bold rounded-full transition-all">

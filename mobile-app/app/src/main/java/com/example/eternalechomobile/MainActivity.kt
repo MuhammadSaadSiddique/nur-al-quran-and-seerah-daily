@@ -8,11 +8,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
+import com.example.eternalechomobile.security.AppSecurity
 import com.example.eternalechomobile.theme.EternalEchoMobileTheme
 
 class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+
+    // Anti-Screen Scraping & Tapjacking protection for sensitive user data
+    AppSecurity.enableScreenSecurity(this)
 
     enableEdgeToEdge()
     setContent {

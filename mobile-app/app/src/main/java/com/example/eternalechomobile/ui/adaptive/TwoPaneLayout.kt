@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.adaptive
+package com.asloobulhayat.eternalecho.ui.adaptive
 
 import android.graphics.Rect
 import androidx.compose.foundation.background

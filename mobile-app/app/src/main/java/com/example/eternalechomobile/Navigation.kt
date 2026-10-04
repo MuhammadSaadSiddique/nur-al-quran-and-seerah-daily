@@ -1,4 +1,4 @@
-package com.example.eternalechomobile
+package com.asloobulhayat.eternalecho
 
 import android.content.Context
 import androidx.compose.foundation.layout.padding
@@ -11,14 +11,14 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
-import com.example.eternalechomobile.ui.main.MainScreen
-import com.example.eternalechomobile.ui.surah.SurahScreen
-import com.example.eternalechomobile.ui.quiz.*
-import com.example.eternalechomobile.ui.auth.*
-import com.example.eternalechomobile.ui.onboarding.OnboardingScreen
-import com.example.eternalechomobile.ui.duas.DuasScreen
-import com.example.eternalechomobile.data.SurahNavKey
-import com.example.eternalechomobile.security.SecurePreferences
+import com.asloobulhayat.eternalecho.ui.main.MainScreen
+import com.asloobulhayat.eternalecho.ui.surah.SurahScreen
+import com.asloobulhayat.eternalecho.ui.quiz.*
+import com.asloobulhayat.eternalecho.ui.auth.*
+import com.asloobulhayat.eternalecho.ui.onboarding.OnboardingScreen
+import com.asloobulhayat.eternalecho.ui.duas.DuasScreen
+import com.asloobulhayat.eternalecho.data.SurahNavKey
+import com.asloobulhayat.eternalecho.security.SecurePreferences
 
 @Composable
 fun MainNavigation() {
@@ -58,9 +58,11 @@ fun MainNavigation() {
         entry<ThemeQuizSelection> {
           ThemeSelectionScreen(
             onBackClick = { backStack.removeLastOrNull() },
-            onThemeSelect = { theme, difficulty ->
-                backStack.removeLastOrNull()
-                backStack.add(PlayThemeQuiz(theme.id, theme.name, difficulty))
+            onThemeSelect = { theme, difficulty, quantity ->
+                backStack.add(PlayThemeQuiz(theme.id, theme.name, difficulty, quantity, "THEME", System.currentTimeMillis()))
+            },
+            onGrandQuizLaunch = { quizType, title, difficulty, quantity ->
+                backStack.add(PlayThemeQuiz(0, title, difficulty, quantity, quizType, System.currentTimeMillis()))
             },
             onAuthClick = { backStack.add(AuthRoute) },
             modifier = Modifier.safeDrawingPadding().padding(16.dp)
@@ -71,8 +73,11 @@ fun MainNavigation() {
             themeId = key.themeId,
             themeName = key.themeName,
             difficulty = key.difficulty,
-
+            quantity = key.quantity,
+            quizType = key.quizType,
+            sessionId = key.sessionId,
             onBackClick = { backStack.removeLastOrNull() },
+            onAuthClick = { backStack.add(AuthRoute) },
             modifier = Modifier.safeDrawingPadding().padding(16.dp)
           )
         }

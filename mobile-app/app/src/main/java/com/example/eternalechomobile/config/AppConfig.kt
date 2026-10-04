@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.config
+package com.asloobulhayat.eternalecho.config
 
 /**
  * Global configuration and feature flags for The Eternal Echo mobile companion app.
@@ -15,4 +15,5 @@ object AppConfig {
      *  - The Duas tab is activated in the main navigation bar and fully accessible to users.
      */
     const val IS_DUAS_FEATURE_ENABLED = false
+    const val IS_LENS_FEATURE_ENABLED = false
 }

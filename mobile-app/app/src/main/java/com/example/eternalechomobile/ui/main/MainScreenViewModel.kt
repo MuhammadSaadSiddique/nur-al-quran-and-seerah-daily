@@ -1,15 +1,17 @@
-package com.example.eternalechomobile.ui.main
+package com.asloobulhayat.eternalecho.ui.main
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.eternalechomobile.data.DataRepository
-import com.example.eternalechomobile.data.Surah
-import com.example.eternalechomobile.data.LeaderboardUser
-import com.example.eternalechomobile.data.InsightsData
+import com.asloobulhayat.eternalecho.data.DataRepository
+import com.asloobulhayat.eternalecho.data.Surah
+import com.asloobulhayat.eternalecho.data.LeaderboardUser
+import com.asloobulhayat.eternalecho.data.InsightsData
+import com.asloobulhayat.eternalecho.data.AllConnectionsResponse
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import com.asloobulhayat.eternalecho.config.AppConfig
 
 class MainScreenViewModel(private val dataRepository: DataRepository) : ViewModel() {
     private val _surahsState = MutableStateFlow<SurahsUiState>(SurahsUiState.Loading)
@@ -21,6 +23,9 @@ class MainScreenViewModel(private val dataRepository: DataRepository) : ViewMode
     private val _insightsState = MutableStateFlow<InsightsUiState>(InsightsUiState.Loading)
     val insightsState: StateFlow<InsightsUiState> = _insightsState.asStateFlow()
 
+    private val _allConnectionsState = MutableStateFlow<AllConnectionsUiState>(AllConnectionsUiState.Loading)
+    val allConnectionsState: StateFlow<AllConnectionsUiState> = _allConnectionsState.asStateFlow()
+
     var currentSeerahPage = 1
         private set
     var currentHistoryPage = 1
@@ -29,11 +34,40 @@ class MainScreenViewModel(private val dataRepository: DataRepository) : ViewMode
         private set
     var currentHistoryCategory = ""
         private set
+    var currentConnCategory = "all"
+        private set
+    var currentConnSearch = ""
+        private set
+    var currentConnPage = 1
+        private set
 
     init {
         loadSurahs()
         loadLeaderboard()
         loadInsights()
+        if (AppConfig.IS_LENS_FEATURE_ENABLED) {
+            loadAllConnections()
+        }
+    }
+
+    fun loadAllConnections(
+        category: String = currentConnCategory,
+        search: String = currentConnSearch,
+        page: Int = currentConnPage,
+        surahNumber: Int? = null
+    ) {
+        viewModelScope.launch {
+            _allConnectionsState.value = AllConnectionsUiState.Loading
+            try {
+                val data = dataRepository.getAllConnections(category, search, page, limit = 20, surahNumber = surahNumber)
+                currentConnCategory = category
+                currentConnSearch = search
+                currentConnPage = page
+                _allConnectionsState.value = AllConnectionsUiState.Success(data)
+            } catch (t: Throwable) {
+                _allConnectionsState.value = AllConnectionsUiState.Error(t)
+            }
+        }
     }
 
     fun loadSurahs() {
@@ -126,4 +160,10 @@ sealed interface InsightsUiState {
     object Loading : InsightsUiState
     data class Error(val throwable: Throwable) : InsightsUiState
     data class Success(val data: InsightsData) : InsightsUiState
+}
+
+sealed interface AllConnectionsUiState {
+    object Loading : AllConnectionsUiState
+    data class Error(val throwable: Throwable) : AllConnectionsUiState
+    data class Success(val response: AllConnectionsResponse) : AllConnectionsUiState
 }

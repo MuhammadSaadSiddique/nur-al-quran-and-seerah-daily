@@ -35,7 +35,6 @@ if (!function_exists('check_rate_limit')) {
                 $resetTime = $data['start_time'] + $period;
                 if ($currentTime < $resetTime) {
                     if ($data['count'] >= $limit) {
-                        @http_response_code(429);
                         echo json_encode([
                             'status' => 'error',
                             'message' => 'Too many requests. Please try again later.'
@@ -231,7 +230,15 @@ try {
         $historyExtraCol = 'historical_period';
     }
 
-    $action = isset($_GET['action']) ? $_GET['action'] : '';
+    // Unify input data from GET, POST, and raw JSON input stream
+    $rawInput = @file_get_contents('php://input');
+    $jsonInput = !empty($rawInput) ? @json_decode($rawInput, true) : [];
+    if (!is_array($jsonInput)) {
+        $jsonInput = [];
+    }
+    $requestData = array_merge($_GET, $_POST, $jsonInput);
+
+    $action = isset($requestData['action']) ? trim((string)$requestData['action']) : '';
 
     switch ($action) {
         case 'surahs':
@@ -265,7 +272,8 @@ try {
             $verseNumber = isset($_GET['verse_number']) ? (int) $_GET['verse_number'] : 1;
 
             // 1. Science Links
-            $stmtSci = $pdo->prepare("SELECT f.title, f.description, f.field, l.relevance_description, l.status
+            $stmtSci = $pdo->prepare("SELECT f.title, f.description, f.field, l.relevance_description, 
+                                             f.source_name, f.credibility_score, f.source_url, l.status
                                        FROM quran_science_links l
                                        JOIN verses v ON l.verse_id = v.id
                                        JOIN surahs s ON v.surah_id = s.id
@@ -275,7 +283,9 @@ try {
             $scienceLinks = $stmtSci->fetchAll();
 
             // 2. Seerat Links
-            $stmtSeer = $pdo->prepare("SELECT e.title, e.description, e.category, l.description as link_description, l.status
+            $stmtSeer = $pdo->prepare("SELECT e.title, e.description, e.category, e.date_hijri, e.date_ce, 
+                                              e.location, e.source_book, e.source_reference, 
+                                              l.description as link_description, l.context_type, l.status
                                        FROM quran_seerat_links l
                                        JOIN verses v ON l.verse_id = v.id
                                        JOIN surahs s ON v.surah_id = s.id
@@ -299,7 +309,9 @@ try {
                     $hadithCollCol = 'name';
                 }
             }
-            $stmtHad = $pdo->prepare("SELECT a.hadith_number, a.{$hadithTextCol} as text, c.{$hadithCollCol} as collection_name, l.description as link_description, l.status
+            $stmtHad = $pdo->prepare("SELECT a.hadith_number, a.{$hadithTextCol} as text, a.text_arabic, 
+                                             a.narrator_chain, a.grading, c.{$hadithCollCol} as collection_name, 
+                                             l.description as link_description, l.status
                                        FROM quran_hadith_links l
                                        JOIN verses v ON l.verse_id = v.id
                                        JOIN surahs s ON v.surah_id = s.id
@@ -310,7 +322,12 @@ try {
             $hadithLinks = $stmtHad->fetchAll();
 
             // 4. History Links
-            $stmtHist = $pdo->prepare("SELECT h.title, h.description, h.{$historyExtraCol} as extra_info, l.status
+            $dateRangeCol = $hasHistEvents ? "h.date_range" : "'' as date_range";
+            $regionCol = $hasHistEvents ? "h.region" : "'' as region";
+            $civCol = $hasHistEvents ? "h.civilization" : "h.{$historyExtraCol} as civilization";
+            $stmtHist = $pdo->prepare("SELECT h.title, h.description, {$civCol}, {$regionCol}, {$dateRangeCol}, 
+                                              h.{$historyExtraCol} as extra_info, 
+                                              l.description as link_description, l.status
                                        FROM quran_history_links l
                                        JOIN verses v ON l.verse_id = v.id
                                        JOIN surahs s ON v.surah_id = s.id
@@ -390,6 +407,302 @@ try {
                     'history' => $historyLinks,
                     'scripture' => $scriptureLinks,
                 ]
+            ]);
+            break;
+
+        case 'all_connections':
+            $category = isset($_GET['category']) ? strtolower(trim((string)$_GET['category'])) : 'all';
+            $search = isset($_GET['search']) ? trim((string)$_GET['search']) : '';
+            $page = isset($_GET['page']) && is_numeric($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+            $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) ? min(max(1, (int)$_GET['limit']), 50) : 20;
+            $offset = ($page - 1) * $limit;
+            $surahFilter = isset($_GET['surah_number']) && is_numeric($_GET['surah_number']) ? (int)$_GET['surah_number'] : null;
+
+            // Stats across all categories
+            $sciCount = (int)$pdo->query("SELECT COUNT(*) FROM quran_science_links WHERE status = 'approved'")->fetchColumn();
+            $seerCount = (int)$pdo->query("SELECT COUNT(*) FROM quran_seerat_links WHERE status = 'approved'")->fetchColumn();
+            $hadCount = (int)$pdo->query("SELECT COUNT(*) FROM quran_hadith_links WHERE status = 'approved'")->fetchColumn();
+            $histCount = (int)$pdo->query("SELECT COUNT(*) FROM quran_history_links WHERE status = 'approved'")->fetchColumn();
+            $scripCount = (int)$pdo->query("SELECT COUNT(*) FROM quran_scripture_links WHERE status = 'approved'")->fetchColumn();
+            $totalCount = $sciCount + $seerCount + $hadCount + $histCount + $scripCount;
+
+            $stats = [
+                'surahs_count' => 114,
+                'science_count' => $sciCount,
+                'seerah_count' => $seerCount,
+                'hadith_count' => $hadCount,
+                'history_count' => $histCount,
+                'scripture_count' => $scripCount,
+                'total_count' => $totalCount,
+            ];
+
+            $hadithTextCol = 'text_english';
+            $hadithCollCol = 'name_english';
+            if ($isSqlite) {
+                $stmtCols = $pdo->query("PRAGMA table_info(ahadith)");
+                $cols = $stmtCols->fetchAll(PDO::FETCH_COLUMN, 1);
+                if (!in_array('text_english', $cols)) {
+                    $hadithTextCol = 'hadith_translation';
+                }
+                $stmtCollCols = $pdo->query("PRAGMA table_info(hadith_collections)");
+                $collCols = $stmtCollCols->fetchAll(PDO::FETCH_COLUMN, 1);
+                if (!in_array('name_english', $collCols)) {
+                    $hadithCollCol = 'name';
+                }
+            }
+
+            // String concatenation expressions for sqlite vs mysql
+            $seerSource = $isSqlite ? "(COALESCE(e.source_book, '') || ' ' || COALESCE(e.source_reference, ''))" : "CONCAT(COALESCE(e.source_book, ''), ' ', COALESCE(e.source_reference, ''))";
+            $seerDate = $isSqlite ? "(COALESCE(e.date_hijri, '') || ' AH / ' || COALESCE(e.date_ce, '') || ' CE')" : "CONCAT(COALESCE(e.date_hijri, ''), ' AH / ', COALESCE(e.date_ce, ''), ' CE')";
+            $scripBibleTitle = $isSqlite ? "(b.book || ' ' || b.chapter || ':' || b.verse_number)" : "CONCAT(b.book, ' ', b.chapter, ':', b.verse_number)";
+            $scripTorahTitle = $isSqlite ? "(t.book || ' ' || t.chapter || ':' || t.verse_number)" : "CONCAT(t.book, ' ', t.chapter, ':', t.verse_number)";
+            $hadithTitle = $isSqlite ? "(c.{$hadithCollCol} || ' (#' || a.hadith_number || ')')" : "CONCAT(c.{$hadithCollCol}, ' (#', a.hadith_number, ')')";
+
+            $subqueries = [];
+
+            if ($category === 'all' || $category === 'science') {
+                $subqueries[] = "
+                    SELECT 
+                        l.id as id,
+                        'science' as category,
+                        s.number as surah_number,
+                        s.name_transliteration as surah_name,
+                        v.verse_number as verse_number,
+                        v.juz as juz_number,
+                        v.text_arabic as verse_arabic,
+                        v.text_transliteration as verse_transliteration,
+                        f.title as title,
+                        f.description as description,
+                        f.field as extra_info,
+                        COALESCE(l.relevance_description, '') as relevance_description,
+                        COALESCE(f.field, '') as field,
+                        COALESCE(f.source_name, '') as source_name,
+                        COALESCE(f.credibility_score, '') as credibility_score,
+                        '' as date_info,
+                        '' as location,
+                        '' as arabic_text,
+                        '' as narrator_chain,
+                        '' as grading,
+                        '' as collection_name,
+                        '' as hadith_number,
+                        '' as scripture_type,
+                        '' as relationship_type
+                    FROM quran_science_links l
+                    JOIN verses v ON l.verse_id = v.id
+                    JOIN surahs s ON v.surah_id = s.id
+                    JOIN science_facts f ON l.science_fact_id = f.id
+                    WHERE l.status = 'approved'
+                ";
+            }
+
+            if ($category === 'all' || $category === 'seerah') {
+                $subqueries[] = "
+                    SELECT 
+                        l.id as id,
+                        'seerah' as category,
+                        s.number as surah_number,
+                        s.name_transliteration as surah_name,
+                        v.verse_number as verse_number,
+                        v.juz as juz_number,
+                        v.text_arabic as verse_arabic,
+                        v.text_transliteration as verse_transliteration,
+                        e.title as title,
+                        e.description as description,
+                        COALESCE(e.category, '') as extra_info,
+                        COALESCE(l.description, '') as relevance_description,
+                        '' as field,
+                        {$seerSource} as source_name,
+                        '' as credibility_score,
+                        {$seerDate} as date_info,
+                        COALESCE(e.location, '') as location,
+                        '' as arabic_text,
+                        '' as narrator_chain,
+                        '' as grading,
+                        '' as collection_name,
+                        '' as hadith_number,
+                        '' as scripture_type,
+                        '' as relationship_type
+                    FROM quran_seerat_links l
+                    JOIN verses v ON l.verse_id = v.id
+                    JOIN surahs s ON v.surah_id = s.id
+                    JOIN seerat_events e ON l.seerat_event_id = e.id
+                    WHERE l.status = 'approved'
+                ";
+            }
+
+            if ($category === 'all' || $category === 'hadith') {
+                $subqueries[] = "
+                    SELECT 
+                        l.id as id,
+                        'hadith' as category,
+                        s.number as surah_number,
+                        s.name_transliteration as surah_name,
+                        v.verse_number as verse_number,
+                        v.juz as juz_number,
+                        v.text_arabic as verse_arabic,
+                        v.text_transliteration as verse_transliteration,
+                        {$hadithTitle} as title,
+                        COALESCE(a.{$hadithTextCol}, '') as description,
+                        COALESCE(c.{$hadithCollCol}, 'Hadith') as extra_info,
+                        COALESCE(l.description, '') as relevance_description,
+                        '' as field,
+                        COALESCE(c.{$hadithCollCol}, '') as source_name,
+                        '' as credibility_score,
+                        '' as date_info,
+                        '' as location,
+                        COALESCE(a.text_arabic, '') as arabic_text,
+                        COALESCE(a.narrator_chain, '') as narrator_chain,
+                        COALESCE(a.grading, '') as grading,
+                        COALESCE(c.{$hadithCollCol}, '') as collection_name,
+                        COALESCE(a.hadith_number, '') as hadith_number,
+                        '' as scripture_type,
+                        '' as relationship_type
+                    FROM quran_hadith_links l
+                    JOIN verses v ON l.verse_id = v.id
+                    JOIN surahs s ON v.surah_id = s.id
+                    JOIN ahadith a ON l.hadith_id = a.id
+                    LEFT JOIN hadith_collections c ON a.collection_id = c.id
+                    WHERE l.status = 'approved'
+                ";
+            }
+
+            if ($category === 'all' || $category === 'history') {
+                $subqueries[] = "
+                    SELECT 
+                        l.id as id,
+                        'history' as category,
+                        s.number as surah_number,
+                        s.name_transliteration as surah_name,
+                        v.verse_number as verse_number,
+                        v.juz as juz_number,
+                        v.text_arabic as verse_arabic,
+                        v.text_transliteration as verse_transliteration,
+                        h.title as title,
+                        h.description as description,
+                        COALESCE(h.civilization, '') as extra_info,
+                        COALESCE(l.description, '') as relevance_description,
+                        '' as field,
+                        '' as source_name,
+                        '' as credibility_score,
+                        COALESCE(h.date_range, '') as date_info,
+                        COALESCE(h.region, '') as location,
+                        '' as arabic_text,
+                        '' as narrator_chain,
+                        '' as grading,
+                        '' as collection_name,
+                        '' as hadith_number,
+                        COALESCE(h.civilization, '') as scripture_type,
+                        '' as relationship_type
+                    FROM quran_history_links l
+                    JOIN verses v ON l.verse_id = v.id
+                    JOIN surahs s ON v.surah_id = s.id
+                    JOIN {$historyTable} h ON l.{$historyForeignKey} = h.id
+                    WHERE l.status = 'approved'
+                ";
+            }
+
+            if ($category === 'all' || $category === 'scripture') {
+                $subqueries[] = "
+                    SELECT 
+                        l.id as id,
+                        'scripture' as category,
+                        s.number as surah_number,
+                        s.name_transliteration as surah_name,
+                        v.verse_number as verse_number,
+                        v.juz as juz_number,
+                        v.text_arabic as verse_arabic,
+                        v.text_transliteration as verse_transliteration,
+                        CASE WHEN l.bible_verse_id IS NOT NULL THEN {$scripBibleTitle} ELSE {$scripTorahTitle} END as title,
+                        CASE WHEN l.bible_verse_id IS NOT NULL THEN COALESCE(b.text_niv, '') ELSE COALESCE(t.text_english, '') END as description,
+                        CASE WHEN l.bible_verse_id IS NOT NULL THEN COALESCE(b.testament, 'Bible') ELSE 'Torah' END as extra_info,
+                        COALESCE(l.description, '') as relevance_description,
+                        '' as field,
+                        '' as source_name,
+                        '' as credibility_score,
+                        '' as date_info,
+                        '' as location,
+                        '' as arabic_text,
+                        '' as narrator_chain,
+                        '' as grading,
+                        '' as collection_name,
+                        '' as hadith_number,
+                        CASE WHEN l.bible_verse_id IS NOT NULL THEN 'Bible' ELSE 'Torah' END as scripture_type,
+                        COALESCE(l.relationship_type, '') as relationship_type
+                    FROM quran_scripture_links l
+                    JOIN verses v ON l.verse_id = v.id
+                    JOIN surahs s ON v.surah_id = s.id
+                    LEFT JOIN bible_verses b ON l.bible_verse_id = b.id
+                    LEFT JOIN torah_sections t ON l.torah_section_id = t.id
+                    WHERE l.status = 'approved'
+                ";
+            }
+
+            $unionSql = implode(" UNION ALL ", $subqueries);
+
+            $whereClauses = [];
+            $queryParams = [];
+
+            if ($surahFilter !== null && $surahFilter > 0) {
+                $whereClauses[] = "surah_number = :surah_filter";
+                $queryParams[':surah_filter'] = $surahFilter;
+            }
+
+            if (!empty($search)) {
+                $whereClauses[] = "(
+                    title LIKE :search 
+                    OR description LIKE :search 
+                    OR relevance_description LIKE :search 
+                    OR extra_info LIKE :search 
+                    OR surah_name LIKE :search 
+                    OR location LIKE :search 
+                    OR source_name LIKE :search
+                )";
+                $queryParams[':search'] = '%' . $search . '%';
+            }
+
+            $whereSql = !empty($whereClauses) ? "WHERE " . implode(" AND ", $whereClauses) : "";
+
+            // Total count for current filter
+            $countSql = "SELECT COUNT(*) FROM ({$unionSql}) as u {$whereSql}";
+            $stmtCount = $pdo->prepare($countSql);
+            foreach ($queryParams as $k => $v) {
+                $stmtCount->bindValue($k, $v);
+            }
+            $stmtCount->execute();
+            $filteredTotal = (int)$stmtCount->fetchColumn();
+            $totalPages = max(1, (int)ceil($filteredTotal / $limit));
+
+            // Paginated items
+            $itemsSql = "SELECT * FROM ({$unionSql}) as u {$whereSql} ORDER BY surah_number ASC, verse_number ASC, id ASC LIMIT :limit OFFSET :offset";
+            $stmtItems = $pdo->prepare($itemsSql);
+            foreach ($queryParams as $k => $v) {
+                $stmtItems->bindValue($k, $v);
+            }
+            $stmtItems->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmtItems->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmtItems->execute();
+            $items = $stmtItems->fetchAll();
+
+            // Format items to ensure credibilityScore is cleaned up and fields match
+            foreach ($items as &$item) {
+                if (!empty($item['credibility_score']) && $item['credibility_score'] !== '0' && $item['credibility_score'] !== 'null') {
+                    if (!str_contains($item['credibility_score'], '/')) {
+                        $item['credibility_score'] = $item['credibility_score'] . '/10';
+                    }
+                } else {
+                    $item['credibility_score'] = '';
+                }
+            }
+            unset($item);
+
+            echo json_encode([
+                'status' => 'success',
+                'stats' => $stats,
+                'category' => $category,
+                'page' => $page,
+                'total_pages' => $totalPages,
+                'total_items' => $filteredTotal,
+                'data' => $items
             ]);
             break;
 
@@ -478,8 +791,11 @@ try {
             break;
 
         case 'themes':
-            $stmt = $pdo->query("SELECT id, name, type, description FROM themes ORDER BY name ASC");
-            $themes = $stmt->fetchAll();
+            $themes = \App\Models\Theme::where('is_active', true)
+                ->has('questions', '>=', 5)
+                ->select('id', 'name', 'type', 'description')
+                ->orderBy('name', 'ASC')
+                ->get();
             echo json_encode([
                 'status' => 'success',
                 'data' => $themes
@@ -488,8 +804,9 @@ try {
 
         case 'theme_quiz':
             $themeId = isset($_GET['theme_id']) ? (int) $_GET['theme_id'] : 0;
-            $difficulty = isset($_GET['difficulty']) ? $_GET['difficulty'] : 'Medium';
-            $limit = 10;
+            $difficulty = isset($_GET['difficulty']) ? trim((string)$_GET['difficulty']) : 'Medium';
+            $limit = isset($_GET['quantity']) ? (int) $_GET['quantity'] : (isset($_GET['limit']) ? (int) $_GET['limit'] : 20);
+            if ($limit <= 0) $limit = 20;
 
             $randFunc = $isSqlite ? 'RANDOM()' : 'RAND()';
             $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
@@ -502,15 +819,19 @@ try {
             $stmt->execute();
             $questionsRaw = $stmt->fetchAll();
 
-            if (empty($questionsRaw)) {
+            if (count($questionsRaw) < $limit) {
+                $existingIds = array_column($questionsRaw, 'id');
+                $needed = $limit - count($questionsRaw);
+                $inClause = !empty($existingIds) ? 'AND id NOT IN (' . implode(',', array_map('intval', $existingIds)) . ')' : '';
                 $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
                                        FROM generated_questions 
-                                       WHERE theme_id = :theme_id 
+                                       WHERE theme_id = :theme_id $inClause 
                                        ORDER BY $randFunc LIMIT :limit");
                 $stmt->bindValue(':theme_id', $themeId, PDO::PARAM_INT);
-                $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $stmt->bindValue(':limit', $needed, PDO::PARAM_INT);
                 $stmt->execute();
-                $questionsRaw = $stmt->fetchAll();
+                $fallbackRaw = $stmt->fetchAll();
+                $questionsRaw = array_merge($questionsRaw, $fallbackRaw);
             }
 
             $questions = [];
@@ -523,16 +844,65 @@ try {
                 'status' => 'success',
                 'theme_id' => $themeId,
                 'difficulty' => $difficulty,
+                'quantity' => count($questions),
+                'data' => $questions
+            ]);
+            break;
+
+        case 'grand_quiz':
+            $quizType = isset($_GET['quiz_type']) ? strtoupper(trim((string)$_GET['quiz_type'])) : 'QURAN';
+            $difficulty = isset($_GET['difficulty']) ? trim((string)$_GET['difficulty']) : 'Medium';
+            $quantity = isset($_GET['quantity']) ? (int)$_GET['quantity'] : (isset($_GET['limit']) ? (int)$_GET['limit'] : 20);
+            if ($quantity <= 0) $quantity = 20;
+
+            $type = ($quizType === 'SEERAH') ? 'SEERAH' : 'PARA';
+            $randFunc = $isSqlite ? 'RANDOM()' : 'RAND()';
+
+            $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
+                                   FROM generated_questions 
+                                   WHERE type = :type AND difficulty = :difficulty 
+                                   ORDER BY $randFunc LIMIT :limit");
+            $stmt->bindValue(':type', $type, PDO::PARAM_STR);
+            $stmt->bindValue(':difficulty', $difficulty, PDO::PARAM_STR);
+            $stmt->bindValue(':limit', $quantity, PDO::PARAM_INT);
+            $stmt->execute();
+            $questionsRaw = $stmt->fetchAll();
+
+            if (count($questionsRaw) < $quantity) {
+                $existingIds = array_column($questionsRaw, 'id');
+                $needed = $quantity - count($questionsRaw);
+                $inClause = !empty($existingIds) ? 'AND id NOT IN (' . implode(',', array_map('intval', $existingIds)) . ')' : '';
+                $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
+                                       FROM generated_questions 
+                                       WHERE type = :type $inClause 
+                                       ORDER BY $randFunc LIMIT :limit");
+                $stmt->bindValue(':type', $type, PDO::PARAM_STR);
+                $stmt->bindValue(':limit', $needed, PDO::PARAM_INT);
+                $stmt->execute();
+                $fallbackRaw = $stmt->fetchAll();
+                $questionsRaw = array_merge($questionsRaw, $fallbackRaw);
+            }
+
+            $questions = [];
+            foreach ($questionsRaw as $row) {
+                $row['options'] = json_decode($row['options'], true) ?: [];
+                $questions[] = $row;
+            }
+
+            echo json_encode([
+                'status' => 'success',
+                'quiz_type' => $quizType,
+                'difficulty' => $difficulty,
+                'quantity' => count($questions),
                 'data' => $questions
             ]);
             break;
 
         case 'login':
-            $email = isset($_POST['email']) ? $_POST['email'] : '';
-            $password = isset($_POST['password']) ? $_POST['password'] : '';
+            $email = isset($requestData['email']) ? trim((string)$requestData['email']) : '';
+            $password = isset($requestData['password']) ? (string)$requestData['password'] : '';
 
             if (empty($email) || empty($password)) {
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Email and password are required.'
@@ -546,7 +916,6 @@ try {
 
             if ($user) {
                 if (empty($user['password'])) {
-                    @http_response_code(400);
                     echo json_encode([
                         'status' => 'error',
                         'message' => 'You registered via OTP and do not have a password set yet. Please log in via OTP first.'
@@ -565,14 +934,12 @@ try {
                         ]
                     ]);
                 } else {
-                    @http_response_code(401);
                     echo json_encode([
                         'status' => 'error',
                         'message' => 'Invalid email or password.'
                     ]);
                 }
             } else {
-                @http_response_code(401);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Invalid email or password.'
@@ -581,7 +948,6 @@ try {
             break;
 
         case 'register':
-            @http_response_code(400);
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Registration must be completed using OTP.'
@@ -589,9 +955,8 @@ try {
             break;
 
         case 'request_otp':
-            $email = isset($_POST['email']) ? strtolower(trim($_POST['email'])) : '';
+            $email = isset($requestData['email']) ? strtolower(trim((string)$requestData['email'])) : '';
             if (empty($email)) {
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Email is required.'
@@ -624,11 +989,10 @@ try {
             break;
 
         case 'verify_otp':
-            $email = isset($_POST['email']) ? strtolower(trim($_POST['email'])) : '';
-            $otp = isset($_POST['otp']) ? trim($_POST['otp']) : '';
+            $email = isset($requestData['email']) ? strtolower(trim((string)$requestData['email'])) : '';
+            $otp = isset($requestData['otp']) ? trim((string)$requestData['otp']) : '';
 
             if (empty($email) || empty($otp)) {
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Email and verification code are required.'
@@ -639,7 +1003,6 @@ try {
             $record = \App\Models\OtpCode::where('email', $email)->latest()->first();
 
             if (!$record) {
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Verification code not found. Please request a new one.'
@@ -649,7 +1012,6 @@ try {
 
             if ($record->isExpired()) {
                 $record->delete();
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Verification code expired. Please request a new one.'
@@ -658,7 +1020,6 @@ try {
             }
 
             if ($record->otp !== $otp) {
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'Invalid verification code.'
@@ -688,11 +1049,10 @@ try {
             break;
 
         case 'set_password':
-            $userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
-            $password = isset($_POST['password']) ? $_POST['password'] : '';
+            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
+            $password = isset($requestData['password']) ? (string)$requestData['password'] : '';
 
             if ($userId <= 0 || empty($password)) {
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'User ID and password are required.'
@@ -702,7 +1062,6 @@ try {
 
             $user = \App\Models\User::find($userId);
             if (!$user) {
-                @http_response_code(404);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'User not found.'
@@ -720,11 +1079,10 @@ try {
             break;
 
         case 'change_password':
-            $userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
-            $password = isset($_POST['password']) ? $_POST['password'] : '';
+            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
+            $password = isset($requestData['password']) ? (string)$requestData['password'] : '';
 
             if ($userId <= 0 || empty($password)) {
-                @http_response_code(400);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'User ID and password are required.'
@@ -734,7 +1092,6 @@ try {
 
             $user = \App\Models\User::find($userId);
             if (!$user) {
-                @http_response_code(404);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'User not found.'
@@ -751,18 +1108,45 @@ try {
             ]);
             break;
 
-        case 'submit_quiz':
-            $userId = isset($_POST['user_id']) ? (int)$_POST['user_id'] : 0;
-            $type = isset($_POST['type']) ? $_POST['type'] : 'THEME';
-            $title = isset($_POST['title']) ? $_POST['title'] : '';
-            $score = isset($_POST['score']) ? (int)$_POST['score'] : 0;
-            $totalQuestions = isset($_POST['total_questions']) ? (int)$_POST['total_questions'] : 0;
-            $difficulty = isset($_POST['difficulty']) ? $_POST['difficulty'] : 'Medium';
-            $questionsJson = isset($_POST['questions']) ? $_POST['questions'] : '[]';
-            $userAnswersJson = isset($_POST['user_answers']) ? $_POST['user_answers'] : '[]';
+        case 'delete_account':
+            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
 
             if ($userId <= 0) {
-                @http_response_code(400);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User ID is required.'
+                ]);
+                break;
+            }
+
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+
+            \App\Http\Controllers\AccountDeletionController::performAccountDeletion($user);
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Account deleted successfully.'
+            ]);
+            break;
+
+        case 'submit_quiz':
+            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
+            $type = isset($requestData['type']) ? (string)$requestData['type'] : 'THEME';
+            $title = isset($requestData['title']) ? (string)$requestData['title'] : '';
+            $score = isset($requestData['score']) ? (int)$requestData['score'] : 0;
+            $totalQuestions = isset($requestData['total_questions']) ? (int)$requestData['total_questions'] : 0;
+            $difficulty = isset($requestData['difficulty']) ? (string)$requestData['difficulty'] : 'Medium';
+            $questionsJson = isset($requestData['questions']) ? (string)$requestData['questions'] : '[]';
+            $userAnswersJson = isset($requestData['user_answers']) ? (string)$requestData['user_answers'] : '[]';
+
+            if ($userId <= 0) {
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'User ID is required.'
@@ -775,7 +1159,6 @@ try {
             $stmt->execute(['id' => $userId]);
             $user = $stmt->fetch();
             if (!$user) {
-                @http_response_code(404);
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'User not found.'
@@ -839,8 +1222,79 @@ try {
             ]);
             break;
 
+        case 'notifications':
+            $sinceId = isset($_GET['since_id']) && is_numeric($_GET['since_id']) ? (int)$_GET['since_id'] : 0;
+            $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) ? min((int)$_GET['limit'], 50) : 20;
+
+            if ($sinceId > 0) {
+                $stmt = $pdo->prepare("SELECT id, title, message, type, action_url, created_at 
+                                     FROM app_notifications 
+                                     WHERE send_push = 1 AND id > :since_id 
+                                     ORDER BY id DESC LIMIT :limit");
+                $stmt->bindValue(':since_id', $sinceId, PDO::PARAM_INT);
+                $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $stmt->execute();
+            } else {
+                $stmt = $pdo->prepare("SELECT id, title, message, type, action_url, created_at 
+                                     FROM app_notifications 
+                                     WHERE send_push = 1 
+                                     ORDER BY id DESC LIMIT :limit");
+                $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $stmt->execute();
+            }
+            $items = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            echo json_encode([
+                'status' => 'success',
+                'count' => count($items),
+                'data' => $items
+            ]);
+            break;
+
+        case 'register_device_token':
+            $token = $requestData['token'] ?? '';
+            $platform = $requestData['platform'] ?? 'android';
+            $deviceName = $requestData['device_name'] ?? null;
+            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $appVersion = $requestData['app_version'] ?? null;
+
+            if (empty($token)) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Token is required.'
+                ]);
+                break;
+            }
+
+            $now = date('Y-m-d H:i:s');
+            $stmt = $pdo->prepare("INSERT INTO device_tokens (token, platform, device_name, user_id, app_version, is_active, last_active_at, created_at, updated_at) 
+                                 VALUES (:token, :platform, :device_name, :user_id, :app_version, 1, :last_active_at, :created_at, :updated_at)
+                                 ON DUPLICATE KEY UPDATE 
+                                    platform = VALUES(platform),
+                                    device_name = VALUES(device_name),
+                                    user_id = COALESCE(VALUES(user_id), user_id),
+                                    app_version = VALUES(app_version),
+                                    is_active = 1,
+                                    last_active_at = VALUES(last_active_at),
+                                    updated_at = VALUES(updated_at)");
+            $stmt->execute([
+                ':token' => $token,
+                ':platform' => $platform,
+                ':device_name' => $deviceName,
+                ':user_id' => $userId,
+                ':app_version' => $appVersion,
+                ':last_active_at' => $now,
+                ':created_at' => $now,
+                ':updated_at' => $now
+            ]);
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Device token successfully registered.'
+            ]);
+            break;
+
+
         default:
-            @http_response_code(400);
             echo json_encode([
                 'status' => 'error',
                 'message' => 'Invalid action parameter specified.'
@@ -848,9 +1302,9 @@ try {
             break;
     }
 } catch (Exception $e) {
-    @http_response_code(500);
+    \Illuminate\Support\Facades\Log::error('Mobile API exception: ' . $e->getMessage(), ['trace' => $e->getTraceAsString()]);
     echo json_encode([
         'status' => 'error',
-        'message' => 'Database error occurred: ' . $e->getMessage()
+        'message' => 'An unexpected error occurred. Please try again.'
     ]);
 }

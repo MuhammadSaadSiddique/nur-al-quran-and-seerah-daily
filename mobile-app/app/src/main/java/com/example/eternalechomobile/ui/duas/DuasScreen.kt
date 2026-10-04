@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.duas
+package com.asloobulhayat.eternalecho.ui.duas
 
 import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
@@ -24,10 +24,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.eternalechomobile.data.DataRepository
-import com.example.eternalechomobile.data.DefaultDataRepository
-import com.example.eternalechomobile.data.Dua
-import com.example.eternalechomobile.ui.adaptive.*
+import com.asloobulhayat.eternalecho.data.DataRepository
+import com.asloobulhayat.eternalecho.data.DefaultDataRepository
+import com.asloobulhayat.eternalecho.data.Dua
+import com.asloobulhayat.eternalecho.ui.adaptive.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import kotlinx.coroutines.launch
 
@@ -182,21 +182,26 @@ fun DuasContent(
                                             style = MaterialTheme.typography.labelSmall,
                                             color = MaterialTheme.colorScheme.primary
                                         )
-                                    }
-                                    if (dua.sourceType.isNotEmpty()) {
-                                        Surface(
-                                            color = MaterialTheme.colorScheme.secondaryContainer,
-                                            shape = RoundedCornerShape(6.dp)
-                                        ) {
-                                            Text(
-                                                text = dua.sourceType.replaceFirstChar { it.uppercase() },
-                                                style = MaterialTheme.typography.labelSmall,
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                                            )
+
+                                        if (dua.sourceType.isNotEmpty()) {
+                                            Surface(
+                                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                                shape = RoundedCornerShape(6.dp)
+                                            ) {
+                                                Text(
+                                                    text = dua.sourceType.replaceFirstChar { it.uppercase() },
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    modifier = Modifier.padding(
+                                                        horizontal = 6.dp,
+                                                        vertical = 2.dp
+                                                    )
+                                                )
+                                            }
                                         }
                                     }
                                 }
                             }
+
                         }
                     }
                 }
@@ -378,11 +383,14 @@ fun DuasFilterHeader(
             }
         }
 
-        // Category Scrollable Row
+        // Category Multi-row Chips
+//        FlowRow(
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
+            //verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
+//            categories.forEach { (key, label) ->
             items(categories) { (key, label) ->
                 val isSelected = selectedCategory == key
                 SuggestionChip(

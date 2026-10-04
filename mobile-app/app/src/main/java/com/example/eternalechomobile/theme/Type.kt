@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.theme
+package com.asloobulhayat.eternalecho.theme
 
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle

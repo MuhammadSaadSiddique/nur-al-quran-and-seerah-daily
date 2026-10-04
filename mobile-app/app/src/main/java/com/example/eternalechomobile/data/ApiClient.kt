@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.data
+package com.asloobulhayat.eternalecho.data
 
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -8,8 +8,9 @@ import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLEncoder
 import javax.net.ssl.HttpsURLConnection
-import com.example.eternalechomobile.security.AppSecurity
+import com.asloobulhayat.eternalecho.security.AppSecurity
 
 object ApiClient {
     private val OBFUSCATED_BASE_URL = byteArrayOf(
@@ -27,6 +28,8 @@ object ApiClient {
     val BASE_URL: String
         get() = AppSecurity.deobfuscate(OBFUSCATED_BASE_URL, OBFUSCATION_KEY)
 
+    const val ACCOUNT_DELETE_URL: String = "https://theeternalecho.asloobulhayat.com/delete-account"
+
     private suspend fun makeGetRequest(urlStr: String): String = withContext(Dispatchers.IO) {
         if (!urlStr.startsWith("https://", ignoreCase = true)) {
             throw SecurityException("Insecure HTTP connections are strictly prohibited.")
@@ -37,25 +40,53 @@ object ApiClient {
             conn.requestMethod = "GET"
             conn.connectTimeout = 10000
             conn.readTimeout = 10000
+            conn.setRequestProperty("Accept", "application/json")
 
             val responseCode = conn.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val response = StringBuilder()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    response.append(line)
-                }
-                reader.close()
-                response.toString()
+            val stream = if (responseCode in 200..299) {
+                conn.inputStream
             } else {
-                val errorMsg = "HTTP Error Code: $responseCode for URL: $urlStr"
-                android.util.Log.e("ApiClient", errorMsg)
-                throw Exception(errorMsg)
+                conn.errorStream
+            }
+
+            val response = if (stream != null) {
+                BufferedReader(InputStreamReader(stream)).use { reader ->
+                    val sb = StringBuilder()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        sb.append(line)
+                    }
+                    sb.toString()
+                }
+            } else {
+                ""
+            }
+
+            if (responseCode in 200..299) {
+                response
+            } else {
+                android.util.Log.e("ApiClient", "Server response code: $responseCode")
+                val serverMsg = try {
+                    val jsonObj = JSONObject(response)
+                    jsonObj.optString("message").takeIf { it.isNotBlank() }
+                } catch (ignored: Exception) {
+                    null
+                }
+                throw Exception(serverMsg ?: "Unable to complete request. Please try again later.")
             }
         } catch (e: Exception) {
-            android.util.Log.e("ApiClient", "Network request failed for URL: $urlStr. Error: ${e.message}", e)
-            throw e
+            android.util.Log.e("ApiClient", "Network request failed: ${e.message}", e)
+            val friendlyMsg = when {
+                e is java.net.UnknownHostException || e is java.net.ConnectException ->
+                    "Unable to connect to the server. Please check your internet connection."
+                e is java.net.SocketTimeoutException ->
+                    "Connection timed out. Please try again."
+                !e.message.isNullOrBlank() && !e.message!!.contains("http", ignoreCase = true) ->
+                    e.message!!
+                else ->
+                    "Unable to communicate with the server. Please try again."
+            }
+            throw Exception(friendlyMsg)
         }
     }
 
@@ -106,18 +137,125 @@ object ApiClient {
     suspend fun fetchConnections(surahNumber: Int, verseNumber: Int): ConnectionsData {
         val jsonStr = makeGetRequest("$BASE_URL?action=connections&surah_number=$surahNumber&verse_number=$verseNumber")
         val jsonObj = JSONObject(jsonStr)
-        val dataObj = jsonObj.getJSONObject("data")
+        val dataObj = jsonObj.optJSONObject("data") ?: return ConnectionsData(emptyList(), emptyList(), emptyList(), emptyList(), emptyList())
 
-        fun parseList(key: String): List<Connection> {
-            val arr = dataObj.optJSONArray(key) ?: return emptyList()
+        fun parseScience(): List<Connection> {
+            val arr = dataObj.optJSONArray("science") ?: return emptyList()
+            val list = mutableListOf<Connection>()
+            for (i in 0 until arr.length()) {
+                val item = arr.getJSONObject(i)
+                val field = item.optString("field", "")
+                val cred = item.optString("credibility_score", "")
+                list.add(
+                    Connection(
+                        title = item.optString("title", "Scientific Insight"),
+                        description = item.optString("description", ""),
+                        extraInfo = field,
+                        relevanceDescription = item.optString("relevance_description", ""),
+                        category = field,
+                        sourceName = item.optString("source_name", ""),
+                        credibilityScore = if (cred.isNotBlank() && cred != "0" && cred != "null") "$cred/10" else ""
+                    )
+                )
+            }
+            return list
+        }
+
+        fun parseSeerah(): List<Connection> {
+            val arr = dataObj.optJSONArray("seerah") ?: return emptyList()
+            val list = mutableListOf<Connection>()
+            for (i in 0 until arr.length()) {
+                val item = arr.getJSONObject(i)
+                val hijri = item.optString("date_hijri", "").trim()
+                val ce = item.optString("date_ce", "").trim()
+                val dateStr = when {
+                    hijri.isNotBlank() && ce.isNotBlank() -> "$hijri AH / $ce CE"
+                    hijri.isNotBlank() -> "$hijri AH"
+                    ce.isNotBlank() -> "$ce CE"
+                    else -> ""
+                }
+                val srcBook = item.optString("source_book", "").trim()
+                val srcRef = item.optString("source_reference", "").trim()
+                val sourceCombined = if (srcBook.isNotBlank()) "$srcBook $srcRef".trim() else ""
+
+                list.add(
+                    Connection(
+                        title = item.optString("title", "Seerah Event"),
+                        description = item.optString("description", ""),
+                        extraInfo = item.optString("category", ""),
+                        relevanceDescription = item.optString("link_description", ""),
+                        category = item.optString("category", ""),
+                        dateInfo = dateStr,
+                        location = item.optString("location", ""),
+                        sourceName = sourceCombined
+                    )
+                )
+            }
+            return list
+        }
+
+        fun parseHadith(): List<Connection> {
+            val arr = dataObj.optJSONArray("hadith") ?: return emptyList()
+            val list = mutableListOf<Connection>()
+            for (i in 0 until arr.length()) {
+                val item = arr.getJSONObject(i)
+                val coll = item.optString("collection_name", "Hadith")
+                val num = item.optString("hadith_number", "").trim()
+                val displayTitle = if (num.isNotBlank()) "$coll (#$num)" else coll
+
+                list.add(
+                    Connection(
+                        title = displayTitle,
+                        description = item.optString("text", ""),
+                        extraInfo = coll,
+                        relevanceDescription = item.optString("link_description", ""),
+                        arabicText = item.optString("text_arabic", ""),
+                        narratorChain = item.optString("narrator_chain", ""),
+                        grading = item.optString("grading", ""),
+                        collectionName = coll,
+                        hadithNumber = num
+                    )
+                )
+            }
+            return list
+        }
+
+        fun parseHistory(): List<Connection> {
+            val arr = dataObj.optJSONArray("history") ?: return emptyList()
+            val list = mutableListOf<Connection>()
+            for (i in 0 until arr.length()) {
+                val item = arr.getJSONObject(i)
+                val civ = item.optString("civilization", "").trim()
+                val reg = item.optString("region", "").trim()
+                val dateRange = item.optString("date_range", "").trim()
+                list.add(
+                    Connection(
+                        title = item.optString("title", "Historical Event"),
+                        description = item.optString("description", ""),
+                        extraInfo = if (civ.isNotBlank()) civ else item.optString("extra_info", ""),
+                        relevanceDescription = item.optString("link_description", ""),
+                        dateInfo = dateRange,
+                        location = reg,
+                        scriptureType = civ
+                    )
+                )
+            }
+            return list
+        }
+
+        fun parseScripture(): List<Connection> {
+            val arr = dataObj.optJSONArray("scripture") ?: return emptyList()
             val list = mutableListOf<Connection>()
             for (i in 0 until arr.length()) {
                 val item = arr.getJSONObject(i)
                 list.add(
                     Connection(
-                        title = item.optString("title", "Hadith #" + item.optString("hadith_number")),
-                        description = item.optString("description", item.optString("relevance_description", item.optString("text", item.optString("link_description")))),
-                        extraInfo = item.optString("field", item.optString("category", item.optString("collection_name", item.optString("extra_info", ""))))
+                        title = item.optString("title", "Scripture Reference"),
+                        description = item.optString("text", ""),
+                        extraInfo = item.optString("scripture_type", "Scripture"),
+                        relevanceDescription = item.optString("link_description", ""),
+                        scriptureType = item.optString("scripture_type", "Scripture"),
+                        relationshipType = item.optString("relationship_type", "")
                     )
                 )
             }
@@ -125,11 +263,87 @@ object ApiClient {
         }
 
         return ConnectionsData(
-            science = parseList("science"),
-            seerah = parseList("seerah"),
-            hadith = parseList("hadith"),
-            history = parseList("history"),
-            scripture = parseList("scripture")
+            science = parseScience(),
+            seerah = parseSeerah(),
+            hadith = parseHadith(),
+            history = parseHistory(),
+            scripture = parseScripture()
+        )
+    }
+
+    suspend fun fetchAllConnections(
+        category: String = "all",
+        search: String = "",
+        page: Int = 1,
+        limit: Int = 20,
+        surahNumber: Int? = null
+    ): AllConnectionsResponse {
+        val encodedCat = URLEncoder.encode(category, "UTF-8")
+        val encodedSearch = URLEncoder.encode(search, "UTF-8")
+        val surahParam = if (surahNumber != null && surahNumber > 0) "&surah_number=$surahNumber" else ""
+        val url = "$BASE_URL?action=all_connections&category=$encodedCat&search=$encodedSearch&page=$page&limit=$limit$surahParam"
+
+        val jsonStr = makeGetRequest(url)
+        val jsonObj = JSONObject(jsonStr)
+
+        val statsObj = jsonObj.optJSONObject("stats") ?: JSONObject()
+        val stats = ConnectionStats(
+            surahsCount = statsObj.optInt("surahs_count", 114),
+            scienceCount = statsObj.optInt("science_count", 0),
+            seerahCount = statsObj.optInt("seerah_count", 0),
+            hadithCount = statsObj.optInt("hadith_count", 0),
+            historyCount = statsObj.optInt("history_count", 0),
+            scriptureCount = statsObj.optInt("scripture_count", 0),
+            totalCount = statsObj.optInt("total_count", 0)
+        )
+
+        val cat = jsonObj.optString("category", category)
+        val currPage = jsonObj.optInt("page", page)
+        val totalPages = jsonObj.optInt("total_pages", 1)
+        val totalItems = jsonObj.optInt("total_items", 0)
+
+        val dataArr = jsonObj.optJSONArray("data") ?: JSONArray()
+        val list = mutableListOf<GlobalConnectionItem>()
+
+        for (i in 0 until dataArr.length()) {
+            val item = dataArr.getJSONObject(i)
+            list.add(
+                GlobalConnectionItem(
+                    id = item.optInt("id", i + 1),
+                    category = item.optString("category", "science"),
+                    surahNumber = item.optInt("surah_number", 1),
+                    surahName = item.optString("surah_name", ""),
+                    verseNumber = item.optInt("verse_number", 1),
+                    juzNumber = item.optInt("juz_number", 1),
+                    verseArabic = item.optString("verse_arabic", ""),
+                    verseTransliteration = item.optString("verse_transliteration", ""),
+                    title = item.optString("title", ""),
+                    description = item.optString("description", ""),
+                    extraInfo = item.optString("extra_info", ""),
+                    relevanceDescription = item.optString("relevance_description", ""),
+                    field = item.optString("field", ""),
+                    sourceName = item.optString("source_name", ""),
+                    credibilityScore = item.optString("credibility_score", ""),
+                    dateInfo = item.optString("date_info", ""),
+                    location = item.optString("location", ""),
+                    arabicText = item.optString("arabic_text", ""),
+                    narratorChain = item.optString("narrator_chain", ""),
+                    grading = item.optString("grading", ""),
+                    collectionName = item.optString("collection_name", ""),
+                    hadithNumber = item.optString("hadith_number", ""),
+                    scriptureType = item.optString("scripture_type", ""),
+                    relationshipType = item.optString("relationship_type", "")
+                )
+            )
+        }
+
+        return AllConnectionsResponse(
+            stats = stats,
+            category = cat,
+            page = currPage,
+            totalPages = totalPages,
+            totalItems = totalItems,
+            data = list
         )
     }
 
@@ -241,8 +455,39 @@ object ApiClient {
         return themes
     }
 
-    suspend fun fetchThemeQuiz(themeId: Int, difficulty: String): List<QuizQuestion> {
-        val jsonStr = makeGetRequest("$BASE_URL?action=theme_quiz&theme_id=$themeId&difficulty=$difficulty")
+    suspend fun fetchThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): List<QuizQuestion> {
+        val jsonStr = makeGetRequest("$BASE_URL?action=theme_quiz&theme_id=$themeId&difficulty=$difficulty&quantity=$quantity")
+        val jsonObj = JSONObject(jsonStr)
+        val dataArr = jsonObj.getJSONArray("data")
+        val questions = mutableListOf<QuizQuestion>()
+        for (i in 0 until dataArr.length()) {
+            val item = dataArr.getJSONObject(i)
+            val optionsArr = item.optJSONArray("options")
+            val optionsList = mutableListOf<String>()
+            if (optionsArr != null) {
+                for (j in 0 until optionsArr.length()) {
+                    optionsList.add(optionsArr.getString(j))
+                }
+            }
+            questions.add(
+                QuizQuestion(
+                    id = item.optInt("id"),
+                    questionId = item.optString("question_id"),
+                    text = item.optString("text"),
+                    options = optionsList,
+                    correctAnswerIndex = item.optInt("correct_answer_index"),
+                    explanation = item.optString("explanation", ""),
+                    difficulty = item.optString("difficulty"),
+                    reference = item.optString("reference", ""),
+                    sourceInfo = item.optString("source_info", "")
+                )
+            )
+        }
+        return questions
+    }
+
+    suspend fun fetchGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): List<QuizQuestion> {
+        val jsonStr = makeGetRequest("$BASE_URL?action=grand_quiz&quiz_type=$quizType&difficulty=$difficulty&quantity=$quantity")
         val jsonObj = JSONObject(jsonStr)
         val dataArr = jsonObj.getJSONArray("data")
         val questions = mutableListOf<QuizQuestion>()
@@ -343,41 +588,79 @@ object ApiClient {
             conn.doOutput = true
             conn.connectTimeout = 10000
             conn.readTimeout = 10000
-            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded")
+            conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
+            conn.setRequestProperty("Accept", "application/json")
 
             val postData = params.map { (k, v) ->
-                java.net.URLEncoder.encode(k, "UTF-8") + "=" + java.net.URLEncoder.encode(v, "UTF-8")
+                java.net.URLEncoder.encode(k.trim(), "UTF-8") + "=" + java.net.URLEncoder.encode(v.trim(), "UTF-8")
             }.joinToString("&")
 
+            val postBytes = postData.toByteArray(charset("UTF-8"))
+            conn.setFixedLengthStreamingMode(postBytes.size)
+
             conn.outputStream.use { os ->
-                os.write(postData.toByteArray(charset("UTF-8")))
+                os.write(postBytes)
+                os.flush()
             }
 
             val responseCode = conn.responseCode
-            if (responseCode == HttpURLConnection.HTTP_OK) {
-                val reader = BufferedReader(InputStreamReader(conn.inputStream))
-                val response = StringBuilder()
-                var line: String?
-                while (reader.readLine().also { line = it } != null) {
-                    response.append(line)
-                }
-                reader.close()
-                response.toString()
+            val stream = if (responseCode in 200..299) {
+                conn.inputStream
             } else {
-                val errorMsg = "HTTP Error Code: $responseCode for URL: $urlStr"
-                android.util.Log.e("ApiClient", errorMsg)
-                throw Exception(errorMsg)
+                conn.errorStream
+            }
+
+            val response = if (stream != null) {
+                BufferedReader(InputStreamReader(stream)).use { reader ->
+                    val sb = StringBuilder()
+                    var line: String?
+                    while (reader.readLine().also { line = it } != null) {
+                        sb.append(line)
+                    }
+                    sb.toString()
+                }
+            } else {
+                ""
+            }
+
+            if (responseCode in 200..299) {
+                response
+            } else {
+                android.util.Log.e("ApiClient", "Server response code: $responseCode")
+                val serverMsg = try {
+                    val jsonObj = JSONObject(response)
+                    jsonObj.optString("message").takeIf { it.isNotBlank() }
+                } catch (ignored: Exception) {
+                    null
+                }
+                throw Exception(serverMsg ?: "Unable to complete request. Please try again later.")
             }
         } catch (e: Exception) {
-            android.util.Log.e("ApiClient", "Network request failed for URL: $urlStr. Error: ${e.message}", e)
-            throw e
+            android.util.Log.e("ApiClient", "Network request failed: ${e.message}", e)
+            val friendlyMsg = when {
+                e is java.net.UnknownHostException || e is java.net.ConnectException ->
+                    "Unable to connect to the server. Please check your internet connection."
+                e is java.net.SocketTimeoutException ->
+                    "Connection timed out. Please try again."
+                !e.message.isNullOrBlank() && !e.message!!.contains("http", ignoreCase = true) ->
+                    e.message!!
+                else ->
+                    "Unable to communicate with the server. Please try again."
+            }
+            throw Exception(friendlyMsg)
         }
     }
 
     suspend fun login(email: String, password: String): UserSession {
-        val params = mapOf("email" to email, "password" to password)
-        val jsonStr = makePostRequest("$BASE_URL?action=login", params)
+        val cleanEmail = email.trim()
+        val params = mapOf("email" to cleanEmail, "password" to password)
+        val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
+        val jsonStr = makePostRequest("$BASE_URL?action=login&email=$encodedEmail", params)
         val jsonObj = JSONObject(jsonStr)
+        if (jsonObj.optString("status") != "success") {
+            val msg = jsonObj.optString("message", "Invalid email or password.")
+            throw Exception(msg)
+        }
         val data = jsonObj.getJSONObject("data")
         return UserSession(
             userId = data.getInt("user_id"),
@@ -388,9 +671,15 @@ object ApiClient {
     }
 
     suspend fun register(name: String, email: String, password: String): UserSession {
-        val params = mapOf("name" to name, "email" to email, "password" to password)
+        val cleanEmail = email.trim()
+        val cleanName = name.trim()
+        val params = mapOf("name" to cleanName, "email" to cleanEmail, "password" to password)
         val jsonStr = makePostRequest("$BASE_URL?action=register", params)
         val jsonObj = JSONObject(jsonStr)
+        if (jsonObj.optString("status") != "success") {
+            val msg = jsonObj.optString("message", "Registration failed.")
+            throw Exception(msg)
+        }
         val data = jsonObj.getJSONObject("data")
         return UserSession(
             userId = data.getInt("user_id"),
@@ -401,16 +690,30 @@ object ApiClient {
     }
 
     suspend fun requestOtp(email: String): Boolean {
-        val params = mapOf("email" to email)
-        val jsonStr = makePostRequest("$BASE_URL?action=request_otp", params)
+        val cleanEmail = email.trim()
+        val params = mapOf("email" to cleanEmail)
+        val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
+        val jsonStr = makePostRequest("$BASE_URL?action=request_otp&email=$encodedEmail", params)
         val jsonObj = JSONObject(jsonStr)
-        return jsonObj.getString("status") == "success"
+        if (jsonObj.optString("status") != "success") {
+            val msg = jsonObj.optString("message", "Failed to send verification code.")
+            throw Exception(msg)
+        }
+        return true
     }
 
     suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse {
-        val params = mapOf("email" to email, "otp" to otp)
-        val jsonStr = makePostRequest("$BASE_URL?action=verify_otp", params)
+        val cleanEmail = email.trim()
+        val cleanOtp = otp.trim()
+        val params = mapOf("email" to cleanEmail, "otp" to cleanOtp)
+        val encodedEmail = java.net.URLEncoder.encode(cleanEmail, "UTF-8")
+        val encodedOtp = java.net.URLEncoder.encode(cleanOtp, "UTF-8")
+        val jsonStr = makePostRequest("$BASE_URL?action=verify_otp&email=$encodedEmail&otp=$encodedOtp", params)
         val jsonObj = JSONObject(jsonStr)
+        if (jsonObj.optString("status") != "success") {
+            val msg = jsonObj.optString("message", "Verification failed. Please try again.")
+            throw Exception(msg)
+        }
         val data = jsonObj.getJSONObject("data")
         val session = UserSession(
             userId = data.getInt("user_id"),
@@ -420,22 +723,41 @@ object ApiClient {
         )
         return UserSessionOtpResponse(
             session = session,
-            hasPassword = data.getBoolean("has_password")
+            hasPassword = data.optBoolean("has_password", false)
         )
     }
 
     suspend fun setPassword(userId: Int, password: String): Boolean {
         val params = mapOf("user_id" to userId.toString(), "password" to password)
-        val jsonStr = makePostRequest("$BASE_URL?action=set_password", params)
+        val jsonStr = makePostRequest("$BASE_URL?action=set_password&user_id=$userId", params)
         val jsonObj = JSONObject(jsonStr)
-        return jsonObj.getString("status") == "success"
+        if (jsonObj.optString("status") != "success") {
+            val msg = jsonObj.optString("message", "Failed to set password.")
+            throw Exception(msg)
+        }
+        return true
     }
 
     suspend fun changePassword(userId: Int, password: String): Boolean {
         val params = mapOf("user_id" to userId.toString(), "password" to password)
-        val jsonStr = makePostRequest("$BASE_URL?action=change_password", params)
+        val jsonStr = makePostRequest("$BASE_URL?action=change_password&user_id=$userId", params)
         val jsonObj = JSONObject(jsonStr)
-        return jsonObj.getString("status") == "success"
+        if (jsonObj.optString("status") != "success") {
+            val msg = jsonObj.optString("message", "Failed to change password.")
+            throw Exception(msg)
+        }
+        return true
+    }
+
+    suspend fun deleteAccount(userId: Int): Boolean {
+        val params = mapOf("user_id" to userId.toString())
+        val jsonStr = makePostRequest("$BASE_URL?action=delete_account&user_id=$userId", params)
+        val jsonObj = JSONObject(jsonStr)
+        if (jsonObj.optString("status") != "success") {
+            val msg = jsonObj.optString("message", "Failed to delete account.")
+            throw Exception(msg)
+        }
+        return true
     }
 
     suspend fun submitQuiz(
@@ -467,4 +789,57 @@ object ApiClient {
             false
         }
     }
+
+    suspend fun fetchNotifications(sinceId: Long = 0, limit: Int = 20): List<NotificationItem> {
+        return try {
+            val url = if (sinceId > 0) {
+                "$BASE_URL?action=notifications&since_id=$sinceId&limit=$limit"
+            } else {
+                "$BASE_URL?action=notifications&limit=$limit"
+            }
+            val jsonStr = makeGetRequest(url)
+            val jsonObj = JSONObject(jsonStr)
+            val dataArr = jsonObj.optJSONArray("data") ?: JSONArray()
+            val list = mutableListOf<NotificationItem>()
+            for (i in 0 until dataArr.length()) {
+                val item = dataArr.getJSONObject(i)
+                list.add(
+                    NotificationItem(
+                        id = item.optLong("id"),
+                        title = item.optString("title", "Announcement"),
+                        message = item.optString("message", ""),
+                        type = item.optString("type", "announcement"),
+                        actionUrl = item.optString("action_url").takeIf { it.isNotEmpty() && it != "null" },
+                        createdAt = item.optString("created_at").takeIf { it.isNotEmpty() && it != "null" },
+                        isRead = false
+                    )
+                )
+            }
+            list
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to fetch notifications: ${e.message}", e)
+            emptyList()
+        }
+    }
+
+    suspend fun registerDeviceToken(token: String, deviceName: String = "Android Device", appVersion: String = "1.0", userId: Int? = null): Boolean {
+        return try {
+            val params = mutableMapOf(
+                "token" to token,
+                "platform" to "android",
+                "device_name" to deviceName,
+                "app_version" to appVersion
+            )
+            if (userId != null) {
+                params["user_id"] = userId.toString()
+            }
+            val jsonStr = makePostRequest("$BASE_URL?action=register_device_token", params)
+            val jsonObj = JSONObject(jsonStr)
+            jsonObj.optString("status") == "success"
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to register device token: ${e.message}", e)
+            false
+        }
+    }
 }
+

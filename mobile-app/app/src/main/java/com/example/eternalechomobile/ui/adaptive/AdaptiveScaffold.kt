@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.adaptive
+package com.asloobulhayat.eternalecho.ui.adaptive
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
@@ -6,12 +6,13 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.eternalechomobile.config.AppConfig
+import com.asloobulhayat.eternalecho.config.AppConfig
 
 data class NavigationDestination(
     val index: Int,
@@ -22,12 +23,16 @@ data class NavigationDestination(
 val defaultNavigationDestinations: List<NavigationDestination>
     get() = buildList {
         add(NavigationDestination(0, "Surahs", Icons.AutoMirrored.Filled.List))
-        add(NavigationDestination(1, "Leaderboard", Icons.Default.Star))
+        if (AppConfig.IS_LENS_FEATURE_ENABLED) {
+            add(NavigationDestination(5, "Lens", Icons.Default.Search))
+        }
         add(NavigationDestination(2, "Seerah", Icons.Default.Person))
         add(NavigationDestination(3, "History", Icons.Default.Info))
         if (AppConfig.IS_DUAS_FEATURE_ENABLED) {
             add(NavigationDestination(4, "Duas", Icons.Default.Favorite))
         }
+
+        add(NavigationDestination(1, "Rank", Icons.Default.Star))
     }
 
 @Composable

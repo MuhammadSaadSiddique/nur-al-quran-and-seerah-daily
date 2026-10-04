@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.quiz
+package com.asloobulhayat.eternalecho.ui.quiz
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -10,7 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import com.example.eternalechomobile.ui.adaptive.*
+import com.asloobulhayat.eternalecho.ui.adaptive.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -20,10 +20,10 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.eternalechomobile.data.DataRepository
-import com.example.eternalechomobile.data.QuizQuestion
-import com.example.eternalechomobile.data.Theme
-import com.example.eternalechomobile.data.DefaultDataRepository
+import com.asloobulhayat.eternalecho.data.DataRepository
+import com.asloobulhayat.eternalecho.data.QuizQuestion
+import com.asloobulhayat.eternalecho.data.Theme
+import com.asloobulhayat.eternalecho.data.DefaultDataRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -31,6 +31,10 @@ import kotlinx.coroutines.launch
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.Lifecycle
+import com.asloobulhayat.eternalecho.data.QuizSubmissionHelper
+import com.asloobulhayat.eternalecho.security.SecurePreferences
 
 // --- VIEW MODELS ---
 
@@ -64,7 +68,9 @@ sealed interface ThemeSelectionUiState {
 class PlayThemeQuizViewModel(
     private val themeId: Int,
     private val difficulty: String,
-    private val repository: DataRepository
+    private val repository: DataRepository,
+    private val quantity: Int = 20,
+    private val quizType: String = "THEME"
 ) : ViewModel() {
     private val _state = MutableStateFlow<PlayQuizUiState>(PlayQuizUiState.Loading)
     val state: StateFlow<PlayQuizUiState> = _state.asStateFlow()
@@ -74,6 +80,9 @@ class PlayThemeQuizViewModel(
     var score by mutableIntStateOf(0)
     var quizFinished by mutableStateOf(false)
     val userAnswers = mutableListOf<Int?>()
+    var isScoreSubmitted by mutableStateOf(false)
+    var isSubmittingScore by mutableStateOf(false)
+    var submissionError by mutableStateOf<String?>(null)
 
     init {
         loadQuiz()
@@ -83,7 +92,12 @@ class PlayThemeQuizViewModel(
         viewModelScope.launch {
             _state.value = PlayQuizUiState.Loading
             try {
-                val rawQuestions = repository.getThemeQuiz(themeId, difficulty)
+                val rawQuestions = if (quizType == "GRAND_QURAN" || quizType == "GRAND_SEERAH") {
+                    val grandType = if (quizType == "GRAND_QURAN") "QURAN" else "SEERAH"
+                    repository.getGrandQuiz(grandType, difficulty, quantity)
+                } else {
+                    repository.getThemeQuiz(themeId, difficulty, quantity)
+                }
                 // Shuffle options for each question so that Option A isn't always the correct answer
                 val shuffledQuestions = rawQuestions.map { q ->
                     val correctText = q.options.getOrNull(q.correctAnswerIndex) ?: ""
@@ -120,7 +134,27 @@ class PlayThemeQuizViewModel(
         }
     }
 
-    fun finishAndSubmit(userId: Int, themeName: String, questions: List<QuizQuestion>) {
+    fun resetQuiz() {
+        currentQuestionIndex = 0
+        selectedOptionIndex = null
+        score = 0
+        quizFinished = false
+        isScoreSubmitted = false
+        isSubmittingScore = false
+        submissionError = null
+        userAnswers.clear()
+        loadQuiz()
+    }
+
+    fun finishAndSubmit(
+        userId: Int,
+        themeName: String,
+        questions: List<QuizQuestion>,
+        onComplete: ((Boolean) -> Unit)? = null
+    ) {
+        if (isScoreSubmitted || isSubmittingScore || userId <= 0) return
+        isSubmittingScore = true
+        submissionError = null
         viewModelScope.launch {
             try {
                 val questionsArray = org.json.JSONArray()
@@ -139,9 +173,10 @@ class PlayThemeQuizViewModel(
                 val answersArray = org.json.JSONArray()
                 userAnswers.forEach { answersArray.put(it ?: -1) }
 
-                repository.submitQuiz(
+                val submissionType = if (quizType.startsWith("GRAND")) "GRAND" else "THEME"
+                val success = repository.submitQuiz(
                     userId = userId,
-                    type = "THEME",
+                    type = submissionType,
                     title = themeName,
                     score = score,
                     totalQuestions = questions.size,
@@ -149,8 +184,19 @@ class PlayThemeQuizViewModel(
                     questionsJson = questionsArray.toString(),
                     userAnswersJson = answersArray.toString()
                 )
+                if (success) {
+                    isScoreSubmitted = true
+                    onComplete?.invoke(true)
+                } else {
+                    submissionError = "Could not record score. Please try again."
+                    onComplete?.invoke(false)
+                }
             } catch (e: Exception) {
                 android.util.Log.e("PlayThemeQuizViewModel", "Failed to submit quiz score", e)
+                submissionError = e.message ?: "Failed to submit quiz score"
+                onComplete?.invoke(false)
+            } finally {
+                isSubmittingScore = false
             }
         }
     }
@@ -168,18 +214,30 @@ sealed interface PlayQuizUiState {
 @Composable
 fun ThemeSelectionScreen(
     onBackClick: () -> Unit,
-    onThemeSelect: (Theme, String) -> Unit,
+    onThemeSelect: (Theme, String, Int) -> Unit,
+    onGrandQuizLaunch: (String, String, String, Int) -> Unit = { _, _, _, _ -> },
     onAuthClick: () -> Unit,
     modifier: Modifier = Modifier,
     viewModel: ThemeSelectionViewModel = viewModel { ThemeSelectionViewModel(DefaultDataRepository()) }
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var selectedDifficulty by remember { mutableStateOf("Medium") }
+    var selectedQuantity by remember { mutableIntStateOf(20) }
+    var selectedTab by remember { mutableIntStateOf(0) }
 
     val context = LocalContext.current
-    val prefs = remember { com.example.eternalechomobile.security.SecurePreferences.getInstance(context) }
-    var completedQuizzes by remember { mutableIntStateOf(prefs.getInt("completed_quizzes", 0)) }
+    val prefs = remember { SecurePreferences.getInstance(context) }
     var showLimitDialog by remember { mutableStateOf(false) }
+
+    fun checkAndLaunch(action: () -> Unit) {
+        val currentIsLoggedIn = prefs.getInt("user_id", -1) != -1
+        val currentCompleted = prefs.getInt("completed_quizzes", 0)
+        if (!currentIsLoggedIn && currentCompleted >= 1) {
+            showLimitDialog = true
+        } else {
+            action()
+        }
+    }
 
     if (showLimitDialog) {
         AlertDialog(
@@ -205,7 +263,7 @@ fun ThemeSelectionScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Thematic Quizzes", fontWeight = FontWeight.Bold) },
+                title = { Text("Thematic & Grand Quizzes", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBackClick) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -222,24 +280,55 @@ fun ThemeSelectionScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Difficulty Selector
+            // Quiz Quantity Selector (same as web: 20, 50, 100)
             Text(
-                text = "Select Difficulty",
-                style = MaterialTheme.typography.titleMedium,
+                text = "Quiz Quantity",
+                style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 6.dp)
             )
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 24.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                listOf(20, 50, 100).forEach { qty ->
+                    val isSelected = selectedQuantity == qty
+                    Surface(
+                        onClick = { selectedQuantity = qty },
+                        shape = RoundedCornerShape(12.dp),
+                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = "$qty Qs",
+                            modifier = Modifier.padding(vertical = 10.dp),
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Difficulty Selector (Easy, Medium, Hard)
+            Text(
+                text = "Select Difficulty",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 6.dp)
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf("Easy", "Medium", "Hard").forEach { diff ->
                     val isSelected = selectedDifficulty == diff
                     Surface(
                         onClick = { selectedDifficulty = diff },
-                        shape = RoundedCornerShape(16.dp),
+                        shape = RoundedCornerShape(12.dp),
                         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.weight(1f)
                     ) {
@@ -255,12 +344,37 @@ fun ThemeSelectionScreen(
                 }
             }
 
-            Text(
-                text = "Choose a Theme",
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+            // Tabs for Quran Themes, Seerah Themes, and Grand Quiz
+            PrimaryTabRow(
+                selectedTabIndex = selectedTab,
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = {
+                        val count = if (state is ThemeSelectionUiState.Success) {
+                            (state as ThemeSelectionUiState.Success).themes.count { it.type.equals("PARA", ignoreCase = true) }
+                        } else 0
+                        Text(if (count > 0) "Quran ($count)" else "Quran Themes")
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = {
+                        val count = if (state is ThemeSelectionUiState.Success) {
+                            (state as ThemeSelectionUiState.Success).themes.count { it.type.equals("SEERAH", ignoreCase = true) }
+                        } else 0
+                        Text(if (count > 0) "Seerah ($count)" else "Seerah Themes")
+                    }
+                )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = { Text("Grand Quiz") }
+                )
+            }
 
             when (val uiState = state) {
                 is ThemeSelectionUiState.Loading -> {
@@ -280,54 +394,261 @@ fun ThemeSelectionScreen(
                     }
                 }
                 is ThemeSelectionUiState.Success -> {
-                    LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        items(uiState.themes) { theme ->
-                            Card(
-                                onClick = {
-                                    val currentIsLoggedIn = prefs.getInt("user_id", -1) != -1
-                                    if (!currentIsLoggedIn && completedQuizzes >= 1) {
-                                        showLimitDialog = true
-                                    } else {
-                                        onThemeSelect(theme, selectedDifficulty)
-                                    }
-                                },
-                                modifier = Modifier.fillMaxWidth()
+                    when (selectedTab) {
+                        0 -> {
+                            // Quran Themes (Clean list matching web)
+                            val quranThemes = remember(uiState.themes) {
+                                uiState.themes.filter { it.type.equals("PARA", ignoreCase = true) }
+                            }
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxSize()
                             ) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = theme.name,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold,
-                                            modifier = Modifier.weight(1f)
-                                        )
-                                        Badge(
-                                            containerColor = if (theme.type == "PARA") {
-                                                MaterialTheme.colorScheme.secondaryContainer
-                                            } else {
-                                                MaterialTheme.colorScheme.tertiaryContainer
+                                items(quranThemes) { theme ->
+                                    Card(
+                                        onClick = {
+                                            checkAndLaunch {
+                                                onThemeSelect(theme, selectedDifficulty, selectedQuantity)
                                             }
-                                        ) {
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = theme.name,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Icon(
+                                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = "Start Quiz",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            if (!theme.description.isNullOrEmpty()) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = theme.description,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
                                             Text(
-                                                text = if (theme.type == "PARA") "Quran" else "Seerah",
-                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                                style = MaterialTheme.typography.labelSmall
+                                                text = "$selectedQuantity Questions • $selectedDifficulty",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold
                                             )
                                         }
                                     }
-                                    if (!theme.description.isNullOrEmpty()) {
-                                        Spacer(modifier = Modifier.height(6.dp))
-                                        Text(
-                                            text = theme.description,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
+                                }
+                            }
+                        }
+                        1 -> {
+                            // Seerah Themes (Clean list matching web, with General Seerah at the top)
+                            val seerahThemes = remember(uiState.themes) {
+                                uiState.themes.filter { it.type.equals("SEERAH", ignoreCase = true) }
+                            }
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(10.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                // General (All Topics) option - exact match to web's General Seerah
+                                item {
+                                    Card(
+                                        onClick = {
+                                            checkAndLaunch {
+                                                onGrandQuizLaunch("GRAND_SEERAH", "General Seerah", selectedDifficulty, selectedQuantity)
+                                            }
+                                        },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        ),
+                                        shape = RoundedCornerShape(14.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "General (All Topics)",
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Icon(
+                                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = "Start Quiz",
+                                                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "Comprehensive life journey across all Seerah topics",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "$selectedQuantity Questions • $selectedDifficulty",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+
+                                items(seerahThemes) { theme ->
+                                    Card(
+                                        onClick = {
+                                            checkAndLaunch {
+                                                onThemeSelect(theme, selectedDifficulty, selectedQuantity)
+                                            }
+                                        },
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp)) {
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.SpaceBetween,
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = theme.name,
+                                                    style = MaterialTheme.typography.titleMedium,
+                                                    fontWeight = FontWeight.Bold,
+                                                    modifier = Modifier.weight(1f)
+                                                )
+                                                Icon(
+                                                    Icons.AutoMirrored.Filled.ArrowForward,
+                                                    contentDescription = "Start Quiz",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                            if (!theme.description.isNullOrEmpty()) {
+                                                Spacer(modifier = Modifier.height(4.dp))
+                                                Text(
+                                                    text = theme.description,
+                                                    style = MaterialTheme.typography.bodyMedium,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "$selectedQuantity Questions • $selectedDifficulty",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        2 -> {
+                            // Grand Quiz Tab (Exact match to web Grand Quiz section)
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                // Grand Quran Quiz Card
+                                item {
+                                    Card(
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(18.dp)) {
+                                            Text(
+                                                text = "Grand Quran Quiz",
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "$selectedQuantity questions from all 30 Paras",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(14.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                listOf("Easy", "Medium", "Hard").forEach { diff ->
+                                                    Button(
+                                                        onClick = {
+                                                            checkAndLaunch {
+                                                                onGrandQuizLaunch("GRAND_QURAN", "Grand Quran Quiz", diff, selectedQuantity)
+                                                            }
+                                                        },
+                                                        modifier = Modifier.weight(1f),
+                                                        shape = RoundedCornerShape(10.dp)
+                                                    ) {
+                                                        Text(diff, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Grand Seerah Quiz Card
+                                item {
+                                    Card(
+                                        shape = RoundedCornerShape(18.dp),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                        ),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(18.dp)) {
+                                            Text(
+                                                text = "Grand Seerah Quiz",
+                                                style = MaterialTheme.typography.titleLarge,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "$selectedQuantity questions from all Seerah themes",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                            Spacer(modifier = Modifier.height(14.dp))
+                                            Row(
+                                                modifier = Modifier.fillMaxWidth(),
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                listOf("Easy", "Medium", "Hard").forEach { diff ->
+                                                    Button(
+                                                        onClick = {
+                                                            checkAndLaunch {
+                                                                onGrandQuizLaunch("GRAND_SEERAH", "Grand Seerah Quiz", diff, selectedQuantity)
+                                                            }
+                                                        },
+                                                        modifier = Modifier.weight(1f),
+                                                        shape = RoundedCornerShape(10.dp)
+                                                    ) {
+                                                        Text(diff, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                    }
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -345,14 +666,60 @@ fun PlayThemeQuizScreen(
     themeId: Int,
     themeName: String,
     difficulty: String,
+    quantity: Int = 20,
+    quizType: String = "THEME",
+    sessionId: Long = 0L,
     onBackClick: () -> Unit,
+    onAuthClick: () -> Unit = {},
     modifier: Modifier = Modifier,
-    viewModel: PlayThemeQuizViewModel = viewModel(key = "theme_${themeId}_${difficulty}") {
-        PlayThemeQuizViewModel(themeId, difficulty, DefaultDataRepository())
+    viewModel: PlayThemeQuizViewModel = viewModel(key = "quiz_${quizType}_${themeId}_${difficulty}_${quantity}_$sessionId") {
+        PlayThemeQuizViewModel(themeId, difficulty, DefaultDataRepository(), quantity, quizType)
     },
     adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val prefs = remember { SecurePreferences.getInstance(context) }
+
+    var resumeTrigger by remember { mutableIntStateOf(0) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                resumeTrigger++
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    val userId = remember(resumeTrigger) { prefs.getInt("user_id", -1) }
+    val userName = remember(resumeTrigger) { prefs.getString("user_name", "") ?: "" }
+    val isLoggedIn = userId != -1
+    var showLimitDialog by remember { mutableStateOf(false) }
+
+    if (showLimitDialog) {
+        AlertDialog(
+            onDismissRequest = { showLimitDialog = false },
+            title = { Text("Quiz Limit Reached") },
+            text = { Text("You have completed 1 free guest quiz. Sign up or log in now to unlock unlimited quizzes and keep track of your scores!") },
+            confirmButton = {
+                Button(onClick = {
+                    showLimitDialog = false
+                    onAuthClick()
+                }) {
+                    Text("Sign Up / Sign In")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showLimitDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -374,7 +741,7 @@ fun PlayThemeQuizScreen(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                //.padding(16.dp)
         ) {
             when (val uiState = state) {
                 is PlayQuizUiState.Loading -> {
@@ -403,17 +770,35 @@ fun PlayThemeQuizScreen(
                             )
                         }
                     } else if (viewModel.quizFinished) {
-                        // Increment completed quizzes in SharedPreferences on finish
-                        val context = LocalContext.current
-                        val prefs = remember { com.example.eternalechomobile.security.SecurePreferences.getInstance(context) }
-                        LaunchedEffect(Unit) {
-                            val userId = prefs.getInt("user_id", -1)
-                            val isLoggedIn = userId != -1
-                            if (!isLoggedIn) {
-                                val current = prefs.getInt("completed_quizzes", 0)
-                                prefs.putInt("completed_quizzes", current + 1)
-                            } else {
-                                viewModel.finishAndSubmit(userId, themeName, questions)
+                        var guestCountRecorded by remember { mutableStateOf(false) }
+
+                        LaunchedEffect(viewModel.quizFinished, resumeTrigger, userId) {
+                            if (viewModel.quizFinished) {
+                                if (!isLoggedIn) {
+                                    if (!guestCountRecorded) {
+                                        guestCountRecorded = true
+                                        val current = prefs.getInt("completed_quizzes", 0)
+                                        prefs.putInt("completed_quizzes", current + 1)
+                                    }
+                                    QuizSubmissionHelper.savePendingQuiz(
+                                        prefs = prefs,
+                                        type = if (quizType.startsWith("GRAND")) "GRAND" else "THEME",
+                                        title = themeName,
+                                        score = viewModel.score,
+                                        totalQuestions = questions.size,
+                                        difficulty = difficulty,
+                                        questions = questions,
+                                        userAnswers = viewModel.userAnswers
+                                    )
+                                } else {
+                                    if (!viewModel.isScoreSubmitted && !viewModel.isSubmittingScore) {
+                                        viewModel.finishAndSubmit(userId, themeName, questions) { success ->
+                                            if (success) {
+                                                QuizSubmissionHelper.clearPendingQuiz(prefs)
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
 
@@ -442,12 +827,142 @@ fun PlayThemeQuizScreen(
                                     fontWeight = FontWeight.Black,
                                     color = MaterialTheme.colorScheme.secondary
                                 )
-                                Spacer(modifier = Modifier.height(24.dp))
+                                val percentage = if (questions.isNotEmpty()) (viewModel.score * 100) / questions.size else 0
+                                Text(
+                                    text = when {
+                                        percentage >= 80 -> "🌟 Outstanding performance!"
+                                        percentage >= 50 -> "👍 Good effort, keep learning!"
+                                        else -> "📖 Review the themes and try again!"
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                if (isLoggedIn) {
+                                    if (viewModel.isSubmittingScore) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.Center,
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(vertical = 8.dp)
+                                        ) {
+                                            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                                            Spacer(modifier = Modifier.width(10.dp))
+                                            Text(
+                                                text = "Saving score to your account...",
+                                                style = MaterialTheme.typography.bodyMedium
+                                            )
+                                        }
+                                    } else if (viewModel.isScoreSubmitted) {
+                                        Card(
+                                            colors = CardDefaults.cardColors(
+                                                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                                                contentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                            ),
+                                            shape = RoundedCornerShape(12.dp),
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text("✓", fontWeight = FontWeight.Black, fontSize = 20.sp, color = MaterialTheme.colorScheme.primary)
+                                                Spacer(modifier = Modifier.width(10.dp))
+                                                Column {
+                                                    Text(
+                                                        text = "Score Saved to Account!",
+                                                        style = MaterialTheme.typography.titleSmall,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    if (userName.isNotEmpty()) {
+                                                        Text(
+                                                            text = "Recorded for $userName",
+                                                            style = MaterialTheme.typography.bodySmall
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    } else if (viewModel.submissionError != null) {
+                                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text(
+                                                text = viewModel.submissionError ?: "Failed to save score",
+                                                color = MaterialTheme.colorScheme.error,
+                                                style = MaterialTheme.typography.bodySmall
+                                            )
+                                            TextButton(onClick = {
+                                                viewModel.finishAndSubmit(userId, themeName, questions)
+                                            }) {
+                                                Text("Retry Saving Score")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    Card(
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                        ),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(16.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally
+                                        ) {
+                                            Text(
+                                                text = "Save Score to Leaderboard",
+                                                style = MaterialTheme.typography.titleMedium,
+                                                fontWeight = FontWeight.Bold,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            Text(
+                                                text = "Create an account or sign in to save your score of ${viewModel.score}/${questions.size} to your profile and unlock unlimited quizzes!",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                textAlign = TextAlign.Center
+                                            )
+                                            Spacer(modifier = Modifier.height(12.dp))
+                                            Button(
+                                                onClick = onAuthClick,
+                                                modifier = Modifier.fillMaxWidth(),
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = MaterialTheme.colorScheme.primary,
+                                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                                ),
+                                                shape = RoundedCornerShape(10.dp)
+                                            ) {
+                                                Text("Sign Up to Save Score", fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
                                 Button(
+                                    onClick = {
+                                        val currentUserId = prefs.getInt("user_id", -1)
+                                        val currentCompleted = prefs.getInt("completed_quizzes", 0)
+                                        if (currentUserId == -1 && currentCompleted >= 1) {
+                                            showLimitDialog = true
+                                        } else {
+                                            viewModel.resetQuiz()
+                                        }
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Text("Play Again")
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                OutlinedButton(
                                     onClick = onBackClick,
                                     modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text("Back to Themes")
+                                    Text(if (quizType.startsWith("GRAND")) "Back to Quizzes" else "Back to Themes")
                                 }
                             }
                         }

@@ -16,6 +16,7 @@ use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementContro
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\QuranicLensController;
 use App\Http\Controllers\Admin\QuranicLensApprovalController;
+use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\DuaController;
 use Illuminate\Support\Facades\Route;
 
@@ -46,6 +47,15 @@ Route::get('/oauth/callback', [AuthController::class, 'handleQuranCallback'])->n
 
 Route::get('/privacy-policy', [LegalController::class, 'privacy'])->name('privacy');
 Route::get('/terms', [LegalController::class, 'terms'])->name('terms');
+
+// Account Deletion & Data Erasure (Google Play & App Store Compliance)
+Route::get('/delete-account', [AccountDeletionController::class, 'show'])->name('account.delete');
+Route::get('/account-delete', function () {
+    return redirect()->route('account.delete');
+});
+Route::post('/delete-account/request-otp', [AccountDeletionController::class, 'requestOtp'])->name('account.delete.request-otp')->middleware('throttle:5,1');
+Route::post('/delete-account/verify-otp', [AccountDeletionController::class, 'verifyAndDeleteOtp'])->name('account.delete.verify-otp')->middleware('throttle:10,1');
+Route::post('/delete-account/confirm', [AccountDeletionController::class, 'confirmDelete'])->name('account.delete.confirm')->middleware('auth');
 
 // Theme Showcase (Public for SEO)
 Route::get('/themes', [\App\Http\Controllers\ThemeShowcaseController::class, 'index'])->name('themes.index');

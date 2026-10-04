@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.data
+package com.asloobulhayat.eternalecho.data
 
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -7,6 +7,13 @@ interface DataRepository {
     suspend fun getSurahs(): List<Surah>
     suspend fun getVerses(surahNumber: Int): List<Verse>
     suspend fun getConnections(surahNumber: Int, verseNumber: Int): ConnectionsData
+    suspend fun getAllConnections(
+        category: String = "all",
+        search: String = "",
+        page: Int = 1,
+        limit: Int = 20,
+        surahNumber: Int? = null
+    ): AllConnectionsResponse
     suspend fun getLeaderboard(): List<LeaderboardUser>
     suspend fun getInsights(
         seerahPage: Int = 1,
@@ -15,13 +22,15 @@ interface DataRepository {
         historyCategory: String = ""
     ): InsightsData
     suspend fun getThemes(): List<Theme>
-    suspend fun getThemeQuiz(themeId: Int, difficulty: String): List<QuizQuestion>
+    suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): List<QuizQuestion>
+    suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): List<QuizQuestion>
     suspend fun login(email: String, password: String): UserSession
     suspend fun register(name: String, email: String, password: String): UserSession
     suspend fun requestOtp(email: String): Boolean
     suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse
     suspend fun setPassword(userId: Int, password: String): Boolean
     suspend fun changePassword(userId: Int, password: String): Boolean
+    suspend fun deleteAccount(userId: Int): Boolean = true
     suspend fun submitQuiz(
         userId: Int,
         type: String,
@@ -48,6 +57,16 @@ class DefaultDataRepository : DataRepository {
         return ApiClient.fetchConnections(surahNumber, verseNumber)
     }
 
+    override suspend fun getAllConnections(
+        category: String,
+        search: String,
+        page: Int,
+        limit: Int,
+        surahNumber: Int?
+    ): AllConnectionsResponse {
+        return ApiClient.fetchAllConnections(category, search, page, limit, surahNumber)
+    }
+
     override suspend fun getLeaderboard(): List<LeaderboardUser> {
         return ApiClient.fetchLeaderboard()
     }
@@ -65,8 +84,12 @@ class DefaultDataRepository : DataRepository {
         return ApiClient.fetchThemes()
     }
 
-    override suspend fun getThemeQuiz(themeId: Int, difficulty: String): List<QuizQuestion> {
-        return ApiClient.fetchThemeQuiz(themeId, difficulty)
+    override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> {
+        return ApiClient.fetchThemeQuiz(themeId, difficulty, quantity)
+    }
+
+    override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> {
+        return ApiClient.fetchGrandQuiz(quizType, difficulty, quantity)
     }
 
     override suspend fun login(email: String, password: String): UserSession {
@@ -91,6 +114,10 @@ class DefaultDataRepository : DataRepository {
 
     override suspend fun changePassword(userId: Int, password: String): Boolean {
         return ApiClient.changePassword(userId, password)
+    }
+
+    override suspend fun deleteAccount(userId: Int): Boolean {
+        return ApiClient.deleteAccount(userId)
     }
 
     override suspend fun submitQuiz(

@@ -1,13 +1,13 @@
-package com.example.eternalechomobile
+package com.asloobulhayat.eternalecho
 
 import android.graphics.Rect
 import androidx.compose.ui.unit.dp
 import androidx.window.layout.FoldingFeature
-import com.example.eternalechomobile.ui.adaptive.PaneMode
-import com.example.eternalechomobile.ui.adaptive.Posture
-import com.example.eternalechomobile.ui.adaptive.WindowHeightClass
-import com.example.eternalechomobile.ui.adaptive.WindowWidthClass
-import com.example.eternalechomobile.ui.adaptive.calculateAdaptiveInfo
+import com.asloobulhayat.eternalecho.ui.adaptive.PaneMode
+import com.asloobulhayat.eternalecho.ui.adaptive.Posture
+import com.asloobulhayat.eternalecho.ui.adaptive.WindowHeightClass
+import com.asloobulhayat.eternalecho.ui.adaptive.WindowWidthClass
+import com.asloobulhayat.eternalecho.ui.adaptive.calculateAdaptiveInfo
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

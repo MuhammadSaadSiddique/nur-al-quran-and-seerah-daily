@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.data
+package com.asloobulhayat.eternalecho.data
 
 import kotlinx.serialization.Serializable
 import androidx.navigation3.runtime.NavKey
@@ -29,7 +29,20 @@ data class Verse(
 data class Connection(
     val title: String,
     val description: String,
-    val extraInfo: String
+    val extraInfo: String = "",
+    val relevanceDescription: String = "",
+    val category: String = "",
+    val dateInfo: String = "",
+    val location: String = "",
+    val sourceName: String = "",
+    val credibilityScore: String = "",
+    val arabicText: String = "",
+    val narratorChain: String = "",
+    val grading: String = "",
+    val collectionName: String = "",
+    val hadithNumber: String = "",
+    val scriptureType: String = "",
+    val relationshipType: String = ""
 )
 
 @Serializable
@@ -39,6 +52,74 @@ data class ConnectionsData(
     val hadith: List<Connection>,
     val history: List<Connection>,
     val scripture: List<Connection>
+)
+
+@Serializable
+data class ConnectionStats(
+    val surahsCount: Int = 114,
+    val scienceCount: Int = 0,
+    val seerahCount: Int = 0,
+    val hadithCount: Int = 0,
+    val historyCount: Int = 0,
+    val scriptureCount: Int = 0,
+    val totalCount: Int = 0
+)
+
+@Serializable
+data class GlobalConnectionItem(
+    val id: Int,
+    val category: String,
+    val surahNumber: Int,
+    val surahName: String,
+    val verseNumber: Int,
+    val juzNumber: Int,
+    val verseArabic: String,
+    val verseTransliteration: String,
+    val title: String,
+    val description: String,
+    val extraInfo: String = "",
+    val relevanceDescription: String = "",
+    val field: String = "",
+    val sourceName: String = "",
+    val credibilityScore: String = "",
+    val dateInfo: String = "",
+    val location: String = "",
+    val arabicText: String = "",
+    val narratorChain: String = "",
+    val grading: String = "",
+    val collectionName: String = "",
+    val hadithNumber: String = "",
+    val scriptureType: String = "",
+    val relationshipType: String = ""
+) {
+    fun toConnection(): Connection = Connection(
+        title = title,
+        description = description,
+        extraInfo = extraInfo,
+        relevanceDescription = relevanceDescription,
+        category = category,
+        dateInfo = dateInfo,
+        location = location,
+        sourceName = sourceName,
+        credibilityScore = credibilityScore,
+        arabicText = arabicText,
+        narratorChain = narratorChain,
+        grading = grading,
+        collectionName = collectionName,
+        hadithNumber = hadithNumber,
+        scriptureType = scriptureType,
+        relationshipType = relationshipType
+    )
+}
+
+@Serializable
+data class AllConnectionsResponse(
+    val stats: ConnectionStats,
+    val category: String,
+    val page: Int,
+    val totalPages: Int,
+    val totalItems: Int,
+    val data: List<GlobalConnectionItem>
 )
 
 @Serializable
@@ -159,4 +240,16 @@ data class Dua(
     val hadithNumber: String? = null,
     val hadithGrading: String? = null
 )
+
+@Serializable
+data class NotificationItem(
+    val id: Long,
+    val title: String,
+    val message: String,
+    val type: String = "announcement",
+    val actionUrl: String? = null,
+    val createdAt: String? = null,
+    val isRead: Boolean = false
+)
+
 

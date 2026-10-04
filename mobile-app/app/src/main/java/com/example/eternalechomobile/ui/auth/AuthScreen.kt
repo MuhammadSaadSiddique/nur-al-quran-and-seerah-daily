@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.auth
+package com.asloobulhayat.eternalecho.ui.auth
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,51 +18,93 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.eternalechomobile.data.DataRepository
-import com.example.eternalechomobile.data.DefaultDataRepository
-import com.example.eternalechomobile.data.UserSession
+import com.asloobulhayat.eternalecho.data.DataRepository
+import com.asloobulhayat.eternalecho.data.DefaultDataRepository
+import com.asloobulhayat.eternalecho.data.UserSession
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
-import com.example.eternalechomobile.data.UserSessionOtpResponse
+import com.asloobulhayat.eternalecho.data.UserSessionOtpResponse
 
 class AuthViewModel(private val repository: DataRepository) : ViewModel() {
     private val _uiState = MutableStateFlow<AuthUiState>(AuthUiState.Idle)
     val uiState: StateFlow<AuthUiState> = _uiState.asStateFlow()
 
+    private fun sanitizeErrorMessage(rawMessage: String?, defaultMessage: String): String {
+        if (rawMessage.isNullOrBlank()) return defaultMessage
+        val trimmed = rawMessage.trim()
+        if (trimmed.contains("http://", ignoreCase = true) ||
+            trimmed.contains("https://", ignoreCase = true) ||
+            trimmed.contains("HTTP Error", ignoreCase = true) ||
+            trimmed.contains("Exception", ignoreCase = true) ||
+            trimmed.contains(".php", ignoreCase = true) ||
+            trimmed.contains("failed to connect", ignoreCase = true) ||
+            trimmed.contains("timeout", ignoreCase = true)
+        ) {
+            if (trimmed.contains("timeout", ignoreCase = true) || trimmed.contains("failed to connect", ignoreCase = true)) {
+                return "Unable to connect to the server. Please check your internet connection."
+            }
+            return defaultMessage
+        }
+        return trimmed
+    }
+
+    fun setError(message: String) {
+        _uiState.value = AuthUiState.Error(message)
+    }
+
     fun requestOtp(email: String, onSuccess: () -> Unit) {
+        val cleanEmail = email.trim()
+        if (!cleanEmail.contains("@") || cleanEmail.length < 5) {
+            _uiState.value = AuthUiState.Error("Please enter a valid email address.")
+            return
+        }
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             try {
-                val success = repository.requestOtp(email)
+                val success = repository.requestOtp(cleanEmail)
                 if (success) {
                     _uiState.value = AuthUiState.Idle
                     onSuccess()
                 } else {
-                    _uiState.value = AuthUiState.Error("Failed to send verification code.")
+                    _uiState.value = AuthUiState.Error("Failed to send verification code. Please try again.")
                 }
             } catch (t: Throwable) {
-                _uiState.value = AuthUiState.Error(t.message ?: "Failed to send verification code.")
+                _uiState.value = AuthUiState.Error(sanitizeErrorMessage(t.message, "Failed to send verification code. Please try again."))
             }
         }
     }
 
     fun verifyOtp(email: String, otp: String, onSuccess: (UserSessionOtpResponse) -> Unit) {
+        val cleanEmail = email.trim()
+        val cleanOtp = otp.trim()
+        if (cleanEmail.isEmpty()) {
+            _uiState.value = AuthUiState.Error("Email address is required.")
+            return
+        }
+        if (cleanOtp.isEmpty()) {
+            _uiState.value = AuthUiState.Error("Please enter the verification code.")
+            return
+        }
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             try {
-                val response = repository.verifyOtp(email, otp)
+                val response = repository.verifyOtp(cleanEmail, cleanOtp)
                 _uiState.value = AuthUiState.Success(response.session)
                 onSuccess(response)
             } catch (t: Throwable) {
-                _uiState.value = AuthUiState.Error(t.message ?: "Verification failed.")
+                _uiState.value = AuthUiState.Error(sanitizeErrorMessage(t.message, "Verification failed. Please check the code and try again."))
             }
         }
     }
 
     fun setPassword(userId: Int, password: String, onSuccess: () -> Unit) {
+        if (password.length < 6) {
+            _uiState.value = AuthUiState.Error("Password must be at least 6 characters.")
+            return
+        }
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             try {
@@ -71,23 +113,32 @@ class AuthViewModel(private val repository: DataRepository) : ViewModel() {
                     _uiState.value = AuthUiState.Idle
                     onSuccess()
                 } else {
-                    _uiState.value = AuthUiState.Error("Failed to set password.")
+                    _uiState.value = AuthUiState.Error("Failed to set password. Please try again.")
                 }
             } catch (t: Throwable) {
-                _uiState.value = AuthUiState.Error(t.message ?: "Failed to set password.")
+                _uiState.value = AuthUiState.Error(sanitizeErrorMessage(t.message, "Failed to set password. Please try again."))
             }
         }
     }
 
     fun login(email: String, password: String, onSuccess: (UserSession) -> Unit) {
+        val cleanEmail = email.trim()
+        if (!cleanEmail.contains("@")) {
+            _uiState.value = AuthUiState.Error("Please enter a valid email address.")
+            return
+        }
+        if (password.isEmpty()) {
+            _uiState.value = AuthUiState.Error("Please enter your password.")
+            return
+        }
         viewModelScope.launch {
             _uiState.value = AuthUiState.Loading
             try {
-                val session = repository.login(email, password)
+                val session = repository.login(cleanEmail, password)
                 _uiState.value = AuthUiState.Success(session)
                 onSuccess(session)
             } catch (t: Throwable) {
-                _uiState.value = AuthUiState.Error(t.message ?: "Authentication failed.")
+                _uiState.value = AuthUiState.Error(sanitizeErrorMessage(t.message, "Authentication failed. Please check your credentials."))
             }
         }
     }
@@ -122,7 +173,8 @@ fun AuthScreen(
     var sessionForSetPassword by remember { mutableStateOf<UserSession?>(null) }
 
     val context = LocalContext.current
-    val prefs = remember { com.example.eternalechomobile.security.SecurePreferences.getInstance(context) }
+    val prefs = remember { com.asloobulhayat.eternalecho.security.SecurePreferences.getInstance(context) }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -172,7 +224,7 @@ fun AuthScreen(
                 )
 
                 Text(
-                    text = "Unlock unlimited quizzes and save your daily insights",
+                    text = "Unlock unlimited quizzes and contribute inn research by signing up or logging in.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
@@ -222,7 +274,7 @@ fun AuthScreen(
                         )
                         OutlinedTextField(
                             value = otp,
-                            onValueChange = { otp = it },
+                            onValueChange = { otp = it },maxLines = 1,
                             label = { Text("Verification Code") },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth(),
@@ -238,7 +290,7 @@ fun AuthScreen(
                         )
                         OutlinedTextField(
                             value = password,
-                            onValueChange = { password = it },
+                            onValueChange = { password = it },maxLines = 1,
                             label = { Text("Set Password") },
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -257,7 +309,7 @@ fun AuthScreen(
                         )
                         OutlinedTextField(
                             value = password,
-                            onValueChange = { password = it },
+                            onValueChange = { password = it },maxLines = 1,
                             label = { Text("Password") },
                             visualTransformation = PasswordVisualTransformation(),
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
@@ -286,21 +338,31 @@ fun AuthScreen(
                             prefs.putInt("user_id", session.userId)
                             prefs.putString("user_name", session.name)
                             prefs.putString("user_email", session.email)
+                            scope.launch {
+                                com.asloobulhayat.eternalecho.data.QuizSubmissionHelper.submitPendingQuizIfAny(
+                                    com.asloobulhayat.eternalecho.data.DefaultDataRepository(),
+                                    prefs,
+                                    session.userId
+                                )
+                            }
                         }
 
                         when {
                             method == "otp" && phase == "email" -> {
-                                if (email.contains("@")) {
-                                    viewModel.requestOtp(email) {
+                                val cleanEmail = email.trim()
+                                if (cleanEmail.contains("@")) {
+                                    viewModel.requestOtp(cleanEmail) {
                                         phase = "otp"
                                     }
                                 } else {
-                                    viewModel.clearState()
+                                    viewModel.setError("Please enter a valid email address.")
                                 }
                             }
                             method == "otp" && phase == "otp" -> {
-                                if (otp.isNotEmpty()) {
-                                    viewModel.verifyOtp(email, otp) { response ->
+                                val cleanEmail = email.trim()
+                                val cleanOtp = otp.trim()
+                                if (cleanOtp.isNotEmpty()) {
+                                    viewModel.verifyOtp(cleanEmail, cleanOtp) { response ->
                                         saveSessionToPrefs(response.session)
                                         if (response.hasPassword) {
                                             onBackClick()
@@ -309,6 +371,8 @@ fun AuthScreen(
                                             phase = "set_password"
                                         }
                                     }
+                                } else {
+                                    viewModel.setError("Please enter the verification code.")
                                 }
                             }
                             method == "otp" && phase == "set_password" -> {
@@ -317,11 +381,18 @@ fun AuthScreen(
                                     viewModel.setPassword(uId, password) {
                                         onBackClick()
                                     }
+                                } else {
+                                    viewModel.setError("Password must be at least 6 characters.")
                                 }
                             }
                             method == "password" -> {
-                                if (email.contains("@") && password.isNotEmpty()) {
-                                    viewModel.login(email, password) { session ->
+                                val cleanEmail = email.trim()
+                                if (!cleanEmail.contains("@")) {
+                                    viewModel.setError("Please enter a valid email address.")
+                                } else if (password.isEmpty()) {
+                                    viewModel.setError("Please enter your password.")
+                                } else {
+                                    viewModel.login(cleanEmail, password) { session ->
                                         saveSessionToPrefs(session)
                                         onBackClick()
                                     }
@@ -368,6 +439,26 @@ fun AuthScreen(
                     ) {
                         Text("Back to Email Form")
                     }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+                TextButton(
+                    onClick = {
+                        try {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(com.asloobulhayat.eternalecho.data.ApiClient.ACCOUNT_DELETE_URL)
+                            )
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    }
+                ) {
+                    Text(
+                        text = "Account Deletion & Data Policy",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
                 }
             }
         }

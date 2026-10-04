@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.onboarding
+package com.asloobulhayat.eternalecho.ui.onboarding
 
 import android.content.Context
 import androidx.compose.animation.*
@@ -39,7 +39,7 @@ fun OnboardingScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val prefs = remember { com.example.eternalechomobile.security.SecurePreferences.getInstance(context) }
+    val prefs = remember { com.asloobulhayat.eternalecho.security.SecurePreferences.getInstance(context) }
 
     var currentStep by remember { mutableStateOf(0) }
 

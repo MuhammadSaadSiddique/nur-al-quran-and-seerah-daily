@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.main
+package com.asloobulhayat.eternalecho.ui.main
 
 import androidx.activity.ComponentActivity
 import androidx.compose.ui.test.junit4.createAndroidComposeRule

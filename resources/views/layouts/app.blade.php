@@ -217,6 +217,7 @@
                 class="flex items-center justify-center space-x-6 text-[10px] uppercase font-black tracking-widest text-slate-600">
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
                 <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>
+                <a href="{{ route('account.delete') }}" class="hover:text-rose-400 transition-colors">Delete Account</a>
             </div>
         </div>
     </footer>

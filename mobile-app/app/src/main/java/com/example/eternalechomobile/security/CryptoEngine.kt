@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.security
+package com.asloobulhayat.eternalecho.security
 
 import android.os.Build
 import android.security.keystore.KeyGenParameterSpec

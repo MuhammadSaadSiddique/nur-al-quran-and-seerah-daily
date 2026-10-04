@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.ui.adaptive
+package com.asloobulhayat.eternalecho.ui.adaptive
 
 import android.app.Activity
 import android.graphics.Rect

@@ -1,4 +1,4 @@
-package com.example.eternalechomobile.security
+package com.asloobulhayat.eternalecho.security
 
 import android.content.Context
 import android.content.SharedPreferences
@@ -55,6 +55,16 @@ class SecurePreferences private constructor(context: Context) {
         val str = getString(key, null) ?: return prefs.getInt(key, defaultValue)
         return str.toIntOrNull() ?: defaultValue
     }
+
+    fun putLong(key: String, value: Long) {
+        putString(key, value.toString())
+    }
+
+    fun getLong(key: String, defaultValue: Long): Long {
+        val str = getString(key, null) ?: return try { prefs.getLong(key, defaultValue) } catch (_: Exception) { defaultValue }
+        return str.toLongOrNull() ?: defaultValue
+    }
+
 
     fun putBoolean(key: String, value: Boolean) {
         putString(key, value.toString())

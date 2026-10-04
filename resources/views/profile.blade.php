@@ -113,11 +113,30 @@
             </form>
         </div>
 
+        {{-- Danger Zone: Account Deletion --}}
+        <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border border-rose-100 space-y-4">
+            <h3 class="text-lg font-black text-rose-700 uppercase tracking-wider flex items-center space-x-2">
+                <svg class="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Danger Zone</span>
+            </h3>
+            <p class="text-slate-600 text-sm font-medium">
+                Permanently delete your account and all associated personal data, including your quiz scores, answers, bookmarks, and learning history.
+            </p>
+            <div class="pt-2">
+                <a href="{{ route('account.delete') }}"
+                    class="inline-flex items-center justify-center w-full bg-rose-50 text-rose-700 border border-rose-200 py-4 rounded-xl font-black hover:bg-rose-100 transition-all">
+                    <span>Manage Account & Data Deletion</span>
+                </a>
+            </div>
+        </div>
+
         {{-- Sign Out --}}
         <form action="{{ route('logout') }}" method="POST">
             @csrf
             <button type="submit"
-                class="w-full bg-rose-100 text-rose-700 py-5 rounded-2xl font-black text-lg hover:bg-rose-200 transition-all">
+                class="w-full bg-slate-100 text-slate-700 py-5 rounded-2xl font-black text-lg hover:bg-slate-200 transition-all">
                 Sign Out
             </button>
         </form>

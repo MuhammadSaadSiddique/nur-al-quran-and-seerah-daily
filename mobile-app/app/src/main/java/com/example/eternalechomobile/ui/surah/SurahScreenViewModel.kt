@@ -1,10 +1,10 @@
-package com.example.eternalechomobile.ui.surah
+package com.asloobulhayat.eternalecho.ui.surah
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.eternalechomobile.data.DataRepository
-import com.example.eternalechomobile.data.Verse
-import com.example.eternalechomobile.data.ConnectionsData
+import com.asloobulhayat.eternalecho.data.DataRepository
+import com.asloobulhayat.eternalecho.data.Verse
+import com.asloobulhayat.eternalecho.data.ConnectionsData
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow

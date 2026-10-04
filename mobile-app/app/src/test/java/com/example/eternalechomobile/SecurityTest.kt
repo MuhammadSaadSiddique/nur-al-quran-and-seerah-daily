@@ -1,8 +1,8 @@
-package com.example.eternalechomobile
+package com.asloobulhayat.eternalecho
 
-import com.example.eternalechomobile.data.ApiClient
-import com.example.eternalechomobile.security.AppSecurity
-import com.example.eternalechomobile.security.CryptoEngine
+import com.asloobulhayat.eternalecho.data.ApiClient
+import com.asloobulhayat.eternalecho.security.AppSecurity
+import com.asloobulhayat.eternalecho.security.CryptoEngine
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals

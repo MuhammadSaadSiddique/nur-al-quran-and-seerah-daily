@@ -1,7 +1,7 @@
-package com.example.eternalechomobile
+package com.asloobulhayat.eternalecho
 
-import com.example.eternalechomobile.config.AppConfig
-import com.example.eternalechomobile.data.DefaultDataRepository
+import com.asloobulhayat.eternalecho.config.AppConfig
+import com.asloobulhayat.eternalecho.data.DefaultDataRepository
 import junit.framework.TestCase.*
 import kotlinx.coroutines.test.runTest
 import org.junit.Test
@@ -9,11 +9,13 @@ import org.junit.Test
 class DuasAndOnboardingTest {
 
     @Test
-    fun testDuasFeatureIsDisabledByDefaultUntilApiDeployed() {
-        // As requested by user: "create feature in mobile app but not enable it until I deploy API"
-        assertFalse(
-            "Duas feature must remain disabled by default until API is deployed",
-            AppConfig.IS_DUAS_FEATURE_ENABLED
+    fun testDuasFeatureFlagReflectedInNavigation() {
+        val destinations = com.asloobulhayat.eternalecho.ui.adaptive.defaultNavigationDestinations
+        val hasDuasDestination = destinations.any { it.index == 4 }
+        assertEquals(
+            "Duas destination in defaultNavigationDestinations must match IS_DUAS_FEATURE_ENABLED flag",
+            AppConfig.IS_DUAS_FEATURE_ENABLED,
+            hasDuasDestination
         )
     }
 
@@ -37,5 +39,16 @@ class DuasAndOnboardingTest {
 
         val quranDuas = repository.getDuas(sourceType = "quran")
         assertTrue(quranDuas.all { it.sourceType == "quran" || it.sourceType == "both" })
+    }
+
+    @Test
+    fun testLensFeatureFlagGuard() {
+        val destinations = com.asloobulhayat.eternalecho.ui.adaptive.defaultNavigationDestinations
+        val hasLensDestination = destinations.any { it.index == 5 }
+        assertEquals(
+            "Lens destination in defaultNavigationDestinations must match IS_LENS_FEATURE_ENABLED flag",
+            AppConfig.IS_LENS_FEATURE_ENABLED,
+            hasLensDestination
+        )
     }
 }

@@ -15,15 +15,25 @@ Route::get('/research', [ResearchApiController::class, 'index']);
 
 // Duas Public API endpoints
 Route::get('/duas', [\App\Http\Controllers\DuaController::class, 'apiIndex']);
+Route::post('/duas', [\App\Http\Controllers\DuaController::class, 'apiStore']);
 Route::get('/duas/{id}', [\App\Http\Controllers\DuaController::class, 'apiShow']);
 
 // Mobile Notifications & Push API endpoints
 Route::get('/notifications', [\App\Http\Controllers\Api\NotificationApiController::class, 'index']);
 Route::post('/device-token', [\App\Http\Controllers\Api\NotificationApiController::class, 'registerToken']);
 
+// Research Contributions API endpoints (Public)
+Route::get('/research-contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'apiIndex']);
+Route::post('/research-contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'apiStore']);
+
+// Categories API endpoints (Dua & Quran Research Categories)
+Route::get('/categories', [\App\Http\Controllers\CategoryController::class, 'apiIndex']);
+Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'apiStore']);
+
 // Protected endpoints
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/research', [ResearchApiController::class, 'store']);
+    Route::post('/research-contributions/{id}/review', [\App\Http\Controllers\QuranResearchContributionController::class, 'apiReview']);
 });
 
 

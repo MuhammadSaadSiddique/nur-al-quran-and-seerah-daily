@@ -5,24 +5,34 @@
 @section('content')
     <div class="max-w-5xl mx-auto space-y-10 pb-10 animate-fadeIn">
         {{-- Summary Cards --}}
-        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-            <div class="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 text-center">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Accuracy</p>
-                <p class="text-4xl font-black text-emerald-600">{{ $user->accuracy }}%</p>
+        @php
+            $streak = $user->getStreakStatus();
+        @endphp
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+            <div class="bg-gradient-to-br from-amber-500/10 to-orange-500/5 rounded-[2rem] p-6 shadow-xl border border-amber-200 text-center">
+                <p class="text-[10px] font-black uppercase tracking-widest text-amber-600 mb-2">Daily Streak</p>
+                <p class="text-3xl font-black text-amber-600">🔥 {{ $streak['current_streak'] }}</p>
+                <p class="text-[10px] font-bold text-slate-400 mt-1">Best: {{ $streak['longest_streak'] }}d</p>
             </div>
             <div class="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 text-center">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Questions</p>
-                <p class="text-4xl font-black text-slate-900">{{ $user->total_questions }}</p>
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Surahs Read</p>
+                <p class="text-3xl font-black text-emerald-600">{{ count($user->getCompletedSurahs()) }}/114</p>
             </div>
             <div class="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 text-center">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Paras Done</p>
-                <p class="text-4xl font-black text-blue-600">{{ count($user->completed_paras ?? []) }}/30</p>
+                <p class="text-3xl font-black text-blue-600">{{ count($user->completed_paras ?? []) }}/30</p>
             </div>
             <div class="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 text-center">
-                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Insights</p>
-                <p class="text-4xl font-black text-amber-600">
-                    {{ $user->seerah_read_count + $user->quran_history_read_count }}
-                </p>
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Seerah Read</p>
+                <p class="text-3xl font-black text-indigo-600">{{ $user->seerah_read_count }}</p>
+            </div>
+            <div class="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 text-center">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">History Read</p>
+                <p class="text-3xl font-black text-amber-600">{{ $user->quran_history_read_count }}</p>
+            </div>
+            <div class="bg-white rounded-[2rem] p-6 shadow-xl border border-slate-100 text-center">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-2">Accuracy</p>
+                <p class="text-3xl font-black text-emerald-600">{{ $user->accuracy }}%</p>
             </div>
         </div>
 

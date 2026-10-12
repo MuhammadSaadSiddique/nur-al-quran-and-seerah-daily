@@ -113,6 +113,8 @@
                         class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Quiz Platform</a>
                     @auth
                         <a href="{{ route('home') }}"
+                            class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Dashboard</a>
+                        <a href="{{ route('profile') }}"
                             class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-full shadow-lg shadow-emerald-600/30 transition-all">My
                             Profile</a>
                     @else

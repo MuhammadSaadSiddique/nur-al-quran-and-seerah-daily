@@ -51,4 +51,33 @@ class DuasAndOnboardingTest {
             hasLensDestination
         )
     }
+
+    @Test
+    fun testDataRepositoryGetSingleDuaByIdAndSlug() = runTest {
+        val repository = DefaultDataRepository()
+        
+        // Test by ID
+        val duaById = repository.getDua(id = 1)
+        assertNotNull("Dua with ID 1 should exist", duaById)
+        assertEquals("Rabbana Atina fid-Dunya Hasanah", duaById?.title)
+        assertEquals(1, duaById?.id)
+
+        // Test by Slug
+        val duaBySlug = repository.getDua(slug = "sayyid-al-istighfar")
+        assertNotNull("Dua with slug sayyid-al-istighfar should exist", duaBySlug)
+        assertEquals(2, duaBySlug?.id)
+        assertTrue(duaBySlug?.arabicText?.isNotBlank() == true)
+        assertEquals("Forgiveness & Tawbah", duaBySlug?.category)
+    }
+
+    @Test
+    fun testDuaDetailRouteKeys() {
+        val route1 = DuaDetailRoute(duaId = 1, duaSlug = "rabbana-atina")
+        assertEquals(1, route1.duaId)
+        assertEquals("rabbana-atina", route1.duaSlug)
+
+        val route2 = DuaDetailRoute(duaId = 2)
+        assertEquals(2, route2.duaId)
+        assertEquals("", route2.duaSlug)
+    }
 }

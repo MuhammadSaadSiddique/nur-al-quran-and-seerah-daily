@@ -3,12 +3,31 @@
 @section('title', $surahInfo['name_simple'] . ' - Quranic Lens')
 
 @section('content')
-<div class="space-y-8 animate-fadeIn">
+<div class="space-y-8 animate-fadeIn" x-data="surahReader({{ $surahInfo['id'] }}, {{ $isSurahRead ? 'true' : 'false' }})">
+    {{-- Toast feedback banner --}}
+    <div x-show="toastMessage" x-cloak
+        class="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-6 py-4 rounded-2xl shadow-2xl border border-emerald-500/30 flex items-center space-x-3 animate-slideUp">
+        <span>✨</span>
+        <span class="text-sm font-black" x-text="toastMessage"></span>
+    </div>
+
     {{-- Breadcrumbs & Navigation --}}
-    <div class="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-slate-400">
-        <a href="{{ route('lens.index') }}" class="hover:text-emerald-600 transition-colors">Quranic Lens</a>
-        <span>/</span>
-        <span class="text-slate-600">{{ $surahInfo['name_simple'] }}</span>
+    <div class="flex items-center justify-between">
+        <div class="flex items-center space-x-2 text-xs font-black uppercase tracking-widest text-slate-400">
+            <a href="{{ route('lens.index') }}" class="hover:text-emerald-600 transition-colors">Quran Reader</a>
+            <span>/</span>
+            <span class="text-slate-600">{{ $surahInfo['name_simple'] }}</span>
+        </div>
+        @auth
+            <button @click="toggleRead()" :disabled="loading"
+                class="inline-flex items-center space-x-2 px-4 py-2 rounded-xl text-xs font-black transition-all shadow-sm"
+                :class="isRead ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'">
+                <svg class="w-4 h-4" :class="isRead ? 'text-emerald-600' : 'text-slate-400'" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                </svg>
+                <span x-text="isRead ? '✓ Completed' : 'Mark as Read'"></span>
+            </button>
+        @endauth
     </div>
 
     {{-- Surah Header Card --}}
@@ -25,6 +44,18 @@
                 {{ $surahInfo['name_simple'] }}
                 <span class="text-lg text-emerald-200 font-medium font-sans">({{ $surahInfo['translated_name']['name'] }})</span>
             </h2>
+            @auth
+                <div class="pt-1">
+                    <button @click="toggleRead()" :disabled="loading"
+                        class="inline-flex items-center space-x-2 px-5 py-2.5 rounded-full text-xs font-black transition-all shadow-md hover:-translate-y-0.5"
+                        :class="isRead ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-white/10 hover:bg-white/20 text-emerald-200 border border-white/20'">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span x-text="isRead ? '✓ Surah Completed (Marked)' : '✓ Mark Surah as Read'"></span>
+                    </button>
+                </div>
+            @endauth
         </div>
         <div class="text-right">
             <span class="font-arabic text-5xl md:text-6xl text-emerald-300 font-bold block">
@@ -102,5 +133,77 @@
             </div>
         @endforeach
     </div>
+
+    {{-- Bottom Completion & Next Surah Card --}}
+    <div class="bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-900 rounded-[2.5rem] p-8 md:p-10 border border-emerald-500/20 shadow-2xl text-white text-center space-y-6">
+        <span class="text-4xl block">📖</span>
+        <div class="space-y-2">
+            <h3 class="text-2xl md:text-3xl font-black">Completed Reading Surah {{ $surahInfo['name_simple'] }}?</h3>
+            <p class="text-emerald-100/80 text-sm md:text-base max-w-xl mx-auto font-medium">
+                Marking this Surah as read records your progress, increases your devotion metrics, and keeps your spiritual streak alive.
+            </p>
+        </div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-center gap-4 pt-2">
+            @auth
+                <button @click="toggleRead()" :disabled="loading"
+                    class="w-full sm:w-auto px-8 py-4 rounded-2xl font-black text-sm transition-all shadow-xl hover:-translate-y-0.5 inline-flex items-center justify-center gap-2"
+                    :class="isRead ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'">
+                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span x-text="isRead ? '✓ Surah Completed (Click to Unmark)' : '✓ Mark Surah as Read'"></span>
+                </button>
+            @else
+                <a href="{{ route('login') }}" class="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-sm rounded-2xl transition-all shadow-xl">
+                    Sign in to Track & Mark as Read
+                </a>
+            @endauth
+
+            @if($surahInfo['id'] < 114)
+                <a href="{{ route('lens.surah', $surahInfo['id'] + 1) }}"
+                    class="w-full sm:w-auto px-6 py-4 bg-white/10 hover:bg-white/20 text-white font-bold text-sm rounded-2xl transition-all border border-white/10 flex items-center justify-center gap-2">
+                    <span>Next Surah &rarr;</span>
+                </a>
+            @endif
+        </div>
+    </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+    function surahReader(surahId, initialRead) {
+        return {
+            surahId: surahId,
+            isRead: initialRead,
+            loading: false,
+            toastMessage: '',
+
+            async toggleRead() {
+                this.loading = true;
+                try {
+                    const res = await fetch('{{ route("reading.toggle-surah") }}', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                        },
+                        body: JSON.stringify({ surah: this.surahId })
+                    });
+                    const data = await res.json();
+                    if (data.success) {
+                        this.isRead = data.is_read;
+                        this.toastMessage = data.message;
+                        setTimeout(() => { this.toastMessage = ''; }, 3500);
+                    }
+                } catch (e) {
+                    console.error('Error toggling surah read status:', e);
+                } finally {
+                    this.loading = false;
+                }
+            }
+        };
+    }
+</script>
+@endpush

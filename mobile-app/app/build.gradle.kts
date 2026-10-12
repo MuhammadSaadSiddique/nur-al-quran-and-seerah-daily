@@ -13,8 +13,8 @@ android {
         applicationId = "com.asloobulhayat.eternalecho"
         minSdk = 24
         targetSdk = 36
-        versionCode = 2
-        versionName = "1.1"
+        versionCode = 4
+        versionName = "2.0"
     }
 
     buildTypes {
@@ -97,10 +97,12 @@ dependencies {
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
   implementation(libs.androidx.compose.material.icons.core)
+  implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.window)
   implementation(libs.androidx.compose.material3.windowsizeclass)
   implementation(libs.androidx.work.runtime.ktx)
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-messaging")
 }

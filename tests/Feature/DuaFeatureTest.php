@@ -123,4 +123,153 @@ class DuaFeatureTest extends TestCase
             ]
         ]);
     }
+
+    public function test_user_can_submit_dua_which_defaults_to_pending(): void
+    {
+        $payload = [
+            'title' => 'Dua for Knowledge and Understanding',
+            'category' => 'Guidance & Faith',
+            'arabic_text' => 'رَبِّ زِدْنِي عِلْمًا',
+            'transliteration' => 'Rabbi zidnī \'ilmā',
+            'translation_en' => 'My Lord, increase me in knowledge.',
+            'source_type' => 'quran',
+            'surah_number' => 20,
+            'verse_number' => 114,
+            'quran_reference' => 'Surah Ta-Ha 20:114',
+            'submitter_name' => 'Bilal',
+            'submitter_email' => 'bilal@example.com',
+        ];
+
+        $response = $this->post(route('duas.store'), $payload);
+
+        $response->assertRedirect(route('duas.index'));
+        $response->assertSessionHas('success');
+
+        $this->assertDatabaseHas('duas', [
+            'title' => 'Dua for Knowledge and Understanding',
+            'status' => 'pending',
+            'submitter_name' => 'Bilal',
+        ]);
+    }
+
+    public function test_pending_dua_is_hidden_from_public_list_and_api(): void
+    {
+        $pendingDua = Dua::create([
+            'title' => 'Hidden Pending Dua Test',
+            'slug' => 'hidden-pending-dua-test',
+            'category' => 'Protection',
+            'arabic_text' => 'أَعُوذُ بِكَلِمَاتِ اللَّهِ التَّامَّاتِ',
+            'translation_en' => 'I seek refuge in the perfect words of Allah',
+            'source_type' => 'hadith',
+            'status' => 'pending',
+        ]);
+
+        // Public index check
+        $publicResponse = $this->get(route('duas.index'));
+        $publicResponse->assertStatus(200);
+        $publicResponse->assertDontSee('Hidden Pending Dua Test');
+
+        // Public API check
+        $apiResponse = $this->getJson('/api/duas');
+        $apiResponse->assertStatus(200);
+        $apiResponse->assertDontSee('Hidden Pending Dua Test');
+
+        // Public single show check
+        $showResponse = $this->get(route('duas.show', $pendingDua->slug));
+        $showResponse->assertStatus(404);
+    }
+
+    public function test_admin_can_view_and_approve_pending_dua(): void
+    {
+        $admin = \App\Models\User::factory()->create(['is_admin' => true]);
+
+        $pendingDua = Dua::create([
+            'title' => 'Dua Waiting for Approval',
+            'slug' => 'dua-waiting-for-approval',
+            'category' => 'Health & Healing',
+            'arabic_text' => 'اللَّهُمَّ رَبَّ النَّاسِ أَذْهِبِ الْبَاسَ',
+            'translation_en' => 'O Allah, Lord of the people, remove the affliction.',
+            'source_type' => 'hadith',
+            'status' => 'pending',
+            'submitter_name' => 'Fatima',
+        ]);
+
+        // Admin queue index
+        $adminQueue = $this->actingAs($admin)->get(route('admin.duas.index', ['status' => 'pending']));
+        $adminQueue->assertStatus(200);
+        $adminQueue->assertSee('Dua Waiting for Approval');
+        $adminQueue->assertSee('Fatima');
+
+        // Approve action
+        $approveResponse = $this->actingAs($admin)->post(route('admin.duas.approve', $pendingDua->id));
+        $approveResponse->assertSessionHas('success');
+
+        $this->assertDatabaseHas('duas', [
+            'id' => $pendingDua->id,
+            'status' => 'approved',
+            'reviewed_by' => $admin->id,
+        ]);
+
+        // Now it must be visible publicly
+        $publicResponse = $this->get(route('duas.index'));
+        $publicResponse->assertSee('Dua Waiting for Approval');
+    }
+
+    public function test_admin_can_reject_pending_dua(): void
+    {
+        $admin = \App\Models\User::factory()->create(['is_admin' => true]);
+
+        $pendingDua = Dua::create([
+            'title' => 'Unverified Dua Submission',
+            'slug' => 'unverified-dua-submission',
+            'category' => 'General',
+            'arabic_text' => 'نص تجريبي',
+            'translation_en' => 'Unverified prayer',
+            'source_type' => 'hadith',
+            'status' => 'pending',
+        ]);
+
+        $rejectResponse = $this->actingAs($admin)->post(route('admin.duas.reject', $pendingDua->id), [
+            'reason' => 'Citation could not be verified in authentic six books of hadith.',
+        ]);
+
+        $rejectResponse->assertSessionHas('info');
+
+        $this->assertDatabaseHas('duas', [
+            'id' => $pendingDua->id,
+            'status' => 'rejected',
+            'admin_notes' => 'Citation could not be verified in authentic six books of hadith.',
+        ]);
+    }
+
+    public function test_api_client_can_submit_dua_with_pending_status(): void
+    {
+        $payload = [
+            'title' => 'Mobile App User Dua Contribution',
+            'category' => 'Forgiveness & Mercy',
+            'arabic_text' => 'رَبَّنَا ظَلَمْنَا أَنفُسَنَا',
+            'translation_en' => 'Our Lord, we have wronged ourselves.',
+            'source_type' => 'quran',
+            'surah_number' => 7,
+            'verse_number' => 23,
+            'quran_reference' => 'Surah Al-A\'raf 7:23',
+            'submitter_name' => 'Mobile App User',
+        ];
+
+        $response = $this->postJson('/api/duas', $payload);
+
+        $response->assertStatus(201);
+        $response->assertJson([
+            'status' => 'success',
+            'data' => [
+                'title' => 'Mobile App User Dua Contribution',
+                'status' => 'pending',
+            ]
+        ]);
+
+        $this->assertDatabaseHas('duas', [
+            'title' => 'Mobile App User Dua Contribution',
+            'status' => 'pending',
+        ]);
+    }
 }

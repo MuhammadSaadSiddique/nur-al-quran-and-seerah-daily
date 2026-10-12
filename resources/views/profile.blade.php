@@ -55,10 +55,61 @@
             </form>
         </div>
 
+        {{-- Daily Streak Card --}}
+        @php
+            $streak = $user->getStreakStatus();
+        @endphp
+        <div class="bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent rounded-[2.5rem] p-8 shadow-xl border border-amber-200/60 space-y-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">🔥</span>
+                    <div>
+                        <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Daily Spiritual Streak</h3>
+                        <p class="text-xs font-bold text-slate-500">Consistency in worship and learning</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs font-black uppercase text-amber-700 bg-amber-100 px-3 py-1 rounded-full">
+                        Best: {{ $streak['longest_streak'] }} Days
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 text-center">
+                <div class="bg-white/80 rounded-2xl p-5 border border-amber-100">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Streak</p>
+                    <p class="text-3xl font-black text-amber-600 mt-1">{{ $streak['current_streak'] }} <span class="text-sm">Days</span></p>
+                </div>
+                <div class="bg-white/80 rounded-2xl p-5 border border-amber-100">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Status Today</p>
+                    <p class="text-sm font-black mt-2 {{ $streak['is_active_today'] ? 'text-emerald-600' : 'text-amber-600' }}">
+                        {{ $streak['is_active_today'] ? '✅ Maintained' : '⏳ Pending' }}
+                    </p>
+                </div>
+            </div>
+
+            @if(!$streak['is_active_today'])
+                <form action="{{ route('streak.check-in') }}" method="POST">
+                    @csrf
+                    <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black py-4 rounded-xl text-sm shadow-lg hover:shadow-xl hover:opacity-95 transition-all">
+                        🔥 Check-in Today's Streak
+                    </button>
+                </form>
+            @else
+                <div class="bg-emerald-50 text-emerald-800 border border-emerald-200 p-4 rounded-xl text-center text-xs font-bold">
+                    Alhamdulillah! Your streak is active today. Return tomorrow to continue your learning journey.
+                </div>
+            @endif
+        </div>
+
         {{-- Growth Summary --}}
         <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-4">
             <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Growth Summary</h3>
             <div class="divide-y divide-slate-100">
+                <div class="flex justify-between py-4">
+                    <span class="font-bold text-slate-600">Daily Streak</span>
+                    <span class="font-black text-amber-600">🔥 {{ $streak['current_streak'] }} Days</span>
+                </div>
                 <div class="flex justify-between py-4">
                     <span class="font-bold text-slate-600">Accuracy</span>
                     <span class="font-black text-emerald-600">{{ $user->accuracy }}%</span>

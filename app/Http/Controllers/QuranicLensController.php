@@ -110,7 +110,9 @@ class QuranicLensController extends Controller
                     ['path' => $request->url(), 'query' => $request->query()]
                 );
             }
-        } elseif ($tab !== 'surahs' && !in_array($tab, ['biology', 'maths'])) {
+        } elseif ($tab === 'videos' || $tab === 'pending') {
+            // Handled via $contributionsPaginator below
+        } elseif (in_array($tab, ['science', 'seerat', 'hadith', 'history', 'bible', 'torah'])) {
             try {
                 $query = \Illuminate\Support\Facades\DB::table('verses')
                     ->join('surahs', 'verses.surah_id', '=', 'surahs.id');
@@ -226,9 +228,74 @@ class QuranicLensController extends Controller
             }
         }
 
-        $scienceCategories = $this->getScienceCategories();
+        // Load Community Contributions & Videos for current tab or when tab === 'videos' / 'pending'
+        $contributionsPaginator = null;
+        $userReviews = [];
+        $pendingContributionsCount = 0;
+        $publishedVideosCount = 0;
+        $researchCategories = \App\Models\Category::getQuranResearchCategories();
 
-        return view('quranic-lens.index', compact('chapters', 'tab', 'paginatedData', 'searchResults', 'search', 'scienceCategories'));
+        try {
+            $pendingContributionsCount = auth()->check() ? \App\Models\QuranResearchContribution::pending()->count() : 0;
+            $publishedVideosCount = \App\Models\QuranResearchContribution::published()->where('category', 'video')->count();
+
+            if ($tab === 'pending' && !auth()->check()) {
+                return redirect()->route('login')->with('info', 'Please log in to view and verify pending items.');
+            }
+
+            if ($tab !== 'surahs' && !in_array($tab, ['bible', 'torah', 'biology', 'maths'])) {
+                $contribQuery = \App\Models\QuranResearchContribution::with(['user', 'reviews.user'])
+                    ->withCount([
+                        'reviews as approvals_count' => fn($q) => $q->where('vote', 'approve'),
+                        'reviews as downvotes_count' => fn($q) => $q->where('vote', 'downvote'),
+                    ]);
+
+                if ($tab === 'pending') {
+                    $contribQuery->pending();
+                    if ($request->filled('category') && $request->category !== 'all') {
+                        $contribQuery->where('category', $request->category);
+                    }
+                } elseif ($tab === 'videos') {
+                    $contribQuery->published()->where('category', 'video');
+                } else {
+                    $mappedCat = $tab === 'seerat' ? 'seerah' : $tab;
+                    $contribQuery->published()->where('category', $mappedCat);
+                }
+
+                if ($request->filled('surah_number') && is_numeric($request->surah_number)) {
+                    $contribQuery->where('surah_number', (int)$request->surah_number);
+                }
+
+                $contributionsPaginator = $contribQuery->latest()->paginate(12)->withQueryString();
+
+                if (auth()->check() && $contributionsPaginator->count() > 0) {
+                    $userReviews = \App\Models\QuranResearchReview::where('user_id', auth()->id())
+                        ->whereIn('contribution_id', $contributionsPaginator->pluck('id'))
+                        ->get()
+                        ->keyBy('contribution_id');
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed loading contributions in QuranicLensController: " . $e->getMessage());
+        }
+
+        $scienceCategories = $this->getScienceCategories();
+        $completedSurahs = auth()->check() ? auth()->user()->getCompletedSurahs() : [];
+
+        return view('quranic-lens.index', compact(
+            'chapters',
+            'tab',
+            'paginatedData',
+            'searchResults',
+            'search',
+            'scienceCategories',
+            'completedSurahs',
+            'contributionsPaginator',
+            'userReviews',
+            'pendingContributionsCount',
+            'publishedVideosCount',
+            'researchCategories'
+        ));
     }
 
     /**
@@ -341,7 +408,9 @@ class QuranicLensController extends Controller
             $verses = [];
         }
 
-        return view('quranic-lens.surah', compact('surahInfo', 'verses'));
+        $isSurahRead = auth()->check() ? in_array($surahInfo['id'], auth()->user()->getCompletedSurahs()) : false;
+
+        return view('quranic-lens.surah', compact('surahInfo', 'verses', 'isSurahRead'));
     }
 
     /**

@@ -60,6 +60,15 @@
     }
 }">
 
+    @if(session('success'))
+        <div class="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl font-medium flex items-center space-x-3 shadow-sm animate-fadeIn">
+            <span class="text-xl">✨</span>
+            <div class="text-sm">
+                <span class="font-bold">Alhamdulillah!</span> {{ session('success') }}
+            </div>
+        </div>
+    @endif
+
     {{-- Hero Section --}}
     <div class="relative bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 rounded-[2.5rem] p-8 md:p-14 text-white overflow-hidden shadow-2xl border border-slate-800">
         <div class="absolute inset-0 opacity-10 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-emerald-400 via-slate-900 to-slate-950 pointer-events-none"></div>
@@ -81,7 +90,7 @@
                 </p>
             </div>
 
-            {{-- Stats Badges --}}
+            {{-- Stats Badges & Actions --}}
             <div class="flex flex-wrap items-center gap-3 pt-2">
                 <div class="flex items-center space-x-2 bg-white/5 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/10 text-xs font-semibold text-emerald-300">
                     <span>✨</span>
@@ -97,15 +106,25 @@
                 </div>
                 <a href="{{ route('daily.dua') }}" class="flex items-center space-x-1.5 bg-emerald-600 hover:bg-emerald-500 transition-all text-white px-4 py-1.5 rounded-xl text-xs font-bold shadow-lg shadow-emerald-900/30">
                     <span>🌟</span>
-                    <span>Daily Dua of the Day</span>
+                    <span>Daily Dua</span>
                 </a>
+                <a href="{{ route('duas.create') }}" class="flex items-center space-x-1.5 bg-white/10 hover:bg-white/20 backdrop-blur-md transition-all text-white px-4 py-1.5 rounded-xl text-xs font-bold border border-white/20 shadow-md">
+                    <span>🤲</span>
+                    <span>+ Contribute a Dua</span>
+                </a>
+                @if(auth()->check() && auth()->user()->is_admin)
+                    <a href="{{ route('admin.duas.index') }}" class="flex items-center space-x-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 px-3 py-1.5 rounded-xl text-xs font-bold border border-amber-400/30 transition-all">
+                        <span>⚙️</span>
+                        <span>Review Queue</span>
+                    </a>
+                @endif
             </div>
         </div>
     </div>
 
     {{-- Featured Dua Spotlight (if available) --}}
     @if($featuredDua && !request()->has('search') && !request()->has('category'))
-    <div class="bg-gradient-to-r from-emerald-900/40 via-slate-900/40 to-teal-900/30 rounded-3xl p-6 md:p-8 border border-emerald-500/20 shadow-lg relative overflow-hidden">
+    <div class="bg-gradient-to-br from-slate-950 via-slate-900 to-emerald-950 rounded-3xl p-6 md:p-8 border border-emerald-500/20 shadow-lg relative overflow-hidden">
         <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
             <div class="flex items-center space-x-2">
                 <span class="bg-amber-400/20 text-amber-300 text-xs font-black px-3 py-1 rounded-full uppercase tracking-wider border border-amber-400/30">⭐ Featured Reflection</span>
@@ -219,9 +238,19 @@
                 @foreach($categories as $cat)
                 <a href="{{ route('duas.index', array_merge(request()->query(), ['category' => $cat->category])) }}"
                    class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all {{ $category === $cat->category ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200' }}">
-                    {{ $cat->category }} <span class="opacity-70 text-[10px]">({{ $cat->count }})</span>
+                    {{ $cat->emoji ?? '🤲' }} {{ $cat->category }} <span class="opacity-70 text-[10px]">({{ $cat->count }})</span>
                 </a>
                 @endforeach
+                <button type="button" onclick="document.getElementById('addDuaCategoryModal').classList.remove('hidden'); document.getElementById('addDuaCategoryModal').classList.add('flex');"
+                    class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all inline-flex items-center gap-1">
+                    <span>+ Add Category</span>
+                </button>
+                @if(auth()->check() && auth()->user()->is_admin)
+                <a href="{{ route('admin.categories.index', ['type' => 'dua']) }}"
+                   class="px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all inline-flex items-center gap-1">
+                    <span>🏷️ Manage Categories</span>
+                </a>
+                @endif
             </div>
         </form>
     </div>
@@ -502,6 +531,60 @@
         {{ $duas->links() }}
     </div>
     @endif
+
+    {{-- Add Dua Category Modal --}}
+    <div id="addDuaCategoryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                    <h3 class="text-lg font-extrabold text-slate-800">🤲 Add Dua Category</h3>
+                    <p class="text-xs text-slate-500">Create a new category for authentic supplications.</p>
+                </div>
+                <button type="button" onclick="document.getElementById('addDuaCategoryModal').classList.add('hidden'); document.getElementById('addDuaCategoryModal').classList.remove('flex');"
+                    class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+            </div>
+
+            <form method="POST" action="{{ route('categories.store') }}" class="space-y-4">
+                @csrf
+                <input type="hidden" name="type" value="dua">
+
+                <div class="grid grid-cols-4 gap-3">
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-700">Emoji</label>
+                        <input type="text" name="emoji" placeholder="🤲" maxlength="16"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center">
+                    </div>
+                    <div class="col-span-3 space-y-1">
+                        <label class="text-xs font-bold text-slate-700">Category Name <span class="text-rose-500">*</span></label>
+                        <input type="text" name="name" required maxlength="100" placeholder="e.g. Parents & Elders, Hajj & Umrah"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
+                    </div>
+                </div>
+
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-700">Short Description (Optional)</label>
+                    <input type="text" name="description" maxlength="500" placeholder="What kind of supplications belong here?"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
+                </div>
+
+                @guest
+                <div class="space-y-1">
+                    <label class="text-xs font-bold text-slate-700">Your Name (Optional)</label>
+                    <input type="text" name="submitter_name" maxlength="120" placeholder="Contributor Name"
+                        class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
+                </div>
+                @endguest
+
+                <div class="flex items-center justify-end gap-2 pt-2">
+                    <button type="button" onclick="document.getElementById('addDuaCategoryModal').classList.add('hidden'); document.getElementById('addDuaCategoryModal').classList.remove('flex');"
+                        class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold">Cancel</button>
+                    <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md">
+                        + Add Category
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
 
 </div>
 @endsection

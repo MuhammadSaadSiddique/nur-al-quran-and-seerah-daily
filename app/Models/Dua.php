@@ -37,6 +37,13 @@ class Dua extends Model
         'audio_url',
         'is_featured',
         'order',
+        'status',
+        'submitted_by_user_id',
+        'submitter_name',
+        'submitter_email',
+        'admin_notes',
+        'reviewed_by',
+        'reviewed_at',
     ];
 
     protected $casts = [
@@ -46,6 +53,7 @@ class Dua extends Model
         'surah_number' => 'integer',
         'verse_number' => 'integer',
         'order' => 'integer',
+        'reviewed_at' => 'datetime',
     ];
 
     protected static function boot()
@@ -54,9 +62,71 @@ class Dua extends Model
 
         static::creating(function ($dua) {
             if (empty($dua->slug)) {
-                $dua->slug = Str::slug($dua->title);
+                $baseSlug = Str::slug($dua->title);
+                $slug = $baseSlug ?: 'dua';
+                $counter = 1;
+                while (static::where('slug', $slug)->exists()) {
+                    $slug = "{$baseSlug}-{$counter}";
+                    $counter++;
+                }
+                $dua->slug = $slug;
             }
         });
+    }
+
+    /**
+     * User who submitted this Dua (if logged in).
+     */
+    public function submitter()
+    {
+        return $this->belongsTo(User::class, 'submitted_by_user_id');
+    }
+
+    /**
+     * Admin who reviewed/approved/rejected this Dua.
+     */
+    public function reviewer()
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /**
+     * Scope: Approved duas only (for public website & mobile).
+     */
+    public function scopeApproved($query)
+    {
+        return $query->where('status', 'approved');
+    }
+
+    /**
+     * Scope: Pending approval.
+     */
+    public function scopePending($query)
+    {
+        return $query->where('status', 'pending');
+    }
+
+    /**
+     * Scope: Rejected duas.
+     */
+    public function scopeRejected($query)
+    {
+        return $query->where('status', 'rejected');
+    }
+
+    public function isApproved(): bool
+    {
+        return $this->status === 'approved';
+    }
+
+    public function isPending(): bool
+    {
+        return $this->status === 'pending';
+    }
+
+    public function isRejected(): bool
+    {
+        return $this->status === 'rejected';
     }
 
     /**

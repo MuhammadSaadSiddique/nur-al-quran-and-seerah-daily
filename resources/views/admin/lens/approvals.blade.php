@@ -183,6 +183,15 @@
                                 {{ $analysis->content }}
                             </p>
 
+                            @if($analysis->reference_link)
+                                <div class="flex items-center gap-2 text-xs bg-emerald-50/50 border border-emerald-100/60 p-3 rounded-xl">
+                                    <span class="font-bold text-emerald-800">🔗 Reference Source:</span>
+                                    <a href="{{ $analysis->reference_link }}" target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:text-emerald-700 underline font-medium break-all">
+                                        {{ $analysis->reference_link }}
+                                    </a>
+                                </div>
+                            @endif
+
                             <div class="flex items-center justify-end space-x-3 pt-4 border-t border-slate-50">
                                 {{-- Reject Form --}}
                                 <form action="{{ route('admin.lens.approvals.reject', ['analysis', $analysis->id]) }}" method="POST"
@@ -390,6 +399,15 @@
                                 class="text-slate-600 text-sm leading-relaxed whitespace-pre-line bg-slate-50/50 p-6 rounded-2xl border border-slate-50">
                                 {{ $analysis->content }}
                             </p>
+
+                            @if($analysis->reference_link)
+                                <div class="flex items-center gap-2 text-xs bg-emerald-50/50 border border-emerald-100/60 p-3 rounded-xl">
+                                    <span class="font-bold text-emerald-800">🔗 Reference Source:</span>
+                                    <a href="{{ $analysis->reference_link }}" target="_blank" rel="noopener noreferrer" class="text-emerald-600 hover:text-emerald-700 underline font-medium break-all">
+                                        {{ $analysis->reference_link }}
+                                    </a>
+                                </div>
+                            @endif
 
                             <div class="flex items-center justify-end space-x-3 pt-4 border-t border-slate-50">
                                 <form action="{{ route('admin.lens.approvals.analysis.destroy', $analysis->id) }}" method="POST"

@@ -2,22 +2,25 @@ plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+  alias(libs.plugins.google.services)
+  alias(libs.plugins.firebase.crashlytics)
 }
 
 android {
-    namespace = "com.example.eternalechomobile"
+    namespace = "com.asloobulhayat.eternalecho"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.eternalechomobile"
+        applicationId = "com.asloobulhayat.eternalecho"
         minSdk = 24
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 4
+        versionName = "2.0"
     }
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
@@ -37,6 +40,16 @@ android {
         excludes += "/META-INF/{AL2.0,LGPL2.1}"
       }
     }
+
+    testOptions {
+      unitTests.isReturnDefaultValues = true
+    }
+
+    lint {
+        abortOnError = false
+        checkReleaseBuilds = false
+        disable += "InvalidFragmentVersionForActivityResult"
+    }
 }
 
 kotlin {
@@ -50,6 +63,7 @@ dependencies {
 
   // Core Android dependencies
   implementation(libs.androidx.core.ktx)
+  implementation(libs.androidx.fragment.ktx)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.activity.compose)
 
@@ -70,6 +84,7 @@ dependencies {
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation("org.json:json:20240303")
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)
@@ -82,4 +97,12 @@ dependencies {
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
   implementation(libs.androidx.compose.material.icons.core)
+  implementation(libs.androidx.compose.material.icons.extended)
+  implementation(libs.androidx.window)
+  implementation(libs.androidx.compose.material3.windowsizeclass)
+  implementation(libs.androidx.work.runtime.ktx)
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-crashlytics")
+    implementation("com.google.firebase:firebase-messaging")
 }

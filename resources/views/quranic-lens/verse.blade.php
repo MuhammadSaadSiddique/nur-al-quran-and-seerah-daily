@@ -295,7 +295,7 @@
                     @endif
 
                     {{-- Local database Science links --}}
-                    @if($localScience->count() > 0)
+                    @if((method_exists($localScience, 'total') ? $localScience->total() : $localScience->count()) > 0)
                         <div x-show="activeLens === 'science'" class="space-y-6" x-cloak>
                             @php
                                 $categorizedScience = [];
@@ -321,7 +321,7 @@
                                     }
                                 }
                             @endphp
-q
+
                             @foreach($categorizedScience as $catSlug => $group)
                                 <div class="space-y-3">
                                     <h4 class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-1.5 ml-1">
@@ -398,6 +398,13 @@ q
                                             </div>
                                         @endforeach
                                     </div>
+                                </div>
+                            @endif
+
+                            {{-- Science Facts Pagination --}}
+                            @if(method_exists($localScience, 'links'))
+                                <div class="mt-6">
+                                    {{ $localScience->links() }}
                                 </div>
                             @endif
                         </div>
@@ -509,6 +516,15 @@ q
                             </div>
                             <p class="text-slate-600 text-sm leading-relaxed whitespace-pre-line">{{ $analysis->content }}</p>
 
+                            @if(!empty($analysis->reference_link))
+                                <div class="pt-1">
+                                    <a href="{{ $analysis->reference_link }}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-800 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/60 px-3 py-1.5 rounded-xl transition-all">
+                                        <span>🔗 Reference Link</span>
+                                        <svg class="w-3.5 h-3.5 opacity-70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path></svg>
+                                    </a>
+                                </div>
+                            @endif
+
                             @if($analysis->theme)
                                 <div class="mt-4 p-5 rounded-2xl bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                                     <div class="space-y-1">
@@ -594,6 +610,12 @@ q
                                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Content (Research & Citations)</label>
                                     <textarea name="content" x-model="formContent" rows="6" placeholder="Provide details, referencing authentic scholars or research articles..." required
                                         class="w-full p-4 rounded-2xl border-2 border-slate-100 bg-white font-medium text-slate-700 focus:border-emerald-500 outline-none transition-all text-sm leading-relaxed"></textarea>
+                                </div>
+
+                                <div class="space-y-2">
+                                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Reference Link (Optional URL)</label>
+                                    <input type="url" name="reference_link" placeholder="https://example.com/source-or-paper"
+                                        class="w-full p-4 rounded-2xl border-2 border-slate-100 bg-white font-medium text-slate-700 focus:border-emerald-500 outline-none transition-all text-sm" />
                                 </div>
 
                                 <div class="space-y-2">
@@ -788,7 +810,7 @@ q
             hasDataForActiveLens() {
                 if (this.activeLens === 'science') {
                     if (this.approvedAnalenses.some(a => this.isScienceLens(a.lens_type))) return true;
-                    if ({{ $localScience->count() }} > 0) return true;
+                    if ({{ method_exists($localScience, 'total') ? $localScience->total() : $localScience->count() }} > 0) return true;
                 } else {
                     if (this.approvedAnalenses.some(a => a.lens_type === this.activeLens)) return true;
                     if (this.activeLens === 'hadith' && {{ $localHadith->count() }} > 0) return true;

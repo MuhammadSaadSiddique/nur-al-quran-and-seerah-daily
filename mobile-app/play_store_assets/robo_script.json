@@ -1,0 +1,200 @@
+[
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Next"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Next"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Next"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Begin Journey ✨"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2500
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Surahs"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Al-Fatihah"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "PRESS_BACK"
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Lens"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Seerah"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "History"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Duas"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Rank"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Announcements"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "PRESS_BACK"
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Sign In"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Back"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Surahs"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1000
+  }
+]

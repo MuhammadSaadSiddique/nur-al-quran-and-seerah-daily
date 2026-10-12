@@ -121,6 +121,7 @@ class ResearchApiController extends Controller
             'science_category' => 'nullable|string|in:' . implode(',', array_unique($dbSlugs ?? [])),
             'title' => 'required|string|max:255',
             'content' => 'required|string|min:10',
+            'reference_link' => 'nullable|url|max:2048',
             'theme_id' => 'nullable|integer|exists:themes,id',
         ]);
 
@@ -144,6 +145,7 @@ class ResearchApiController extends Controller
             'lens_type' => $lensType,
             'title' => $request->title,
             'content' => $request->content,
+            'reference_link' => $request->reference_link,
             'theme_id' => $request->theme_id,
             'status' => $status,
         ]);

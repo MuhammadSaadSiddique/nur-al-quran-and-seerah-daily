@@ -1,0 +1,29 @@
+{
+    "project_info": {
+        "project_number": "10391172427",
+        "project_id": "studio-3025898103-60d3d",
+        "storage_bucket": "studio-3025898103-60d3d.firebasestorage.app"
+    },
+    "client": [
+        {
+            "client_info": {
+                "mobilesdk_app_id": "1:10391172427:android:c52f072a6743fe9da264ce",
+                "android_client_info": {
+                    "package_name": "com.asloobulhayat.eternalecho"
+                }
+            },
+            "oauth_client": [],
+            "api_key": [
+                {
+                    "current_key": "AIzaSyDaKOM-_2Ur_TaNLGTYtXuBm_utBfwO0Dg"
+                }
+            ],
+            "services": {
+                "appinvite_service": {
+                    "other_platform_oauth_client": []
+                }
+            }
+        }
+    ],
+    "configuration_version": "1"
+}

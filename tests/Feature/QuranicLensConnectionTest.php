@@ -26,6 +26,9 @@ class QuranicLensConnectionTest extends TestCase
             'name_transliteration' => 'Al-Baqarah',
             'revelation_place' => 'madinah',
             'verses_count' => 286,
+            'verse_count' => 286,
+            'name_english' => 'Al-Baqarah',
+            'revelation_type' => 'madinah',
         ]);
 
         DB::table('verses')->insert([
@@ -34,6 +37,7 @@ class QuranicLensConnectionTest extends TestCase
             'verse_number' => 255,
             'verse_key' => '2:255',
             'juz_number' => 3,
+            'juz' => 3,
             'text_arabic' => 'الله لا إله إلا هو الحي القيوم',
             'text_transliteration' => 'Allahu la ilaha illa huwal hayyul qayyum',
         ]);
@@ -541,5 +545,90 @@ class QuranicLensConnectionTest extends TestCase
             'id' => $researcher->id,
             'expert_category_id' => $category->id
         ]);
+    }
+
+    /** @test */
+    public function science_facts_are_paginated_on_verse_page()
+    {
+        // Create 6 science facts
+        for ($i = 1; $i <= 6; $i++) {
+            $factId = DB::table('science_facts')->insertGetId([
+                'title' => "Science Fact {$i}",
+                'field' => 'Astronomy',
+                'description' => "Description of fact {$i}",
+                'credibility_score' => 9,
+            ]);
+
+            DB::table('quran_science_links')->insert([
+                'verse_id' => 1,
+                'science_fact_id' => $factId,
+                'relevance_description' => "Relevance of fact {$i}",
+                'status' => 'approved',
+            ]);
+        }
+
+        // Access the verse details page
+        $response = $this->get('/lens/2/255');
+        $response->assertStatus(200);
+
+        // It should contain science facts page 1 facts
+        $response->assertSee('Science Fact 1');
+        $response->assertSee('Science Fact 5');
+        // Page limit is 5, so Science Fact 6 should not be on page 1
+        $response->assertDontSee('Science Fact 6');
+
+        // Access page 2 of science facts
+        $response2 = $this->get('/lens/2/255?lens=science&science_page=2');
+        $response2->assertStatus(200);
+        $response2->assertSee('Science Fact 6');
+        $response2->assertDontSee('Science Fact 1');
+    }
+
+    /** @test */
+    public function user_can_submit_analysis_with_reference_link()
+    {
+        $user = User::create([
+            'name' => 'Researcher User',
+            'email' => 'researcher@example.com',
+            'is_researcher' => true,
+        ]);
+
+        $response = $this->actingAs($user)->post(route('lens.analysis.store'), [
+            'chapter_number' => 2,
+            'verse_number' => 255,
+            'lens_type' => 'hadith',
+            'title' => 'Hadith Reference Analysis',
+            'content' => 'Comprehensive narration on the majesty of Ayat al-Kursi.',
+            'reference_link' => 'https://sunnah.com/bukhari:1',
+        ]);
+
+        $response->assertStatus(302);
+        $this->assertDatabaseHas('quranic_lens_analyses', [
+            'chapter_number' => 2,
+            'verse_number' => 255,
+            'lens_type' => 'hadith',
+            'title' => 'Hadith Reference Analysis',
+            'reference_link' => 'https://sunnah.com/bukhari:1',
+            'status' => 'approved',
+        ]);
+    }
+
+    /** @test */
+    public function analysis_with_reference_link_is_rendered_on_verse_page()
+    {
+        \App\Models\QuranicLensAnalysis::create([
+            'chapter_number' => 2,
+            'verse_number' => 255,
+            'lens_type' => 'science',
+            'title' => 'Astrophysics Perspective',
+            'content' => 'Cosmic expansion correlation with modern observations.',
+            'reference_link' => 'https://example.com/astronomy-nature-paper',
+            'status' => 'approved',
+        ]);
+
+        $response = $this->get('/lens/2/255?lens=science');
+        $response->assertStatus(200);
+        $response->assertSee('https://example.com/astronomy-nature-paper');
+        $response->assertSee('Reference Link');
     }
 }

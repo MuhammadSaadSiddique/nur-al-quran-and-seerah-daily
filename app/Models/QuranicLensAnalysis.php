@@ -23,6 +23,7 @@ class QuranicLensAnalysis extends Model
         'moderated_at',
         'rejection_reason',
         'theme_id',
+        'reference_link',
     ];
 
     protected $casts = [

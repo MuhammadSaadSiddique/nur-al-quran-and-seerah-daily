@@ -46,8 +46,18 @@
         </section>
 
         <section class="space-y-4">
-            <h3 class="text-xl font-black text-slate-900">6. Contact Us</h3>
-            <p>If you have questions or comments about this policy, you may email us or contact us through our project website asloobulhayat.com.</p>
+            <h3 class="text-xl font-black text-slate-900">6. Account Deletion and Data Retention</h3>
+            <p>You have the absolute right to request the deletion of your account and all associated personal data at any time. In compliance with Google Play Store, Apple App Store developer policies, and privacy regulations (GDPR/CCPA):</p>
+            <ul class="list-disc pl-6 space-y-2">
+                <li><strong>What Is Deleted:</strong> When your deletion request is processed, we permanently erase your user profile, authentication credentials (email and password hashes), quiz responses, progress and scores, leaderboard history, Para mastery, bookmarks, researcher contributions, and mobile device notification tokens.</li>
+                <li><strong>Retention Period:</strong> None. Deletion is instantaneous and permanent upon confirmation. We do not retain residual copies of your personal data.</li>
+                <li><strong>How to Request Deletion:</strong> You can initiate account deletion directly from within our mobile application (via your profile/account settings) or through our dedicated web portal: <a href="{{ route('account.delete') }}" class="text-emerald-600 hover:text-emerald-700 underline font-bold">The Eternal Echo Account Deletion Portal</a>.</li>
+            </ul>
+        </section>
+
+        <section class="space-y-4">
+            <h3 class="text-xl font-black text-slate-900">7. Contact Us</h3>
+            <p>If you have questions or comments about this policy, or need assistance deleting your account, you may email us or contact us through our project website asloobulhayat.com.</p>
         </section>
     </div>
 </div>

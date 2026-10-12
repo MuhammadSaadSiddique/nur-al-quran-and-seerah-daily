@@ -56,7 +56,6 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #f8fafc;
         }
 
         .font-arabic {
@@ -132,14 +131,14 @@
             @php
                 if (auth()->check()) {
                     $navItems = [
-                        ['route' => 'welcome', 'label' => 'Quran Lens', 'icon' => 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'],
+                        ['route' => 'welcome', 'label' => 'Read Quran', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'],
+                        ['route' => 'seerah', 'label' => 'Seerah', 'icon' => 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z'],
+                        ['route' => 'quran.history', 'label' => 'History', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+                        ['route' => 'duas.index', 'label' => 'Duas', 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
                         ['route' => 'home', 'label' => 'Quizzes', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
-                        ['route' => 'themes.index', 'label' => 'Themes', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'],
-                        ['route' => 'researchers.index', 'label' => 'Researchers', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'],
+                        ['route' => 'stats', 'label' => 'Progress', 'icon' => 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'],
                         ['route' => 'leaderboard', 'label' => 'Rankings', 'icon' => 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'],
-                        ['route' => 'profile', 'label' => 'Profile', 'icon' => 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'],
-                        ['route' => 'stats', 'label' => 'Progress', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
-
+                    
                     ];
                     if (auth()->user()->is_admin) {
                         $navItems[] = ['route' => 'admin.questions.index', 'label' => 'Admin', 'icon' => 'M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z'];
@@ -149,8 +148,11 @@
                     }
                 } else {
                     $navItems = [
-                        ['route' => 'welcome', 'label' => 'Quran Lens', 'icon' => 'M15 12a3 3 0 11-6 0 3 3 0 016 0z M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z'],
-                        ['route' => 'quiz.learning', 'label' => 'Quiz Challenges', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'],
+                        ['route' => 'welcome', 'label' => 'Read Quran', 'icon' => 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'],
+                        ['route' => 'seerah', 'label' => 'Seerah', 'icon' => 'M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z'],
+                        ['route' => 'quran.history', 'label' => 'History', 'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'],
+                        ['route' => 'duas.index', 'label' => 'Duas', 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
+                        ['route' => 'quiz.learning', 'label' => 'Quiz Challenges', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                         ['route' => 'researchers.index', 'label' => 'Researchers', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'],
                         ['route' => 'leaderboard', 'label' => 'Rankings', 'icon' => 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'],
                     ];
@@ -160,14 +162,62 @@
             <nav class="hidden md:flex space-x-1">
                 @foreach($navItems as $item)
                     <a href="{{ route($item['route']) }}"
-                        class="px-4 py-2 rounded-xl text-sm font-bold transition-all {{ request()->routeIs($item['route']) ? 'bg-white/20 text-white' : 'text-emerald-100 hover:text-white hover:bg-white/10' }}">
+                        class="px-3.5 py-2 rounded-xl text-sm font-bold transition-all {{ request()->routeIs($item['route']) ? 'bg-white/20 text-white' : 'text-emerald-100 hover:text-white hover:bg-white/10' }}">
                         {{ $item['label'] }}
                     </a>
                 @endforeach
             </nav>
 
-            <div class="flex items-center space-x-4">
+            <div class="flex items-center space-x-3">
                 @auth
+                    @php
+                        $streakStatus = auth()->user()->getStreakStatus();
+                    @endphp
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open" 
+                                class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all {{ $streakStatus['is_active_today'] ? 'bg-amber-500/20 text-amber-300 border border-amber-400/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700 border border-slate-700' }}"
+                                title="Daily Streak">
+                            <span>🔥</span>
+                            <span>{{ $streakStatus['current_streak'] }} {{ \Illuminate\Support\Str::plural('Day', $streakStatus['current_streak']) }}</span>
+                        </button>
+
+                        <div x-show="open" @click.outside="open = false" x-cloak
+                             class="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-2xl border border-slate-100 p-5 z-50 text-slate-900 animate-slideUp">
+                            <div class="flex items-center justify-between mb-3">
+                                <span class="font-black text-sm uppercase tracking-wider text-slate-400">Daily Streak</span>
+                                <span class="text-xs font-bold text-amber-600 bg-amber-50 px-2.5 py-0.5 rounded-full">🔥 Best: {{ $streakStatus['longest_streak'] }}d</span>
+                            </div>
+                            <div class="text-center py-2 space-y-1">
+                                <p class="text-3xl font-black text-slate-900">{{ $streakStatus['current_streak'] }} <span class="text-lg text-amber-500">Days</span></p>
+                                <p class="text-xs text-slate-500 font-medium">
+                                    {{ $streakStatus['is_active_today'] ? 'Streak active today! Keep the consistency alive tomorrow.' : 'Check in today to keep your spiritual consistency!' }}
+                                </p>
+                            </div>
+                            @if(!$streakStatus['is_active_today'])
+                                <form action="{{ route('streak.check-in') }}" method="POST" class="mt-4">
+                                    @csrf
+                                    <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black py-2.5 rounded-xl text-xs shadow-md hover:opacity-95 transition-all">
+                                        ⚡ Claim Today's Streak
+                                    </button>
+                                </form>
+                            @else
+                                <div class="mt-3 text-center py-2 bg-emerald-50 rounded-xl border border-emerald-100">
+                                    <span class="text-xs font-bold text-emerald-700">✅ Completed Today</span>
+                                </div>
+                            @endif
+                        </div>
+                    </div>
+
+                    <a href="{{ route('profile') }}"
+                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all {{ request()->routeIs('profile') ? 'bg-white/25 text-white border border-white/40' : 'bg-white/10 hover:bg-white/20 text-emerald-100 hover:text-white border border-white/15' }}"
+                        title="My Profile">
+                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                        </svg>
+                        <span class="hidden sm:inline">My Profile</span>
+                    </a>
+
                     <form action="{{ route('logout') }}" method="POST">
                         @csrf
                         <button type="submit"
@@ -215,14 +265,15 @@
                 class="flex items-center justify-center space-x-6 text-[10px] uppercase font-black tracking-widest text-slate-600">
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
                 <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>
+                <a href="{{ route('account.delete') }}" class="hover:text-rose-400 transition-colors">Delete Account</a>
             </div>
         </div>
     </footer>
 
     {{-- Mobile Nav --}}
     <div
-        class="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 z-50">
-        @foreach($navItems as $item)
+        class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 z-50">
+        @foreach(array_slice($navItems, 0, 5) as $item)
             <a href="{{ route($item['route']) }}"
                 class="flex flex-col items-center p-2 flex-1 transition-colors {{ request()->routeIs($item['route']) ? 'text-emerald-600' : 'text-slate-400' }}">
                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"

@@ -1,0 +1,75 @@
+[
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Skip"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Sign In"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 2000
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "🔒 Password"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "text": "Email Address"
+      }
+    ]
+  },
+  {
+    "eventType": "VIEW_TEXT_CHANGED",
+    "replacementText": "tester@example.com",
+    "elementDescriptors": [
+      {
+        "className": "android.widget.EditText"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1500
+  },
+  {
+    "eventType": "VIEW_CLICKED",
+    "elementDescriptors": [
+      {
+        "contentDescription": "Back"
+      }
+    ]
+  },
+  {
+    "eventType": "DELAYED_MESSAGE_POSTED",
+    "delayTime": 1000
+  }
+]

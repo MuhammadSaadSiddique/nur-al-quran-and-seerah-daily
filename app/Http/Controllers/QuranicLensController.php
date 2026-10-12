@@ -110,7 +110,9 @@ class QuranicLensController extends Controller
                     ['path' => $request->url(), 'query' => $request->query()]
                 );
             }
-        } elseif ($tab !== 'surahs' && !in_array($tab, ['biology', 'maths'])) {
+        } elseif ($tab === 'videos' || $tab === 'pending') {
+            // Handled via $contributionsPaginator below
+        } elseif (in_array($tab, ['science', 'seerat', 'hadith', 'history', 'bible', 'torah'])) {
             try {
                 $query = \Illuminate\Support\Facades\DB::table('verses')
                     ->join('surahs', 'verses.surah_id', '=', 'surahs.id');
@@ -226,9 +228,74 @@ class QuranicLensController extends Controller
             }
         }
 
-        $scienceCategories = $this->getScienceCategories();
+        // Load Community Contributions & Videos for current tab or when tab === 'videos' / 'pending'
+        $contributionsPaginator = null;
+        $userReviews = [];
+        $pendingContributionsCount = 0;
+        $publishedVideosCount = 0;
+        $researchCategories = \App\Models\Category::getQuranResearchCategories();
 
-        return view('quranic-lens.index', compact('chapters', 'tab', 'paginatedData', 'searchResults', 'search', 'scienceCategories'));
+        try {
+            $pendingContributionsCount = auth()->check() ? \App\Models\QuranResearchContribution::pending()->count() : 0;
+            $publishedVideosCount = \App\Models\QuranResearchContribution::published()->where('category', 'video')->count();
+
+            if ($tab === 'pending' && !auth()->check()) {
+                return redirect()->route('login')->with('info', 'Please log in to view and verify pending items.');
+            }
+
+            if ($tab !== 'surahs' && !in_array($tab, ['bible', 'torah', 'biology', 'maths'])) {
+                $contribQuery = \App\Models\QuranResearchContribution::with(['user', 'reviews.user'])
+                    ->withCount([
+                        'reviews as approvals_count' => fn($q) => $q->where('vote', 'approve'),
+                        'reviews as downvotes_count' => fn($q) => $q->where('vote', 'downvote'),
+                    ]);
+
+                if ($tab === 'pending') {
+                    $contribQuery->pending();
+                    if ($request->filled('category') && $request->category !== 'all') {
+                        $contribQuery->where('category', $request->category);
+                    }
+                } elseif ($tab === 'videos') {
+                    $contribQuery->published()->where('category', 'video');
+                } else {
+                    $mappedCat = $tab === 'seerat' ? 'seerah' : $tab;
+                    $contribQuery->published()->where('category', $mappedCat);
+                }
+
+                if ($request->filled('surah_number') && is_numeric($request->surah_number)) {
+                    $contribQuery->where('surah_number', (int)$request->surah_number);
+                }
+
+                $contributionsPaginator = $contribQuery->latest()->paginate(12)->withQueryString();
+
+                if (auth()->check() && $contributionsPaginator->count() > 0) {
+                    $userReviews = \App\Models\QuranResearchReview::where('user_id', auth()->id())
+                        ->whereIn('contribution_id', $contributionsPaginator->pluck('id'))
+                        ->get()
+                        ->keyBy('contribution_id');
+                }
+            }
+        } catch (\Exception $e) {
+            Log::error("Failed loading contributions in QuranicLensController: " . $e->getMessage());
+        }
+
+        $scienceCategories = $this->getScienceCategories();
+        $completedSurahs = auth()->check() ? auth()->user()->getCompletedSurahs() : [];
+
+        return view('quranic-lens.index', compact(
+            'chapters',
+            'tab',
+            'paginatedData',
+            'searchResults',
+            'search',
+            'scienceCategories',
+            'completedSurahs',
+            'contributionsPaginator',
+            'userReviews',
+            'pendingContributionsCount',
+            'publishedVideosCount',
+            'researchCategories'
+        ));
     }
 
     /**
@@ -341,7 +408,9 @@ class QuranicLensController extends Controller
             $verses = [];
         }
 
-        return view('quranic-lens.surah', compact('surahInfo', 'verses'));
+        $isSurahRead = auth()->check() ? in_array($surahInfo['id'], auth()->user()->getCompletedSurahs()) : false;
+
+        return view('quranic-lens.surah', compact('surahInfo', 'verses', 'isSurahRead'));
     }
 
     /**
@@ -482,7 +551,9 @@ class QuranicLensController extends Controller
             $localTafsir = \Illuminate\Support\Facades\DB::table('tafsirs')
                 ->where('verse_id', $localVerse->id)
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Seerat events
             $localSeerat = \Illuminate\Support\Facades\DB::table('seerat_events')
                 ->join('quran_seerat_links', 'seerat_events.id', '=', 'quran_seerat_links.seerat_event_id')
@@ -490,7 +561,9 @@ class QuranicLensController extends Controller
                 ->where('quran_seerat_links.status', 'approved')
                 ->select('seerat_events.*', 'quran_seerat_links.description as link_description', 'quran_seerat_links.context_type')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Hadith items
             $localHadith = \Illuminate\Support\Facades\DB::table('ahadith')
                 ->join('quran_hadith_links', 'ahadith.id', '=', 'quran_hadith_links.hadith_id')
@@ -500,7 +573,9 @@ class QuranicLensController extends Controller
                 ->where('quran_hadith_links.status', 'approved')
                 ->select('ahadith.*', 'quran_hadith_links.description as link_description', 'quran_hadith_links.relevance_type', 'hadith_collections.name_english as collection_name', 'hadith_books.name_english as book_name')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Historical events
             $localHistory = \Illuminate\Support\Facades\DB::table('historical_events')
                 ->join('quran_history_links', 'historical_events.id', '=', 'quran_history_links.historical_event_id')
@@ -508,15 +583,20 @@ class QuranicLensController extends Controller
                 ->where('quran_history_links.status', 'approved')
                 ->select('historical_events.*', 'quran_history_links.description as link_description')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Science facts
             $localScience = \Illuminate\Support\Facades\DB::table('science_facts')
                 ->join('quran_science_links', 'science_facts.id', '=', 'quran_science_links.science_fact_id')
                 ->where('quran_science_links.verse_id', $localVerse->id)
                 ->where('quran_science_links.status', 'approved')
                 ->select('science_facts.*', 'quran_science_links.relevance_description as link_description')
-                ->get();
+                ->paginate(5, ['*'], 'science_page')
+                ->withQueryString();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Scripture links (Bible)
             $localBible = \Illuminate\Support\Facades\DB::table('bible_verses')
                 ->join('quran_scripture_links', 'bible_verses.id', '=', 'quran_scripture_links.bible_verse_id')
@@ -524,7 +604,9 @@ class QuranicLensController extends Controller
                 ->where('quran_scripture_links.status', 'approved')
                 ->select('bible_verses.*', 'quran_scripture_links.description as link_description', 'quran_scripture_links.relationship_type')
                 ->get();
+        } catch (\Illuminate\Database\QueryException $e) {}
 
+        try {
             // Scripture links (Torah)
             $localTorah = \Illuminate\Support\Facades\DB::table('torah_sections')
                 ->join('quran_scripture_links', 'torah_sections.id', '=', 'quran_scripture_links.torah_section_id')
@@ -532,9 +614,7 @@ class QuranicLensController extends Controller
                 ->where('quran_scripture_links.status', 'approved')
                 ->select('torah_sections.*', 'quran_scripture_links.description as link_description', 'quran_scripture_links.relationship_type')
                 ->get();
-        } catch (\Illuminate\Database\QueryException $e) {
-            Log::warning('Local link tables are missing', ['error' => $e->getMessage()]);
-        }
+        } catch (\Illuminate\Database\QueryException $e) {}
 
         $themes = \App\Models\Theme::where('is_active', true)->orderBy('name')->get();
         $scienceCategories = $this->getScienceCategories();
@@ -579,6 +659,7 @@ class QuranicLensController extends Controller
             'science_category' => 'nullable|string|in:' . implode(',', array_unique($dbSlugs ?? [])),
             'title' => 'required|string|max:255',
             'content' => 'required|string|min:10',
+            'reference_link' => 'nullable|url|max:2048',
             'theme_id' => 'nullable|integer|exists:themes,id',
         ]);
 
@@ -594,6 +675,7 @@ class QuranicLensController extends Controller
             'lens_type' => $lensType,
             'title' => $request->title,
             'content' => $request->content,
+            'reference_link' => $request->reference_link,
             'theme_id' => $request->theme_id,
             'status' => (Auth::user() && Auth::user()->is_researcher) ? 'approved' : 'pending',
         ]);

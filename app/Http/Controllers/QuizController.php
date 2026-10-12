@@ -83,10 +83,42 @@ class QuizController extends Controller
             // Refresh from DB to get the mix
             $dbQuestions = GeneratedQuestion::where('type', 'PARA')
                 ->where('difficulty', $request->difficulty)
-                ->where('source_info', 'like', "%Para {$request->para}:%")
-                ->where('reference', 'like', "%Para {$request->para}:%");
+                ->where(function ($q) use ($request) {
+                    $q->where('source_info', 'like', "%Para {$request->para}:%")
+                        ->orWhere('source_info', "Para {$request->para}")
+                        ->orWhere('reference', 'like', "%Para {$request->para}:%");
+                })
+                ->inRandomOrder()
+                ->limit($quantity)
+                ->get();
 
-            $dbQuestions = $dbQuestions->inRandomOrder()->limit($quantity)->get();
+            // If Gemini was unavailable and this difficulty has too few questions, supplement from other difficulties of the same Para
+            if ($dbQuestions->count() < $quantity) {
+                $existingIds = $dbQuestions->pluck('id')->all();
+                $supplement = GeneratedQuestion::where('type', 'PARA')
+                    ->whereNotIn('id', $existingIds)
+                    ->where(function ($q) use ($request) {
+                        $q->where('source_info', 'like', "%Para {$request->para}:%")
+                            ->orWhere('source_info', "Para {$request->para}")
+                            ->orWhere('reference', 'like', "%Para {$request->para}:%");
+                    })
+                    ->inRandomOrder()
+                    ->limit($quantity - $dbQuestions->count())
+                    ->get();
+                $dbQuestions = $dbQuestions->concat($supplement);
+            }
+
+            // Final fallback: supplement remaining slots from any PARA questions if still fewer than requested quantity
+            if ($dbQuestions->count() < $quantity) {
+                $existingIds = $dbQuestions->pluck('id')->all();
+                $generalSupplement = GeneratedQuestion::where('type', 'PARA')
+                    ->whereNotIn('id', $existingIds)
+                    ->where('difficulty', $request->difficulty)
+                    ->inRandomOrder()
+                    ->limit($quantity - $dbQuestions->count())
+                    ->get();
+                $dbQuestions = $dbQuestions->concat($generalSupplement);
+            }
 
             foreach ($dbQuestions as $q) {
                 $questions[] = [

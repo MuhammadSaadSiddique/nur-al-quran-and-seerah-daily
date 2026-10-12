@@ -4,7 +4,7 @@
 @section('meta_description', 'Connect any verse of the Quran to classical Tafsir, Hadith, chronological Seerah, modern science, archaeology, and comparative scriptures.')
 
 @section('content')
-    <div class="space-y-12 pb-10 animate-fadeIn" x-data="{ searchSurah: '' }">
+    <div class="space-y-12 pb-10 animate-fadeIn" x-data="{ searchSurah: '', addModalOpen: false, videoModalOpen: false, currentVideoUrl: '', currentRawVideoUrl: '', currentVideoPlatform: '', currentVideoTitle: '', verifyModalOpen: false, selectedContribId: null, selectedContribTitle: '' }">
 
         {{-- Premium Hero Section --}}
         <div
@@ -36,11 +36,24 @@
                     classical Tafsir, Hadith, chronological Seerah events, modern scientific facts, historical contexts, and
                     comparative scriptural parallels.
                 </p>
+
+                <div class="pt-2 flex flex-wrap gap-3">
+                    <button type="button" @click="addModalOpen = true"
+                        class="bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-widest px-6 py-3.5 rounded-2xl shadow-lg shadow-emerald-950/50 hover:-translate-y-0.5 transition-all flex items-center gap-2">
+                        <span>➕ Add Video / Research Contribution</span>
+                    </button>
+                    @auth
+                        <a href="{{ route('welcome', ['tab' => 'pending']) }}"
+                            class="bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 border border-amber-400/30 font-bold text-xs uppercase tracking-wider px-5 py-3.5 rounded-2xl transition-all flex items-center gap-2">
+                            <span>⏳ Pending Verification ({{ $pendingContributionsCount ?? 0 }})</span>
+                        </a>
+                    @endauth
+                </div>
             </div>
         </div>
 
         {{-- Connection Statistics Cards --}}
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <div class="grid grid-cols-2 md:grid-cols-6 gap-4">
             <div
                 class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300">
                 <span class="text-2xl mb-2">📖</span>
@@ -76,11 +89,19 @@
                 </div>
             </div>
             <div
-                class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300 col-span-2 md:col-span-1">
+                class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300">
                 <span class="text-2xl mb-2">✝️</span>
                 <div>
                     <span class="text-2xl font-black text-rose-700 block">18</span>
                     <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Scriptural Parallels</span>
+                </div>
+            </div>
+            <div
+                class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm flex flex-col justify-between hover:shadow-md transition-all duration-300">
+                <span class="text-2xl mb-2">🎬</span>
+                <div>
+                    <span class="text-2xl font-black text-indigo-700 block">{{ $publishedVideosCount ?? 0 }}</span>
+                    <span class="text-[9px] font-black uppercase tracking-widest text-slate-400">Verified Videos</span>
                 </div>
             </div>
         </div>
@@ -118,12 +139,16 @@
             </form>
         </div>
 
-        {{-- Lens Filter Tabs (Includes Biology and Mathematics) --}}
+        {{-- Lens Filter Tabs (Includes Videos and Pending Review in Current Tab) --}}
         <div
             class="bg-white p-2 rounded-2xl border border-slate-100 shadow-sm flex flex-wrap gap-1 items-center justify-center max-w-5xl mx-auto">
             <a href="{{ route('welcome', ['tab' => 'surahs']) }}"
                 class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all {{ $tab === 'surahs' ? 'bg-emerald-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800' }}">
                 📖 Browse Surahs
+            </a>
+            <a href="{{ route('welcome', ['tab' => 'videos']) }}"
+                class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all {{ $tab === 'videos' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800' }}">
+                🎬 Videos
             </a>
             <a href="{{ route('welcome', ['tab' => 'science']) }}"
                 class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all {{ $tab === 'science' ? 'bg-purple-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800' }}">
@@ -149,7 +174,64 @@
                 class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all {{ $tab === 'torah' ? 'bg-amber-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800' }}">
                 📜 Torah Links
             </a>
+            @php
+                $lensResearchCategories = isset($researchCategories) && $researchCategories->isNotEmpty()
+                    ? $researchCategories
+                    : \App\Models\Category::getQuranResearchCategories();
+                $builtInLensSlugs = ['video', 'science', 'seerah', 'seerat', 'hadith', 'history', 'other'];
+            @endphp
+            @foreach($lensResearchCategories as $customCat)
+                @if(!in_array($customCat->slug, $builtInLensSlugs))
+                    <a href="{{ route('welcome', ['tab' => $customCat->slug]) }}"
+                        class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all {{ $tab === $customCat->slug ? 'bg-teal-600 text-white shadow-md' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-800' }}">
+                        {{ $customCat->emoji ?: '🔬' }} {{ $customCat->name }}
+                    </a>
+                @endif
+            @endforeach
+            @auth
+                <a href="{{ route('welcome', ['tab' => 'pending']) }}"
+                    class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all {{ $tab === 'pending' ? 'bg-amber-500 text-white shadow-md' : 'text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200' }}">
+                    ⏳ Pending ({{ $pendingContributionsCount ?? 0 }})
+                </a>
+            @else
+                <a href="{{ route('login') }}"
+                    class="px-4 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider transition-all text-slate-400 hover:bg-slate-50 hover:text-slate-700">
+                    🔒 Pending (Login)
+                </a>
+            @endauth
+            <button type="button" onclick="document.getElementById('lensAddCategoryModal').classList.remove('hidden'); document.getElementById('lensAddCategoryModal').classList.add('flex');"
+                class="px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 transition-all">
+                + Add Category
+            </button>
+            @if(auth()->check() && auth()->user()->is_admin)
+                <a href="{{ route('admin.categories.index', ['type' => 'quran_research']) }}"
+                    class="px-3.5 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 transition-all">
+                    🏷️ Manage Categories
+                </a>
+            @endif
         </div>
+
+        @if(session('success'))
+            <div class="max-w-4xl mx-auto bg-emerald-50 border border-emerald-200 text-emerald-800 px-6 py-4 rounded-2xl font-bold text-sm flex items-center gap-3 shadow-sm">
+                <span class="text-xl">✅</span>
+                <span>{{ session('success') }}</span>
+            </div>
+        @endif
+
+        @if(session('info'))
+            <div class="max-w-4xl mx-auto bg-blue-50 border border-blue-200 text-blue-800 px-6 py-4 rounded-2xl font-bold text-sm flex items-center gap-3 shadow-sm">
+                <span class="text-xl">ℹ️</span>
+                <span>{{ session('info') }}</span>
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div class="max-w-4xl mx-auto bg-rose-50 border border-rose-200 text-rose-800 px-6 py-4 rounded-2xl font-bold text-sm space-y-1 shadow-sm">
+                @foreach($errors->all() as $error)
+                    <div>⚠️ {{ $error }}</div>
+                @endforeach
+            </div>
+        @endif
 
         @if($tab === 'science' && !empty($scienceCategories))
             <div class="flex flex-wrap gap-1.5 items-center justify-center max-w-4xl mx-auto mt-4">
@@ -279,25 +361,56 @@
                 </svg>
             </div>
 
+            @auth
+                <div class="max-w-2xl mx-auto bg-white rounded-2xl p-4 border border-slate-100 shadow-sm flex items-center justify-between gap-4">
+                    <div class="flex items-center space-x-3">
+                        <span class="text-xl">📖</span>
+                        <div>
+                            <p class="text-xs font-black uppercase tracking-wider text-slate-400">Quran Reading Progress</p>
+                            <p class="text-sm font-black text-slate-900">
+                                {{ count($completedSurahs ?? []) }} / 114 Surahs Read
+                                <span class="text-xs text-emerald-600 font-bold ml-1">({{ round((count($completedSurahs ?? []) / 114) * 100) }}%)</span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="w-32 hidden sm:block bg-slate-100 h-2.5 rounded-full overflow-hidden">
+                        <div class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: {{ round((count($completedSurahs ?? []) / 114) * 100) }}%"></div>
+                    </div>
+                </div>
+            @endauth
+
             {{-- Surahs Grid --}}
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                 @foreach($chapters as $chapter)
-                    <div x-show="searchSurah === '' || '{{ strtolower($chapter['name_simple']) }}'.includes(searchSurah.toLowerCase()) || '{{ strtolower($chapter['translated_name']['name']) }}'.includes(searchSurah.toLowerCase()) || '{{ $chapter['id'] }}' == searchSurah"
-                        class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md hover:border-emerald-500/30 transition-all duration-300 group flex items-center justify-between">
+                    @php
+                        $isChapterRead = in_array($chapter['id'], $completedSurahs ?? []);
+                        $safeSimple = addslashes(strtolower($chapter['name_simple']));
+                        $safeTranslated = addslashes(strtolower($chapter['translated_name']['name']));
+                    @endphp
+                    <a href="{{ route('lens.surah', $chapter['id']) }}"
+                        x-show="searchSurah === '' || '{{ $safeSimple }}'.includes(searchSurah.toLowerCase()) || '{{ $safeTranslated }}'.includes(searchSurah.toLowerCase()) || '{{ $chapter['id'] }}' == searchSurah"
+                        class="bg-white rounded-3xl p-6 border transition-all duration-300 group flex items-center justify-between cursor-pointer {{ $isChapterRead ? 'border-emerald-200 bg-emerald-50/20 shadow-sm hover:border-emerald-400' : 'border-slate-100 shadow-sm hover:shadow-md hover:border-emerald-500/30' }}">
                         <div class="flex items-center space-x-4">
                             {{-- Chapter Number Badge --}}
                             <div
-                                class="w-12 h-12 bg-slate-50 group-hover:bg-emerald-50 rounded-2xl flex items-center justify-center font-black text-slate-500 group-hover:text-emerald-700 transition-colors text-sm border border-slate-100">
+                                class="w-12 h-12 rounded-2xl flex items-center justify-center font-black transition-colors text-sm border {{ $isChapterRead ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 group-hover:bg-emerald-50 text-slate-500 group-hover:text-emerald-700 border-slate-100' }}">
                                 {{ $chapter['id'] }}
                             </div>
                             <div>
-                                <a href="{{ route('lens.surah', $chapter['id']) }}"
+                                <span
                                     class="text-lg font-bold text-slate-900 group-hover:text-emerald-700 transition-colors block">
                                     {{ $chapter['name_simple'] }}
-                                </a>
-                                <span class="text-xs text-slate-400 font-semibold block capitalize">
-                                    {{ $chapter['translated_name']['name'] }} • {{ $chapter['verses_count'] }} Verses
                                 </span>
+                                <div class="flex items-center gap-1.5 flex-wrap">
+                                    <span class="text-xs text-slate-400 font-semibold block capitalize">
+                                        {{ $chapter['translated_name']['name'] }} • {{ $chapter['verses_count'] }} Verses
+                                    </span>
+                                    @if($isChapterRead)
+                                        <span class="text-[9px] font-black uppercase tracking-wider bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded-full inline-flex items-center gap-1">
+                                            ✓ Read
+                                        </span>
+                                    @endif
+                                </div>
                             </div>
                         </div>
 
@@ -311,8 +424,192 @@
                                 {{ $chapter['revelation_place'] }}
                             </span>
                         </div>
-                    </div>
+                    </a>
                 @endforeach
+            </div>
+        @elseif($tab === 'videos' || $tab === 'pending')
+            {{-- Inline Videos & Peer Verification Queue Module --}}
+            <div class="max-w-6xl mx-auto space-y-6">
+                <div class="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm flex flex-wrap items-center justify-between gap-4">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-900 flex items-center gap-2">
+                            @if($tab === 'pending')
+                                <span>⏳ Pending Peer Verification Queue</span>
+                            @else
+                                <span>🎬 Verified Quran Research Videos</span>
+                            @endif
+                        </h3>
+                        <p class="text-xs text-slate-500 font-medium mt-1">
+                            @if($tab === 'pending')
+                                Logged-in users can inspect pending submissions and verify them with feedback. 5 approvals publish an item; downvotes revert items to pending.
+                            @else
+                                Watch peer-verified Quranic research videos or contribute a new video to the community.
+                            @endif
+                        </p>
+                    </div>
+                    <button type="button" @click="addModalOpen = true"
+                        class="bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest px-5 py-3 rounded-xl shadow-sm transition-all flex items-center gap-2">
+                        <span>➕ Add Video / Research</span>
+                    </button>
+                </div>
+
+                @if(isset($contributionsPaginator) && $contributionsPaginator->count() > 0)
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        @foreach($contributionsPaginator as $item)
+                            @php
+                                $embedUrl = $item->embedUrl();
+                                $myReview = $userReviews[$item->id] ?? null;
+                            @endphp
+                            <div class="bg-white rounded-3xl border border-slate-100 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col justify-between">
+                                <div>
+                                    {{-- Video Preview Banner --}}
+                                    @if($item->video_url)
+                                        <div class="relative bg-slate-900 aspect-video overflow-hidden group cursor-pointer"
+                                             @click="currentVideoUrl = '{{ $embedUrl ?: $item->video_url }}'; currentRawVideoUrl = '{{ $item->video_url }}'; currentVideoPlatform = '{{ $item->video_platform ?? 'external' }}'; currentVideoTitle = '{{ addslashes($item->title) }}'; videoModalOpen = true">
+                                            @if($item->video_platform === 'youtube' && $item->video_id)
+                                                <img src="https://img.youtube.com/vi/{{ $item->video_id }}/hqdefault.jpg"
+                                                     alt="{{ $item->title }}"
+                                                     class="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-300">
+                                            @else
+                                                <div class="w-full h-full flex flex-col items-center justify-center bg-gradient-to-br from-slate-800 to-emerald-950 gap-2">
+                                                    <span class="text-5xl">🎬</span>
+                                                    <span class="text-[10px] font-black uppercase tracking-widest text-emerald-300 bg-black/40 px-2.5 py-0.5 rounded-full">
+                                                        {{ strtoupper($item->video_platform ?? 'VIDEO') }}
+                                                    </span>
+                                                </div>
+                                            @endif
+                                            <div class="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition-colors flex items-center justify-center">
+                                                <div class="w-14 h-14 rounded-full bg-emerald-500/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                                                    <svg class="w-6 h-6 ml-1" fill="currentColor" viewBox="0 0 24 24">
+                                                        <path d="M8 5v14l11-7z"/>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <span class="absolute top-3 left-3 bg-black/70 backdrop-blur-md text-white text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full">
+                                                🎬 {{ strtoupper($item->video_platform ?? 'Video') }}
+                                            </span>
+                                        </div>
+                                    @endif
+
+                                    <div class="p-6 space-y-4">
+                                        <div class="flex items-center justify-between gap-2 flex-wrap">
+                                            <a href="{{ route('lens.verse', [$item->surah_number, $item->verse_number ?: 1]) }}"
+                                               class="text-xs font-black uppercase tracking-wider text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full hover:bg-emerald-100 transition-colors">
+                                                {{ $item->scopeLabel() }}
+                                            </a>
+                                            <div class="flex items-center gap-1.5">
+                                                <span class="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-slate-100 text-slate-700">
+                                                    {{ strtoupper($item->category) }}
+                                                </span>
+                                                @if($item->status === 'published')
+                                                    <span class="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
+                                                        ✓ Published
+                                                    </span>
+                                                @else
+                                                    <span class="text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
+                                                        ⏳ Pending ({{ $item->approvals_count }}/5)
+                                                    </span>
+                                                @endif
+                                            </div>
+                                        </div>
+
+                                        <h3 class="font-black text-slate-900 text-lg leading-snug">
+                                            {{ $item->title }}
+                                        </h3>
+
+                                        @if($item->description)
+                                            <p class="text-slate-600 text-xs leading-relaxed line-clamp-4">
+                                                {{ $item->description }}
+                                            </p>
+                                        @endif
+
+                                        <div class="text-[11px] text-slate-400 font-semibold flex items-center justify-between pt-2 border-t border-slate-50">
+                                            <span>By {{ $item->user->name ?? $item->submitter_name ?? 'Contributor' }}</span>
+                                            <span>{{ $item->created_at?->diffForHumans() }}</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {{-- Verification & Voting Bar --}}
+                                <div class="bg-slate-50/80 px-6 py-4 border-t border-slate-100 space-y-3">
+                                    <div class="flex items-center justify-between">
+                                        <div class="flex items-center gap-3 text-xs font-bold">
+                                            <span class="text-emerald-700 flex items-center gap-1" title="Approvals (5 needed to publish)">
+                                                👍 {{ $item->approvals_count }} / 5
+                                            </span>
+                                            <span class="text-rose-600 flex items-center gap-1" title="Downvotes">
+                                                👎 {{ $item->downvotes_count }}
+                                            </span>
+                                        </div>
+
+                                        <div class="flex items-center gap-2">
+                                            @if($item->video_url)
+                                                <button type="button"
+                                                        @click="currentVideoUrl = '{{ $embedUrl ?: $item->video_url }}'; currentRawVideoUrl = '{{ $item->video_url }}'; currentVideoPlatform = '{{ $item->video_platform ?? 'external' }}'; currentVideoTitle = '{{ addslashes($item->title) }}'; videoModalOpen = true"
+                                                        class="text-xs font-black text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors">
+                                                    ▶ Watch
+                                                </button>
+                                            @endif
+
+                                            @auth
+                                                <button type="button"
+                                                        @click="selectedContribId = {{ $item->id }}; selectedContribTitle = '{{ addslashes($item->title) }}'; verifyModalOpen = true"
+                                                        class="text-xs font-black text-white bg-slate-900 hover:bg-emerald-700 px-3.5 py-1.5 rounded-xl transition-colors">
+                                                    {{ $myReview ? 'Update Vote' : 'Verify / Vote' }}
+                                                </button>
+                                            @else
+                                                <a href="{{ route('login') }}" class="text-[11px] font-bold text-slate-500 hover:text-emerald-600">
+                                                    Log in to verify
+                                                </a>
+                                            @endauth
+                                        </div>
+                                    </div>
+
+                                    {{-- Progress bar towards 5 approvals --}}
+                                    <div class="w-full bg-slate-200 h-1.5 rounded-full overflow-hidden">
+                                        <div class="bg-emerald-500 h-full rounded-full transition-all duration-300"
+                                             style="width: {{ min(100, ($item->approvals_count / 5) * 100) }}%"></div>
+                                    </div>
+
+                                    {{-- Recent Verification Feedback --}}
+                                    @if($item->reviews && $item->reviews->whereNotNull('feedback')->count() > 0)
+                                        <div class="pt-2 space-y-1.5 max-h-28 overflow-y-auto custom-scrollbar">
+                                            <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Peer Feedback:</span>
+                                            @foreach($item->reviews->whereNotNull('feedback')->take(3) as $rev)
+                                                <div class="text-[11px] bg-white p-2 rounded-lg border border-slate-100 text-slate-600">
+                                                    <span class="font-bold {{ $rev->vote === 'approve' ? 'text-emerald-700' : 'text-rose-600' }}">
+                                                        {{ $rev->vote === 'approve' ? '✓' : '✗' }} {{ $rev->user->name ?? 'Reviewer' }}:
+                                                    </span>
+                                                    {{ $rev->feedback }}
+                                                </div>
+                                            @endforeach
+                                        </div>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="pt-6">
+                        {{ $contributionsPaginator->links() }}
+                    </div>
+                @else
+                    <div class="text-center py-16 bg-white rounded-3xl border border-slate-100 space-y-4">
+                        <div class="text-4xl">🎬</div>
+                        <h4 class="font-black text-slate-800 text-base">
+                            {{ $tab === 'pending' ? 'No pending contributions waiting for verification' : 'No published videos yet' }}
+                        </h4>
+                        <p class="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
+                            Contribute a Quran research video or insight! Once 5 community members verify and approve it, it will be automatically published.
+                        </p>
+                        <div>
+                            <button type="button" @click="addModalOpen = true"
+                                class="inline-flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs uppercase tracking-widest px-6 py-3 rounded-2xl shadow-md transition-all">
+                                <span>➕ Add Video / Research</span>
+                            </button>
+                        </div>
+                    </div>
+                @endif
             </div>
         @else
             {{-- Connection-filtered Verses List --}}
@@ -525,5 +822,314 @@
                 @endif
             </div>
         @endif
+
+        {{-- Add Video / Research Contribution Modal (Inline in Current Tab) --}}
+        <div x-show="addModalOpen" x-cloak
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4 overflow-y-auto"
+             @keydown.escape.window="addModalOpen = false">
+            <div class="bg-white rounded-3xl max-w-xl w-full p-6 md:p-8 space-y-5 shadow-2xl my-8" @click.away="addModalOpen = false">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                    <div>
+                        <h3 class="font-black text-slate-900 text-lg">➕ Contribute to Quran Research</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">Add a video or research link. 5 peer approvals publish it automatically.</p>
+                    </div>
+                    <button type="button" @click="addModalOpen = false" class="text-slate-400 hover:text-slate-700 font-bold text-lg">✕</button>
+                </div>
+
+                <form method="POST" action="{{ route('research.contributions.store') }}" class="space-y-4" x-data="{ category: 'video', scopeMode: 'single' }">
+                    @csrf
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Category *</label>
+                            <select name="category" x-model="category" required
+                                    class="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-700">
+                                @foreach($lensResearchCategories as $catItem)
+                                    <option value="{{ $catItem->slug }}">{{ $catItem->emoji ?: '🔬' }} {{ $catItem->name }}</option>
+                                @endforeach
+                                <option value="custom">➕ Add New Category...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Surah / Verse Scope *</label>
+                            <select x-model="scopeMode"
+                                    class="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-700">
+                                <option value="single">📍 Single Verse (Ayah)</option>
+                                <option value="verse_range">📏 Verse Range (Start to End Ayah)</option>
+                                <option value="full_surah">📖 Start to End of Surah (Full Surah)</option>
+                                <option value="surah_range">📚 Surah Range (Start to End Surah)</option>
+                                <option value="multiple_surahs">🗂️ Multiple Surahs (Select / List)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    {{-- Inline New Category Input when 'custom' is chosen --}}
+                    <div x-show="category === 'custom'" x-cloak class="p-3.5 bg-emerald-50/70 border border-emerald-200 rounded-2xl grid grid-cols-1 sm:grid-cols-4 gap-3">
+                        <div>
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-emerald-800 mb-1">Emoji</label>
+                            <input type="text" name="category_emoji" value="🔬" maxlength="16"
+                                class="w-full py-2 px-3 rounded-xl bg-white border border-emerald-200 text-xs text-center" />
+                        </div>
+                        <div class="sm:col-span-3">
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-emerald-800 mb-1">New Category Name *</label>
+                            <input type="text" name="custom_category" :required="category === 'custom'" maxlength="100"
+                                placeholder="e.g. Linguistic Miracles, Numerical Harmonies..."
+                                class="w-full py-2 px-3 rounded-xl bg-white border border-emerald-200 text-xs font-bold text-slate-800" />
+                        </div>
+                    </div>
+
+                    <input type="hidden" name="is_full_surah" :value="scopeMode === 'full_surah' || scopeMode === 'surah_range' || scopeMode === 'multiple_surahs' ? 1 : 0">
+
+                    {{-- Single Verse / Verse Range / Full Surah / Surah Range --}}
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3" x-show="scopeMode !== 'multiple_surahs'">
+                        <div :class="scopeMode === 'full_surah' ? 'sm:col-span-3' : (scopeMode === 'surah_range' ? 'sm:col-span-1' : 'sm:col-span-1')">
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1"
+                                   x-text="scopeMode === 'surah_range' ? 'Start Surah *' : 'Surah *'"></label>
+                            <select name="surah_number" required
+                                    class="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-700">
+                                @foreach($chapters as $ch)
+                                    <option value="{{ $ch['id'] }}">{{ $ch['id'] }}. {{ $ch['name_simple'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div x-show="scopeMode === 'surah_range'" class="sm:col-span-2">
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">End Surah *</label>
+                            <select name="end_surah_number" :disabled="scopeMode !== 'surah_range'"
+                                    class="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-700">
+                                @foreach($chapters as $ch)
+                                    <option value="{{ $ch['id'] }}">{{ $ch['id'] }}. {{ $ch['name_simple'] }}</option>
+                                @endforeach
+                            </select>
+                        </div>
+
+                        <div x-show="scopeMode === 'single' || scopeMode === 'verse_range'" :class="scopeMode === 'single' ? 'sm:col-span-2' : 'sm:col-span-1'">
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1"
+                                   x-text="scopeMode === 'verse_range' ? 'Start Verse (Ayah) *' : 'Verse (Ayah) *'"></label>
+                            <input type="number" name="verse_number" value="1" min="1" max="286"
+                                   class="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-700" />
+                        </div>
+
+                        <div x-show="scopeMode === 'verse_range'">
+                            <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">End Verse (Ayah) *</label>
+                            <input type="number" name="end_verse_number" :disabled="scopeMode !== 'verse_range'" min="1" max="286" placeholder="e.g. 14"
+                                   class="w-full py-2.5 px-3 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-700" />
+                        </div>
+                    </div>
+
+                    {{-- Multiple Surahs --}}
+                    <div x-show="scopeMode === 'multiple_surahs'" class="space-y-2">
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
+                            Multiple Surahs (Comma-separated or ranges, e.g. 1, 18, 36 or 112-114) *
+                        </label>
+                        <input type="text" name="surah_numbers" :disabled="scopeMode !== 'multiple_surahs'"
+                               placeholder="e.g. 1, 18, 36 or 112-114"
+                               class="w-full py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-200 font-bold text-xs text-slate-700" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Title *</label>
+                        <input type="text" name="title" required placeholder="e.g. Complete Tafsir & Research of Surah Al-Kahf"
+                               class="w-full py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-200 font-medium text-sm text-slate-800" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">
+                            Video URL (Every Platform Supported: YouTube, Shorts, Vimeo, TikTok, Facebook, Instagram, X, Dailymotion, Drive, MP4, etc.) <span x-show="category === 'video'" class="text-rose-500">*</span>
+                        </label>
+                        <input type="url" name="video_url" placeholder="https://www.youtube.com/watch?v=..., https://vimeo.com/..., https://tiktok.com/..., etc."
+                               class="w-full py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-200 font-medium text-sm text-slate-800" />
+                    </div>
+
+                    <div>
+                        <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Research Notes & Citations</label>
+                        <textarea name="description" rows="3" placeholder="Explain how this video or research connects to the Quranic verse(s) or Surah(s)..."
+                                  class="w-full py-2.5 px-4 rounded-xl bg-slate-50 border border-slate-200 font-medium text-sm text-slate-800"></textarea>
+                    </div>
+
+                    @guest
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Your Name</label>
+                                <input type="text" name="submitter_name" placeholder="Optional"
+                                       class="w-full py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs" />
+                            </div>
+                            <div>
+                                <label class="block text-[10px] font-black uppercase tracking-widest text-slate-500 mb-1">Your Email</label>
+                                <input type="email" name="submitter_email" placeholder="Optional"
+                                       class="w-full py-2 px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs" />
+                            </div>
+                        </div>
+                    @endguest
+
+                    <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" @click="addModalOpen = false"
+                                class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200">
+                            Cancel
+                        </button>
+                        <button type="submit"
+                                class="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
+                            Submit Contribution
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        {{-- Watch Video Modal (Inline in Current Tab — Supports All Video Platforms) --}}
+        <div x-show="videoModalOpen" x-cloak
+             class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+             @keydown.escape.window="videoModalOpen = false; currentVideoUrl = ''">
+            <div class="bg-slate-900 rounded-3xl max-w-4xl w-full overflow-hidden shadow-2xl border border-slate-700"
+                 @click.away="videoModalOpen = false; currentVideoUrl = ''">
+                <div class="flex items-center justify-between px-6 py-4 border-b border-slate-800 text-white gap-3">
+                    <div class="flex items-center gap-2 min-w-0">
+                        <span class="text-[10px] font-black uppercase tracking-widest bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 rounded-full shrink-0"
+                              x-text="currentVideoPlatform || 'video'"></span>
+                        <h3 class="font-bold text-sm truncate" x-text="currentVideoTitle"></h3>
+                    </div>
+                    <div class="flex items-center gap-3 shrink-0">
+                        <template x-if="currentRawVideoUrl">
+                            <a :href="currentRawVideoUrl" target="_blank" rel="noopener noreferrer"
+                               class="text-xs font-bold text-emerald-400 hover:text-emerald-300 underline">
+                                Open Original ↗
+                            </a>
+                        </template>
+                        <button type="button" @click="videoModalOpen = false; currentVideoUrl = ''"
+                                class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+                    </div>
+                </div>
+                <div class="aspect-video w-full bg-black">
+                    <template x-if="videoModalOpen && currentVideoUrl && currentVideoPlatform === 'direct_file'">
+                        <video :src="currentVideoUrl" controls autoplay class="w-full h-full"></video>
+                    </template>
+                    <template x-if="videoModalOpen && currentVideoUrl && currentVideoPlatform !== 'direct_file'">
+                        <iframe :src="currentVideoUrl" class="w-full h-full" frameborder="0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                                allowfullscreen></iframe>
+                    </template>
+                </div>
+            </div>
+        </div>
+
+        {{-- Verify / Feedback Modal (Inline in Current Tab) --}}
+        @auth
+            <div x-show="verifyModalOpen" x-cloak
+                 class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+                 @keydown.escape.window="verifyModalOpen = false">
+                <div class="bg-white rounded-3xl max-w-lg w-full p-6 md:p-8 space-y-5 shadow-2xl"
+                     @click.away="verifyModalOpen = false">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-4">
+                        <div>
+                            <span class="text-[10px] font-black uppercase tracking-widest text-emerald-600">Peer Verification</span>
+                            <h3 class="font-black text-slate-900 text-lg" x-text="selectedContribTitle"></h3>
+                        </div>
+                        <button type="button" @click="verifyModalOpen = false" class="text-slate-400 hover:text-slate-700 font-bold">✕</button>
+                    </div>
+
+                    <form method="POST" :action="'/quran-research/contributions/' + selectedContribId + '/review'" class="space-y-4">
+                        @csrf
+                        <div class="space-y-2">
+                            <label class="block text-xs font-black uppercase tracking-wider text-slate-600">Select Verification Decision</label>
+                            <div class="grid grid-cols-2 gap-3">
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="vote" value="approve" checked class="peer sr-only">
+                                    <div class="p-3.5 rounded-2xl border-2 border-slate-200 peer-checked:border-emerald-600 peer-checked:bg-emerald-50 text-center font-black text-xs text-slate-700 peer-checked:text-emerald-800 transition-all">
+                                        👍 Verify & Approve
+                                    </div>
+                                </label>
+                                <label class="cursor-pointer">
+                                    <input type="radio" name="vote" value="downvote" class="peer sr-only">
+                                    <div class="p-3.5 rounded-2xl border-2 border-slate-200 peer-checked:border-rose-600 peer-checked:bg-rose-50 text-center font-black text-xs text-slate-700 peer-checked:text-rose-800 transition-all">
+                                        👎 Downvote / Flag
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="space-y-2">
+                            <label class="block text-xs font-black uppercase tracking-wider text-slate-600">Verification Feedback (Optional)</label>
+                            <textarea name="feedback" rows="3"
+                                      placeholder="Add scholarly feedback, source verification notes, or reason for approval/downvote..."
+                                      class="w-full rounded-2xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-medium text-slate-700 focus:bg-white focus:border-emerald-500 outline-none"></textarea>
+                        </div>
+
+                        <p class="text-[11px] text-slate-400 leading-relaxed">
+                            💡 5 approvals automatically publish an item. Downvoting a published item can send it back to Pending if approvals drop below 5 or downvotes equal/exceed approvals.
+                        </p>
+
+                        <div class="flex justify-end gap-2 pt-2">
+                            <button type="button" @click="verifyModalOpen = false"
+                                    class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 bg-slate-100 hover:bg-slate-200">
+                                Cancel
+                            </button>
+                            <button type="submit"
+                                    class="px-6 py-2.5 rounded-xl text-xs font-black uppercase tracking-wider text-white bg-emerald-600 hover:bg-emerald-700 shadow-md">
+                                Submit Verification
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        @endauth
+
+        {{-- Add Category Modal (User & Admin) --}}
+        <div id="lensAddCategoryModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-5">
+                <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                    <div>
+                        <h3 class="text-lg font-extrabold text-slate-800">🏷️ Add New Category</h3>
+                        <p class="text-xs text-slate-500">Add a Quran Research or Dua category.</p>
+                    </div>
+                    <button type="button" onclick="document.getElementById('lensAddCategoryModal').classList.add('hidden'); document.getElementById('lensAddCategoryModal').classList.remove('flex');"
+                        class="text-slate-400 hover:text-slate-600 text-xl font-bold">&times;</button>
+                </div>
+
+                <form method="POST" action="{{ route('categories.store') }}" class="space-y-4">
+                    @csrf
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-700">Category Type <span class="text-rose-500">*</span></label>
+                        <select name="type" required class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm font-semibold">
+                            <option value="quran_research">🔬 Quran Research Category</option>
+                            <option value="dua">🤲 Dua Category</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-4 gap-3">
+                        <div class="space-y-1">
+                            <label class="text-xs font-bold text-slate-700">Emoji</label>
+                            <input type="text" name="emoji" placeholder="🔬" maxlength="16"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2.5 text-sm text-center">
+                        </div>
+                        <div class="col-span-3 space-y-1">
+                            <label class="text-xs font-bold text-slate-700">Category Name <span class="text-rose-500">*</span></label>
+                            <input type="text" name="name" required maxlength="100" placeholder="e.g. Linguistic Miracles, Parents & Elders"
+                                class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
+                        </div>
+                    </div>
+
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-700">Short Description (Optional)</label>
+                        <input type="text" name="description" maxlength="500" placeholder="Brief description of this category..."
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
+                    </div>
+
+                    @guest
+                    <div class="space-y-1">
+                        <label class="text-xs font-bold text-slate-700">Your Name (Optional)</label>
+                        <input type="text" name="submitter_name" maxlength="120" placeholder="Contributor Name"
+                            class="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-sm">
+                    </div>
+                    @endguest
+
+                    <div class="flex items-center justify-end gap-2 pt-2">
+                        <button type="button" onclick="document.getElementById('lensAddCategoryModal').classList.add('hidden'); document.getElementById('lensAddCategoryModal').classList.remove('flex');"
+                            class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-sm font-semibold">Cancel</button>
+                        <button type="submit" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold shadow-md">
+                            + Add Category
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 @endsection

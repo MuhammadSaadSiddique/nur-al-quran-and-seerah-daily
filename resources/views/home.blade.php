@@ -10,6 +10,30 @@
                 Welcome, {{ $user->display_name ?: explode('@', $user->email)[0] }}
             </h2>
             <p class="text-slate-600 font-medium italic">"Seeking knowledge is a duty upon every Muslim."</p>
+
+            @php
+                $homeStreak = $user->getStreakStatus();
+            @endphp
+            <div class="inline-flex flex-wrap items-center justify-center gap-3 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 px-6 py-3 rounded-2xl shadow-sm text-left">
+                <span class="text-2xl">🔥</span>
+                <div>
+                    <p class="text-sm font-black text-slate-900">
+                        Daily Streak: <span class="text-amber-600">{{ $homeStreak['current_streak'] }} Days</span>
+                        <span class="text-xs text-slate-500 font-bold ml-2">(Best: {{ $homeStreak['longest_streak'] }}d)</span>
+                    </p>
+                    <p class="text-xs text-slate-500 font-medium">
+                        {{ $homeStreak['is_active_today'] ? '✅ Active today! Keep learning to maintain your streak.' : '⚡ Check-in today to maintain your spiritual streak!' }}
+                    </p>
+                </div>
+                @if(!$homeStreak['is_active_today'])
+                    <form action="{{ route('streak.check-in') }}" method="POST" class="ml-2">
+                        @csrf
+                        <button type="submit" class="bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black text-xs px-4 py-2 rounded-xl shadow hover:opacity-95 transition-all">
+                            Claim Today's Streak
+                        </button>
+                    </form>
+                @endif
+            </div>
         </div>
 
         {{-- Global Quiz Settings --}}
@@ -107,10 +131,11 @@
                 </div>
 
                 <div class="grid grid-cols-5 sm:grid-cols-6 gap-2 overflow-y-auto pr-2 custom-scrollbar">
-                    @php $completedParas = $user->completed_paras ?? []; @endphp
+                    @php $completedParas = array_map('intval', $user->completed_paras ?? []); @endphp
                     @for($n = 1; $n <= 30; $n++)
                         <button @click="selectedPara = {{ $n }}"
-                            class="aspect-square flex flex-col items-center justify-center rounded-xl border-2 font-black transition-all {{ in_array($n, $completedParas) ? 'border-emerald-600 bg-emerald-50 text-emerald-900' : 'border-slate-100 bg-slate-50 text-slate-700 hover:border-emerald-500 hover:bg-white' }}">
+                            class="aspect-square flex flex-col items-center justify-center rounded-xl border-2 font-black transition-all"
+                            :class="completedParas.includes({{ $n }}) ? 'border-emerald-600 bg-emerald-50 text-emerald-900 shadow-sm' : 'border-slate-100 bg-slate-50 text-slate-700 hover:border-emerald-500 hover:bg-white'">
                             <span class="text-[9px] opacity-40">P</span>{{ $n }}
                         </button>
                     @endfor
@@ -377,6 +402,19 @@
                         </form>
                     @endforeach
                 </div>
+
+                {{-- Mark Para as Read toggle --}}
+                <div class="pt-2 border-t border-slate-100">
+                    <button type="button" @click="toggleParaCompleted(selectedPara)" :disabled="paraLoading"
+                        class="w-full py-4 px-4 rounded-xl border-2 font-black text-sm flex items-center justify-center gap-2 transition-all shadow-sm"
+                        :class="completedParas.includes(selectedPara) ? 'border-emerald-500 bg-emerald-50 text-emerald-800' : 'border-slate-200 hover:border-emerald-500 text-slate-700 bg-white'">
+                        <svg class="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span x-text="completedParas.includes(selectedPara) ? '✓ Para Completed (Click to Unmark)' : '✓ Mark Para as Read'"></span>
+                    </button>
+                </div>
+
                 <button @click="selectedPara = null"
                     class="w-full text-slate-400 font-black uppercase text-xs tracking-widest hover:text-rose-500 transition-colors">Cancel
                     Selection</button>
@@ -393,6 +431,37 @@
                 selectedThemeId: '',
                 selectedSeerahThemeId: '',
                 quantity: 20,
+                completedParas: {{ json_encode(array_map('intval', $completedParas)) }},
+                paraLoading: false,
+
+                async toggleParaCompleted(para) {
+                    if (!para || this.paraLoading) return;
+                    this.paraLoading = true;
+                    try {
+                        const res = await fetch('{{ route("reading.toggle-para") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            },
+                            body: JSON.stringify({ para: para })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            if (data.is_completed) {
+                                if (!this.completedParas.includes(para)) {
+                                    this.completedParas.push(para);
+                                }
+                            } else {
+                                this.completedParas = this.completedParas.filter(p => p !== para);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error toggling para read status:', e);
+                    } finally {
+                        this.paraLoading = false;
+                    }
+                },
 
                 submitThemeQuiz(difficulty) {
                     if (!this.selectedThemeId) {

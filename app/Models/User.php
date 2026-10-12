@@ -32,6 +32,10 @@ class User extends Authenticatable
         'is_admin',
         'is_researcher',
         'expert_category_id',
+        'streak_count',
+        'longest_streak',
+        'last_streak_date',
+        'streak_history',
     ];
 
     protected $hidden = [
@@ -43,6 +47,8 @@ class User extends Authenticatable
     {
         return [
             'email_verified_at' => 'datetime',
+            'last_streak_date' => 'date',
+            'streak_history' => 'array',
             'completed_paras' => 'array',
             'para_mastery' => 'array',
             'difficulty_stats' => 'array',
@@ -62,6 +68,16 @@ class User extends Authenticatable
     public function expertCategory()
     {
         return $this->belongsTo(ScienceCategory::class, 'expert_category_id');
+    }
+
+    public function researchContributions()
+    {
+        return $this->hasMany(QuranResearchContribution::class);
+    }
+
+    public function researchReviews()
+    {
+        return $this->hasMany(QuranResearchReview::class);
     }
 
     public function getMaxPossibleScoreAttribute(): int
@@ -97,5 +113,212 @@ class User extends Authenticatable
         if ($this->total_questions > 10)
             return 'Aspirant';
         return 'Novice';
+    }
+
+    public function checkInStreak(): array
+    {
+        $today = now()->toDateString();
+        $yesterday = now()->subDay()->toDateString();
+
+        $lastDate = null;
+        if ($this->last_streak_date instanceof \DateTimeInterface) {
+            $lastDate = $this->last_streak_date->format('Y-m-d');
+        } elseif (is_string($this->last_streak_date) && !empty($this->last_streak_date)) {
+            $lastDate = substr($this->last_streak_date, 0, 10);
+        }
+
+        $alreadyCheckedInToday = ($lastDate === $today);
+
+        if ($alreadyCheckedInToday) {
+            return [
+                'status' => 'already_checked_in',
+                'streak_count' => (int) ($this->streak_count ?? 1),
+                'longest_streak' => (int) ($this->longest_streak ?? 1),
+                'last_streak_date' => $today,
+                'is_active_today' => true,
+                'message' => 'Streak already maintained for today!'
+            ];
+        }
+
+        if ($lastDate === $yesterday) {
+            $this->streak_count = (int) ($this->streak_count ?? 0) + 1;
+        } else {
+            $this->streak_count = 1;
+        }
+
+        if ($this->streak_count > (int) ($this->longest_streak ?? 0)) {
+            $this->longest_streak = $this->streak_count;
+        }
+
+        $this->last_streak_date = $today;
+
+        $history = is_array($this->streak_history) ? $this->streak_history : [];
+        if (!in_array($today, $history)) {
+            $history[] = $today;
+            if (count($history) > 60) {
+                $history = array_slice($history, -60);
+            }
+            $this->streak_history = $history;
+        }
+
+        try {
+            $this->save();
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::warning('Streak persistence error: ' . $e->getMessage());
+        }
+
+        return [
+            'status' => 'success',
+            'streak_count' => (int) $this->streak_count,
+            'longest_streak' => (int) $this->longest_streak,
+            'last_streak_date' => $today,
+            'is_active_today' => true,
+            'message' => 'Daily streak increased! Keep up your devotion.'
+        ];
+    }
+
+    public function getStreakStatus(): array
+    {
+        $today = now()->toDateString();
+        $yesterday = now()->subDay()->toDateString();
+
+        $lastDate = null;
+        if ($this->last_streak_date instanceof \DateTimeInterface) {
+            $lastDate = $this->last_streak_date->format('Y-m-d');
+        } elseif (is_string($this->last_streak_date) && !empty($this->last_streak_date)) {
+            $lastDate = substr($this->last_streak_date, 0, 10);
+        }
+
+        $isActiveToday = ($lastDate === $today);
+
+        // Effective streak is 0 if last activity was before yesterday and not checked in today
+        $effectiveStreak = (int) ($this->streak_count ?? 0);
+        if ($lastDate && $lastDate < $yesterday && !$isActiveToday) {
+            $effectiveStreak = 0;
+        }
+
+        return [
+            'current_streak' => $effectiveStreak,
+            'longest_streak' => (int) ($this->longest_streak ?? 0),
+            'is_active_today' => $isActiveToday,
+            'last_streak_date' => $lastDate,
+            'streak_history' => is_array($this->streak_history) ? $this->streak_history : []
+        ];
+    }
+
+    /**
+     * Get list of completed Surah numbers (1-114).
+     */
+    public function getCompletedSurahs(): array
+    {
+        $mastery = is_array($this->para_mastery) ? $this->para_mastery : [];
+        return array_map('intval', $mastery['completed_surahs'] ?? []);
+    }
+
+    /**
+     * Toggle read status of a Surah (1-114).
+     */
+    public function toggleCompletedSurah(int $surahNumber): array
+    {
+        $mastery = is_array($this->para_mastery) ? $this->para_mastery : [];
+        $surahs = array_map('intval', $mastery['completed_surahs'] ?? []);
+        $isRead = in_array($surahNumber, $surahs);
+
+        if ($isRead) {
+            $surahs = array_values(array_diff($surahs, [$surahNumber]));
+            $status = 'unmarked';
+        } else {
+            $surahs[] = $surahNumber;
+            sort($surahs);
+            $status = 'marked';
+            $this->checkInStreak();
+        }
+
+        $mastery['completed_surahs'] = $surahs;
+        $this->para_mastery = $mastery;
+        $this->save();
+
+        return [
+            'status' => $status,
+            'is_read' => !$isRead,
+            'surah_number' => $surahNumber,
+            'total_completed' => count($surahs),
+        ];
+    }
+
+    /**
+     * Toggle read/completed status of a Para (1-30).
+     */
+    public function toggleCompletedPara(int $paraNumber): array
+    {
+        $completed = array_map('intval', is_array($this->completed_paras) ? $this->completed_paras : []);
+        $isDone = in_array($paraNumber, $completed);
+
+        if ($isDone) {
+            $completed = array_values(array_diff($completed, [$paraNumber]));
+            $status = 'unmarked';
+        } else {
+            $completed[] = $paraNumber;
+            sort($completed);
+            $status = 'marked';
+            $this->checkInStreak();
+        }
+
+        $this->completed_paras = $completed;
+        $this->save();
+
+        return [
+            'status' => $status,
+            'is_completed' => !$isDone,
+            'para_number' => $paraNumber,
+            'total_completed' => count($completed),
+        ];
+    }
+
+    /**
+     * Mark an insight (Seerah or Quran History) as read.
+     */
+    public function markInsightRead(string $type, ?string $insightId = null): array
+    {
+        $mastery = is_array($this->para_mastery) ? $this->para_mastery : [];
+        $readInsights = $mastery['read_insights'] ?? [];
+        $key = strtoupper($type) . ($insightId ? ':' . $insightId : '');
+        $alreadyRead = in_array($key, $readInsights);
+
+        if (!$alreadyRead) {
+            if ($insightId) {
+                $readInsights[] = $key;
+                $mastery['read_insights'] = $readInsights;
+                $this->para_mastery = $mastery;
+            }
+
+            if (strtoupper($type) === 'SEERAH') {
+                $this->seerah_read_count = (int) ($this->seerah_read_count ?? 0) + 1;
+            } elseif (strtoupper($type) === 'QURAN_HISTORY') {
+                $this->quran_history_read_count = (int) ($this->quran_history_read_count ?? 0) + 1;
+            }
+
+            $this->checkInStreak();
+            $this->save();
+        }
+
+        return [
+            'success' => true,
+            'already_read' => $alreadyRead,
+            'type' => $type,
+            'seerah_read_count' => (int) $this->seerah_read_count,
+            'quran_history_read_count' => (int) $this->quran_history_read_count,
+        ];
+    }
+
+    /**
+     * Check if an insight has already been marked as read.
+     */
+    public function isInsightRead(string $type, ?string $insightId = null): bool
+    {
+        if (!$insightId) return false;
+        $mastery = is_array($this->para_mastery) ? $this->para_mastery : [];
+        $readInsights = $mastery['read_insights'] ?? [];
+        return in_array(strtoupper($type) . ':' . $insightId, $readInsights);
     }
 }

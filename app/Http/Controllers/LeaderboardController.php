@@ -46,8 +46,8 @@ class LeaderboardController extends Controller
             ], 'score')
                 ->having('quizzes_sum_score', '>', $currentUserWeeklyScore)
                 ->count() + 1;
-
-            $currentUser->display_score = $currentUserWeeklyScore;
+                if ($currentUser)
+                    $currentUser->display_score = $currentUserWeeklyScore;
         } else {
             $topUsers = User::orderBy('total_score', 'desc')
                 ->orderBy('total_questions', 'desc')

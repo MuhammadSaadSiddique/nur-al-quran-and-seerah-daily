@@ -100,6 +100,7 @@ class AuthController extends Controller
         );
 
         Auth::login($user, true);
+        $user->checkInStreak();
         $request->session()->regenerate();
 
         return response()->json([
@@ -207,6 +208,7 @@ class AuthController extends Controller
         $user->save();
 
         Auth::login($user, true);
+        $user->checkInStreak();
 
         return redirect()->route('home');
     }
@@ -234,6 +236,7 @@ class AuthController extends Controller
 
             if (\Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
                 Auth::login($user, true);
+                $user->checkInStreak();
                 return response()->json([
                     'success' => true,
                     'redirect' => route('home')

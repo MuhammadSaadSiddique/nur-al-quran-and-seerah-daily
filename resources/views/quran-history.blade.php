@@ -3,23 +3,48 @@
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"
-        x-data="insightQuiz({{ json_encode($insight['question']) }})">
+        x-data="insightQuiz({{ json_encode($insight['question']) }}, {{ $isRead ? 'true' : 'false' }})">
+        {{-- Toast Feedback --}}
+        <div x-show="toastMessage" x-cloak
+            class="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-6 py-4 rounded-2xl shadow-2xl border border-emerald-500/30 flex items-center space-x-3 animate-slideUp">
+            <span>✨</span>
+            <span class="text-sm font-black" x-text="toastMessage"></span>
+        </div>
+
         {{-- Insight Content --}}
         <div class="bg-white rounded-[2rem] p-10 shadow-xl border border-slate-100 space-y-6">
-            <div class="flex items-center justify-between">
+            <div class="flex items-center justify-between flex-wrap gap-3">
                 <div class="flex items-center space-x-2 text-amber-600 font-black uppercase text-xs tracking-widest">
                     <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                         <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-width="2" />
                     </svg>
                     <span>Historical Insight</span>
                 </div>
-                <span class="px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider {{ $difficulty === 'Easy' ? 'bg-emerald-500' : ($difficulty === 'Medium' ? 'bg-amber-500' : 'bg-rose-500') }}">
-                    {{ $difficulty }}
-                </span>
+                <div class="flex items-center gap-3">
+                    <button @click="markAsRead()" :disabled="readStatusLoading"
+                        class="px-3.5 py-1.5 rounded-full text-xs font-black transition-all shadow-sm flex items-center gap-1.5"
+                        :class="isRead ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-amber-50 text-amber-800 hover:bg-amber-100 border border-amber-200'">
+                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span x-text="isRead ? '✓ Read' : 'Mark as Read'"></span>
+                    </button>
+                    <span class="px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider {{ $difficulty === 'Easy' ? 'bg-emerald-500' : ($difficulty === 'Medium' ? 'bg-amber-500' : 'bg-rose-500') }}">
+                        {{ $difficulty }}
+                    </span>
+                </div>
             </div>
             <h1 class="text-3xl font-black text-slate-900 leading-tight">{{ $insight['title'] }}</h1>
             <div class="text-slate-700 text-lg leading-relaxed italic border-l-4 border-amber-200 pl-6 py-2">
                 "{!! e($insight['content']) !!}"
+            </div>
+            <div class="flex items-center justify-between pt-2 border-t border-slate-50">
+                <p class="text-xs text-slate-400 font-medium">Compilation & Preservation of the Quran</p>
+                <button @click="markAsRead()" :disabled="readStatusLoading"
+                    class="text-xs font-black transition-colors flex items-center gap-1"
+                    :class="isRead ? 'text-emerald-600' : 'text-amber-600 hover:text-amber-800'">
+                    <span x-text="isRead ? '✓ Marked as read' : '📖 Mark reflection as read'"></span>
+                </button>
             </div>
         </div>
 
@@ -95,7 +120,7 @@
             </form>
         </div>
 
-        <a x-show="answered" href="{{ route('home') }}"
+        <a x-show="answered" href="{{ auth()->check() ? route('home') : route('welcome') }}"
             class="block w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg shadow-lg hover:bg-slate-800 transition-all text-center">
             Return to Home
         </a>
@@ -104,16 +129,48 @@
 
 @push('scripts')
     <script>
-        function insightQuiz(question) {
+        function insightQuiz(question, initialRead = false) {
             return {
                 question,
                 selectedAnswer: null,
                 answered: false,
+                isRead: initialRead,
+                readStatusLoading: false,
+                toastMessage: '',
+
+                async markAsRead() {
+                    if (this.isRead || this.readStatusLoading) return;
+                    this.readStatusLoading = true;
+                    try {
+                        const res = await fetch('{{ route("reading.mark-insight") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                            },
+                            body: JSON.stringify({ type: 'QURAN_HISTORY', insight_id: this.question.id })
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.isRead = true;
+                            this.toastMessage = data.message;
+                            setTimeout(() => { this.toastMessage = ''; }, 3500);
+                        }
+                    } catch (e) {
+                        console.error('Error marking as read:', e);
+                    } finally {
+                        this.readStatusLoading = false;
+                    }
+                },
 
                 async selectAnswer(idx) {
                     if (this.answered) return;
                     this.selectedAnswer = idx;
                     this.answered = true;
+                    // Answering also marks the reflection as read
+                    if (!this.isRead) {
+                        this.markAsRead();
+                    }
                     const correct = idx === this.question.correctAnswerIndex;
                     try {
                         await fetch('{{ route("insight.answer") }}', {

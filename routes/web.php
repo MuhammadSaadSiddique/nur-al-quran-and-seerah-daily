@@ -16,11 +16,20 @@ use App\Http\Controllers\Admin\AnnouncementController as AdminAnnouncementContro
 use App\Http\Controllers\SitemapController;
 use App\Http\Controllers\QuranicLensController;
 use App\Http\Controllers\Admin\QuranicLensApprovalController;
+use App\Http\Controllers\AccountDeletionController;
+use App\Http\Controllers\DuaController;
+use App\Http\Controllers\ReadingController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
-// Public routes
 Route::get('/', [QuranicLensController::class, 'landing'])->name('lens.landing');
+
+// Authentic Duas & Meanings
+Route::get('/duas', [DuaController::class, 'index'])->name('duas.index');
+Route::get('/duas/create', [DuaController::class, 'create'])->name('duas.create');
+Route::post('/duas', [DuaController::class, 'store'])->name('duas.store');
+Route::get('/duas/{dua:slug}', [DuaController::class, 'show'])->name('duas.show');
+Route::get('/daily-dua', [DuaController::class, 'daily'])->name('daily.dua');
 
 Route::get('/quiz-learning', function () {
     $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();
@@ -30,6 +39,15 @@ Route::get('/quiz-learning', function () {
 })->name('quiz.learning');
 
 Route::get('/quran-research', [QuranicLensController::class, 'index'])->name('welcome');
+
+// Community Quran Research Contributions (Videos, verification, pending items)
+Route::get('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'index'])->name('research.contributions.index');
+Route::get('/quran-research/contributions/create', [\App\Http\Controllers\QuranResearchContributionController::class, 'create'])->name('research.contributions.create');
+Route::post('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'store'])->name('research.contributions.store');
+Route::post('/quran-research/contributions/{id}/review', [\App\Http\Controllers\QuranResearchContributionController::class, 'review'])->name('research.contributions.review')->middleware('auth');
+
+// Add Dua or Quran Research Category (Users & Admins)
+Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->name('categories.store');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/otp/request', [AuthController::class, 'requestOtp'])->middleware('throttle:5,1');
@@ -41,6 +59,15 @@ Route::get('/oauth/callback', [AuthController::class, 'handleQuranCallback'])->n
 
 Route::get('/privacy-policy', [LegalController::class, 'privacy'])->name('privacy');
 Route::get('/terms', [LegalController::class, 'terms'])->name('terms');
+
+// Account Deletion & Data Erasure (Google Play & App Store Compliance)
+Route::get('/delete-account', [AccountDeletionController::class, 'show'])->name('account.delete');
+Route::get('/account-delete', function () {
+    return redirect()->route('account.delete');
+});
+Route::post('/delete-account/request-otp', [AccountDeletionController::class, 'requestOtp'])->name('account.delete.request-otp')->middleware('throttle:5,1');
+Route::post('/delete-account/verify-otp', [AccountDeletionController::class, 'verifyAndDeleteOtp'])->name('account.delete.verify-otp')->middleware('throttle:10,1');
+Route::post('/delete-account/confirm', [AccountDeletionController::class, 'confirmDelete'])->name('account.delete.confirm')->middleware('auth');
 
 // Theme Showcase (Public for SEO)
 Route::get('/themes', [\App\Http\Controllers\ThemeShowcaseController::class, 'index'])->name('themes.index');
@@ -63,6 +90,12 @@ Route::prefix('lens')->name('lens.')->group(function () {
     Route::get('/{chapter}/{verse}', [QuranicLensController::class, 'verse'])->name('verse');
 });
 
+// Insights (Publicly accessible; tracks progress when authenticated)
+Route::get('/seerah', [InsightController::class, 'seerah'])->name('seerah');
+Route::get('/quran-history', [InsightController::class, 'quranHistory'])->name('quran.history');
+//Route::get('/daily-dua', [InsightController::class, 'dailyDua'])->name('daily.dua');
+Route::post('/insight/answer', [InsightController::class, 'submitInsightAnswer'])->name('insight.answer');
+
 // Authenticated routes
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', [HomeController::class, 'index'])->name('home');
@@ -75,11 +108,10 @@ Route::middleware('auth')->group(function () {
     Route::post('/quiz/finish', [QuizController::class, 'finishQuiz'])->name('quiz.finish');
     Route::get('/quiz/history', [QuizController::class, 'history'])->name('quiz.history');
 
-    // Insights
-    Route::get('/seerah', [InsightController::class, 'seerah'])->name('seerah');
-    Route::get('/quran-history', [InsightController::class, 'quranHistory'])->name('quran.history');
-    //Route::get('/daily-dua', [InsightController::class, 'dailyDua'])->name('daily.dua');
-    Route::post('/insight/answer', [InsightController::class, 'submitInsightAnswer'])->name('insight.answer');
+    // Reading & Progress Tracking (Mark as Read)
+    Route::post('/reading/toggle-surah', [ReadingController::class, 'toggleSurah'])->name('reading.toggle-surah');
+    Route::post('/reading/toggle-para', [ReadingController::class, 'togglePara'])->name('reading.toggle-para');
+    Route::post('/reading/mark-insight', [ReadingController::class, 'markInsight'])->name('reading.mark-insight');
 
     // Profile & Stats
     Route::get('/profile', [ProfileController::class, 'show'])->name('profile');
@@ -88,6 +120,8 @@ Route::middleware('auth')->group(function () {
     Route::get('/bookmarks', [ProfileController::class, 'bookmarks'])->name('bookmarks');
     Route::post('/bookmark/toggle', [ProfileController::class, 'toggleBookmark'])->name('bookmark.toggle');
     Route::post('/testimonials/submit', [ProfileController::class, 'submitTestimonial'])->name('testimonials.submit');
+    Route::post('/streak/check-in', [\App\Http\Controllers\StreakController::class, 'checkIn'])->name('streak.check-in');
+    Route::get('/streak/status', [\App\Http\Controllers\StreakController::class, 'status'])->name('streak.status');
 
     // Question Bank
     Route::get('/questions', [QuestionShowcaseController::class, 'index'])->name('questions.index');
@@ -122,6 +156,23 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/announcements', [AdminAnnouncementController::class, 'index'])->name('announcements.index');
         Route::post('/announcements', [AdminAnnouncementController::class, 'send'])->name('announcements.send');
+
+        Route::get('/duas', [\App\Http\Controllers\Admin\DuaController::class, 'index'])->name('duas.index');
+        Route::get('/duas/create', [\App\Http\Controllers\Admin\DuaController::class, 'create'])->name('duas.create');
+        Route::post('/duas', [\App\Http\Controllers\Admin\DuaController::class, 'store'])->name('duas.store');
+        Route::get('/duas/{id}/edit', [\App\Http\Controllers\Admin\DuaController::class, 'edit'])->name('duas.edit');
+        Route::put('/duas/{id}', [\App\Http\Controllers\Admin\DuaController::class, 'update'])->name('duas.update');
+        Route::post('/duas/{id}/approve', [\App\Http\Controllers\Admin\DuaController::class, 'approve'])->name('duas.approve');
+        Route::post('/duas/{id}/reject', [\App\Http\Controllers\Admin\DuaController::class, 'reject'])->name('duas.reject');
+        Route::delete('/duas/{id}', [\App\Http\Controllers\Admin\DuaController::class, 'destroy'])->name('duas.destroy');
+
+        // Manage Dua & Quran Research Categories
+        Route::get('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'index'])->name('categories.index');
+        Route::post('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'store'])->name('categories.store');
+        Route::post('/categories/merge', [\App\Http\Controllers\Admin\CategoryController::class, 'merge'])->name('categories.merge');
+        Route::put('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'update'])->name('categories.update');
+        Route::match(['post', 'patch'], '/categories/{category}/toggle-active', [\App\Http\Controllers\Admin\CategoryController::class, 'toggleActive'])->name('categories.toggle-active');
+        Route::delete('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'destroy'])->name('categories.destroy');
     });
 
     // Quranic Lens approvals (accessible by Researchers and Admins)

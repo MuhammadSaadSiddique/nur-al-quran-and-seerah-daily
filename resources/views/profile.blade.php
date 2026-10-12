@@ -55,10 +55,61 @@
             </form>
         </div>
 
+        {{-- Daily Streak Card --}}
+        @php
+            $streak = $user->getStreakStatus();
+        @endphp
+        <div class="bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-transparent rounded-[2.5rem] p-8 shadow-xl border border-amber-200/60 space-y-6">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-3">
+                    <span class="text-3xl">🔥</span>
+                    <div>
+                        <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Daily Spiritual Streak</h3>
+                        <p class="text-xs font-bold text-slate-500">Consistency in worship and learning</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span class="text-xs font-black uppercase text-amber-700 bg-amber-100 px-3 py-1 rounded-full">
+                        Best: {{ $streak['longest_streak'] }} Days
+                    </span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 text-center">
+                <div class="bg-white/80 rounded-2xl p-5 border border-amber-100">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Current Streak</p>
+                    <p class="text-3xl font-black text-amber-600 mt-1">{{ $streak['current_streak'] }} <span class="text-sm">Days</span></p>
+                </div>
+                <div class="bg-white/80 rounded-2xl p-5 border border-amber-100">
+                    <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Status Today</p>
+                    <p class="text-sm font-black mt-2 {{ $streak['is_active_today'] ? 'text-emerald-600' : 'text-amber-600' }}">
+                        {{ $streak['is_active_today'] ? '✅ Maintained' : '⏳ Pending' }}
+                    </p>
+                </div>
+            </div>
+
+            @if(!$streak['is_active_today'])
+                <form action="{{ route('streak.check-in') }}" method="POST">
+                    @csrf
+                    <button type="submit" class="w-full bg-gradient-to-r from-amber-500 to-orange-500 text-white font-black py-4 rounded-xl text-sm shadow-lg hover:shadow-xl hover:opacity-95 transition-all">
+                        🔥 Check-in Today's Streak
+                    </button>
+                </form>
+            @else
+                <div class="bg-emerald-50 text-emerald-800 border border-emerald-200 p-4 rounded-xl text-center text-xs font-bold">
+                    Alhamdulillah! Your streak is active today. Return tomorrow to continue your learning journey.
+                </div>
+            @endif
+        </div>
+
         {{-- Growth Summary --}}
         <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-4">
             <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Growth Summary</h3>
             <div class="divide-y divide-slate-100">
+                <div class="flex justify-between py-4">
+                    <span class="font-bold text-slate-600">Daily Streak</span>
+                    <span class="font-black text-amber-600">🔥 {{ $streak['current_streak'] }} Days</span>
+                </div>
                 <div class="flex justify-between py-4">
                     <span class="font-bold text-slate-600">Accuracy</span>
                     <span class="font-black text-emerald-600">{{ $user->accuracy }}%</span>
@@ -113,11 +164,30 @@
             </form>
         </div>
 
+        {{-- Danger Zone: Account Deletion --}}
+        <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border border-rose-100 space-y-4">
+            <h3 class="text-lg font-black text-rose-700 uppercase tracking-wider flex items-center space-x-2">
+                <svg class="w-5 h-5 text-rose-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+                <span>Danger Zone</span>
+            </h3>
+            <p class="text-slate-600 text-sm font-medium">
+                Permanently delete your account and all associated personal data, including your quiz scores, answers, bookmarks, and learning history.
+            </p>
+            <div class="pt-2">
+                <a href="{{ route('account.delete') }}"
+                    class="inline-flex items-center justify-center w-full bg-rose-50 text-rose-700 border border-rose-200 py-4 rounded-xl font-black hover:bg-rose-100 transition-all">
+                    <span>Manage Account & Data Deletion</span>
+                </a>
+            </div>
+        </div>
+
         {{-- Sign Out --}}
         <form action="{{ route('logout') }}" method="POST">
             @csrf
             <button type="submit"
-                class="w-full bg-rose-100 text-rose-700 py-5 rounded-2xl font-black text-lg hover:bg-rose-200 transition-all">
+                class="w-full bg-slate-100 text-slate-700 py-5 rounded-2xl font-black text-lg hover:bg-slate-200 transition-all">
                 Sign Out
             </button>
         </form>

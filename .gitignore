@@ -26,3 +26,5 @@ app/Console/*
 scratch/*
 scratch/migrate_question_themes.php
 quraniclens_mysql_dump.sql
+/mobile-app/android/app/google-services.json
+/mobile-app/*

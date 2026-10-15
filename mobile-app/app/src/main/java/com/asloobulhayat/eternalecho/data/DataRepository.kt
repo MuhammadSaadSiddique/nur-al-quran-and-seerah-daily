@@ -87,6 +87,15 @@ interface DataRepository {
         vote: String,
         feedback: String = ""
     ): Result<String> = Result.success("Review saved.")
+    suspend fun submitAppFeedback(
+        rating: Int,
+        category: String = "app_experience",
+        message: String = "",
+        userId: Int? = null,
+        userName: String? = null,
+        userEmail: String? = null,
+        deviceInfo: String? = null
+    ): Result<String> = Result.success("Feedback submitted successfully.")
 }
 
 class DefaultDataRepository : DataRepository {
@@ -390,6 +399,26 @@ class DefaultDataRepository : DataRepository {
             userId = userId,
             vote = vote,
             feedback = feedback
+        )
+    }
+
+    override suspend fun submitAppFeedback(
+        rating: Int,
+        category: String,
+        message: String,
+        userId: Int?,
+        userName: String?,
+        userEmail: String?,
+        deviceInfo: String?
+    ): Result<String> {
+        return ApiClient.submitAppFeedback(
+            rating = rating,
+            category = category,
+            message = message,
+            userId = userId,
+            userName = userName,
+            userEmail = userEmail,
+            deviceInfo = deviceInfo
         )
     }
 }

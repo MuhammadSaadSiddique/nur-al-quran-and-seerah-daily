@@ -2,8 +2,53 @@
 
 @section('title', $dua->title . ' — Meaning, Quran & Hadith Reference')
 @section('meta_description', 'Detailed word-by-word breakdown, translation, spiritual commentary, and authentic references for ' . $dua->title . '.')
+@section('canonical', route('duas.show', $dua->slug))
 
-@section('content')
+@push('schema')
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "{{ url('/') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Duas & Supplications",
+            "item": "{{ route('duas.index') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "{{ addslashes($dua->title) }}",
+            "item": "{{ route('duas.show', $dua->slug) }}"
+        }
+    ]
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ addslashes($dua->title) }}",
+    "description": "{{ addslashes($dua->translation_en ?: 'Detailed word-by-word breakdown and commentary.') }}",
+    "mainEntityOfPage": "{{ route('duas.show', $dua->slug) }}",
+    "publisher": {
+        "@type": "Organization",
+        "name": "The Eternal Echo",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "{{ asset('eternal.png') }}"
+        }
+    }
+}
+</script>
+@endpush
 <div class="max-w-5xl mx-auto space-y-10 pb-16 animate-fadeIn" x-data="{
     fontSize: 32,
     language: 'en',

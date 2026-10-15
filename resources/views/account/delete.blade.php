@@ -1,6 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Delete Account & Data Deletion Request - The Eternal Echo')
 @section('meta_description', 'Request permanent deletion of your The Eternal Echo account and all associated personal data in accordance with Google Play and Apple App Store policies.')
+@section('robots', 'noindex, nofollow')
 
 @section('content')
 <div class="max-w-4xl mx-auto space-y-10 pb-20 animate-fadeIn">

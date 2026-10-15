@@ -1,9 +1,23 @@
 @extends('layouts.app')
 
-@section('title', 'Question #' . $question->id . ' - The Eternal Echo')
-@section('meta_description', 'Interactive review of Question #' . $question->id . ' on ' . ($question->theme ?? 'Quran & Seerah') . ' with explanations and source references.')
+@section('title', \Illuminate\Support\Str::limit($question->text, 60) . ' — Question #' . $question->id)
+@section('meta_description', \Illuminate\Support\Str::limit(strip_tags($question->text . '. ' . ($question->explanation ?? 'Islamic knowledge question and detailed explanation.')), 155))
+@section('canonical', route('questions.show', $question->id))
 
-@section('content')
+@push('schema')
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "QAPage",
+    "mainEntity": {
+        "@type": "Question",
+        "name": "{{ addslashes(\Illuminate\Support\Str::limit($question->text, 100)) }}",
+        "text": "{{ addslashes($question->text) }}",
+        "answerCount": 1
+    }
+}
+</script>
+@endpush
 @php
     $isBookmarked = false;
     if (auth()->check()) {

@@ -1,0 +1,25 @@
+---
+deployment:
+  tasks:
+    # Set your cPanel target deployment directory
+    # Replace 'YOUR_CPANEL_USERNAME' with your actual cPanel account username
+    # E.g.: /home/username/public_html/ or /home/username/nur-al-quran/
+    - export DEPLOYPATH=/home/YOUR_CPANEL_USERNAME/public_html/
+
+    # Copy / Sync application files to production path
+    # Using rsync ensures .git, .env, and local test files are safely excluded
+    - /bin/rsync -av --exclude='.git*' --exclude='.env' --exclude='node_modules' --exclude='tests' --exclude='storage/logs/*' --exclude='storage/framework/sessions/*' ./ $DEPLOYPATH
+
+    # Ensure required Laravel storage and cache directories exist with appropriate permissions
+    - /bin/mkdir -p $DEPLOYPATH/storage/framework/{sessions,views,cache}
+    - /bin/mkdir -p $DEPLOYPATH/storage/logs
+    - /bin/mkdir -p $DEPLOYPATH/bootstrap/cache
+    - /bin/chmod -R 775 $DEPLOYPATH/storage $DEPLOYPATH/bootstrap/cache
+
+    # Run production optimization and database migrations
+    - cd $DEPLOYPATH
+    - php artisan migrate --force
+    - php artisan optimize:clear
+    - php artisan config:cache
+    - php artisan route:cache
+    - php artisan view:cache

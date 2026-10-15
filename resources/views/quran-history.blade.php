@@ -1,7 +1,27 @@
 @extends('layouts.app')
-@section('title', 'Quranic History - The Eternal Echo')
+@section('title', ($insight['title'] ?? 'Quranic History') . ' — Historical Context & Preservation')
+@section('meta_description', \Illuminate\Support\Str::limit(strip_tags($insight['text'] ?? "Learn about the historical revelation, compilation, and preservation of the Holy Quran: " . ($insight['title'] ?? '')), 155))
+@section('canonical', route('quran.history'))
 
-@section('content')
+@push('schema')
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ addslashes($insight['title'] ?? 'Quranic History') }}",
+    "description": "{{ addslashes(\Illuminate\Support\Str::limit(strip_tags($insight['text'] ?? ''), 155)) }}",
+    "mainEntityOfPage": "{{ route('quran.history') }}",
+    "publisher": {
+        "@type": "Organization",
+        "name": "The Eternal Echo",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "{{ asset('eternal.png') }}"
+        }
+    }
+}
+</script>
+@endpush
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"
         x-data="insightQuiz({{ json_encode($insight['question']) }}, {{ $isRead ? 'true' : 'false' }})">
         {{-- Toast Feedback --}}

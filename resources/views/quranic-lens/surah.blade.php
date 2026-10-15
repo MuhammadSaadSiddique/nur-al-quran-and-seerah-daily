@@ -1,6 +1,51 @@
 @extends('layouts.app')
 
-@section('title', $surahInfo['name_simple'] . ' - Quranic Lens')
+@section('title', "Surah {$surahInfo['name_simple']} ({$surahInfo['translated_name']['name']}) — Read & Verse Analysis")
+@section('meta_description', "Read Surah {$surahInfo['name_simple']} ({$surahInfo['translated_name']['name']}) with {$surahInfo['verses_count']} verses. Word-by-word analysis, translation, Tafsir, and scientific and historical connections.")
+@section('canonical', route('lens.surah', $surahInfo['id']))
+
+@push('schema')
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "{{ url('/') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Quranic Lens",
+            "item": "{{ route('welcome') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "Surah {{ $surahInfo['name_simple'] }}",
+            "item": "{{ route('lens.surah', $surahInfo['id']) }}"
+        }
+    ]
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Chapter",
+    "name": "Surah {{ $surahInfo['name_simple'] }} ({{ $surahInfo['translated_name']['name'] }})",
+    "position": {{ $surahInfo['id'] }},
+    "inLanguage": "ar",
+    "description": "Surah {{ $surahInfo['name_simple'] }} revealed in {{ ucfirst($surahInfo['revelation_place']) }} containing {{ $surahInfo['verses_count'] }} verses.",
+    "isPartOf": {
+        "@type": "Book",
+        "name": "The Holy Quran"
+    }
+}
+</script>
+@endpush
 
 @section('content')
 <div class="space-y-8 animate-fadeIn" x-data="surahReader({{ $surahInfo['id'] }}, {{ $isSurahRead ? 'true' : 'false' }})">
@@ -40,10 +85,10 @@
                 <span>•</span>
                 <span class="text-emerald-300 font-bold">{{ $surahInfo['revelation_place'] }}</span>
             </div>
-            <h2 class="text-4xl md:text-5xl font-black tracking-tight flex items-baseline gap-3">
+            <h1 class="text-4xl md:text-5xl font-black tracking-tight flex items-baseline gap-3">
                 {{ $surahInfo['name_simple'] }}
                 <span class="text-lg text-emerald-200 font-medium font-sans">({{ $surahInfo['translated_name']['name'] }})</span>
-            </h2>
+            </h1>
             @auth
                 <div class="pt-1">
                     <button @click="toggleRead()" :disabled="loading"

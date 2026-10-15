@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Your Progress - The Eternal Echo')
-@section('meta_description', 'Track your Quran and Seerah learning progress. View quiz statistics, accuracy rates, and spiritual growth milestones.')
+@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-5xl mx-auto space-y-10 pb-10 animate-fadeIn">

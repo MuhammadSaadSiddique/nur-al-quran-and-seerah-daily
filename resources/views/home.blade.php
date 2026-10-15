@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Dashboard - The Eternal Echo')
-@section('meta_description', 'Your personal Islamic learning dashboard. Take Quran Theme challenges, Seerah journeys, and Traditional Para quizzes.')
+@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="space-y-12 pb-10 animate-fadeIn" x-data="homePage()">

@@ -1,7 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Login - The Eternal Echo')
-
-@section('content')
+@section('robots', 'noindex, follow')
+@section('canonical', route('login'))
     <div class="fixed inset-0 flex items-center justify-center bg-emerald-900 p-6 z-[60] overflow-hidden"
         x-data="loginForm()">
         <div class="bg-white p-10 rounded-[3.5rem] shadow-2xl max-w-md w-full space-y-8 animate-slideUp relative">

@@ -1,6 +1,7 @@
 @extends('layouts.app')
 @section('title', 'Global Rankings - The Eternal Echo')
 @section('meta_description', 'See where you stand in the global community of knowledge seekers. Celebrate the top performers on our spiritual leaderboard.')
+@section('canonical', route('leaderboard'))
 
 @section('content')
     <div class="space-y-12 pb-10 animate-fadeIn">
@@ -14,7 +15,7 @@
                 </svg>
                 <span class="text-xs font-black uppercase tracking-widest">Hall of Seekers</span>
             </div>
-            <h2 class="text-3xl font-extrabold text-slate-900 md:text-5xl">Global Rankings</h2>
+            <h1 class="text-3xl font-extrabold text-slate-900 md:text-5xl">Global Rankings</h1>
             <p class="text-slate-600 font-medium max-w-lg mx-auto italic">"And for this let those who aspire, aspire." —
                 Surah Al-Mutaffifin</p>
 

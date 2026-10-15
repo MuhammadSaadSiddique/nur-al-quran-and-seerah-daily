@@ -2024,6 +2024,178 @@ try {
             ]);
             break;
 
+        case 'submit_app_feedback':
+            // Ensure app_feedbacks table exists
+            try {
+                if ($isSqlite) {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS app_feedbacks (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NULL,
+                        rating INTEGER NOT NULL,
+                        category VARCHAR(50) DEFAULT 'app_experience',
+                        message TEXT NULL,
+                        platform VARCHAR(50) DEFAULT 'android',
+                        user_name VARCHAR(100) NULL,
+                        user_email VARCHAR(150) NULL,
+                        device_info VARCHAR(255) NULL,
+                        status VARCHAR(20) DEFAULT 'pending',
+                        admin_notes TEXT NULL,
+                        created_at DATETIME NULL,
+                        updated_at DATETIME NULL
+                    )");
+                } else {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS app_feedbacks (
+                        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                        user_id BIGINT UNSIGNED NULL,
+                        rating TINYINT UNSIGNED NOT NULL,
+                        category VARCHAR(50) NOT NULL DEFAULT 'app_experience',
+                        message TEXT NULL,
+                        platform VARCHAR(50) NOT NULL DEFAULT 'android',
+                        user_name VARCHAR(100) NULL,
+                        user_email VARCHAR(150) NULL,
+                        device_info VARCHAR(255) NULL,
+                        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                        admin_notes TEXT NULL,
+                        created_at TIMESTAMP NULL,
+                        updated_at TIMESTAMP NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                }
+            } catch (Exception $tableEx) {
+                // Ignore if already created
+            }
+
+            $rating = isset($requestData['rating']) && is_numeric($requestData['rating']) ? (int)$requestData['rating'] : 5;
+            $rating = max(1, min(5, $rating));
+            $category = trim($requestData['category'] ?? 'app_experience');
+            $message = trim($requestData['message'] ?? '');
+            $platform = trim($requestData['platform'] ?? 'android');
+            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $userName = trim($requestData['user_name'] ?? '');
+            $userEmail = trim($requestData['user_email'] ?? '');
+            $deviceInfo = trim($requestData['device_info'] ?? '');
+            $now = date('Y-m-d H:i:s');
+
+            $stmt = $pdo->prepare("INSERT INTO app_feedbacks (user_id, rating, category, message, platform, user_name, user_email, device_info, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)");
+            $stmt->execute([
+                $userId ?: null,
+                $rating,
+                $category ?: 'app_experience',
+                $message ?: null,
+                $platform ?: 'android',
+                $userName ?: null,
+                $userEmail ?: null,
+                $deviceInfo ?: null,
+                $now,
+                $now
+            ]);
+            $feedbackId = (int)$pdo->lastInsertId();
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'JazakAllahu Khairan! Thank you for sharing your feedback.',
+                'data' => [
+                    'id' => $feedbackId,
+                    'rating' => $rating,
+                    'category' => $category
+                ]
+            ]);
+            break;
+
+        case 'submit_donation_notice':
+        case 'donation_notice':
+            // Ensure donation_records table exists
+            try {
+                if ($isSqlite) {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS donation_records (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        user_id INTEGER NULL,
+                        donor_name VARCHAR(255) NULL,
+                        is_anonymous INTEGER NOT NULL DEFAULT 0,
+                        donor_email VARCHAR(255) NULL,
+                        amount REAL NULL,
+                        currency VARCHAR(10) DEFAULT 'USD',
+                        payment_method VARCHAR(255) NULL,
+                        transaction_reference VARCHAR(255) NULL,
+                        message TEXT NULL,
+                        status VARCHAR(50) DEFAULT 'pending',
+                        created_at DATETIME NULL,
+                        updated_at DATETIME NULL
+                    )");
+                } else {
+                    $pdo->exec("CREATE TABLE IF NOT EXISTS donation_records (
+                        id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                        user_id BIGINT UNSIGNED NULL,
+                        donor_name VARCHAR(255) NULL,
+                        is_anonymous TINYINT(1) NOT NULL DEFAULT 0,
+                        donor_email VARCHAR(255) NULL,
+                        amount DECIMAL(10,2) NULL,
+                        currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+                        payment_method VARCHAR(255) NULL,
+                        transaction_reference VARCHAR(255) NULL,
+                        message TEXT NULL,
+                        status VARCHAR(50) NOT NULL DEFAULT 'pending',
+                        created_at TIMESTAMP NULL,
+                        updated_at TIMESTAMP NULL
+                    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+                    // Ensure is_anonymous column exists
+                    try {
+                        $colCheck = $pdo->query("SHOW COLUMNS FROM donation_records LIKE 'is_anonymous'");
+                        if (!$colCheck->fetch()) {
+                            $pdo->exec("ALTER TABLE donation_records ADD COLUMN is_anonymous TINYINT(1) NOT NULL DEFAULT 0 AFTER donor_name");
+                        }
+                    } catch (Exception $colEx) {}
+                }
+            } catch (Exception $tableEx) {
+                // Ignore if already created
+            }
+
+            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $donorName = trim($requestData['donor_name'] ?? '');
+            $isAnonymous = !empty($requestData['is_anonymous']) && ($requestData['is_anonymous'] === true || $requestData['is_anonymous'] === '1' || $requestData['is_anonymous'] === 1) ? 1 : 0;
+            $donorEmail = trim($requestData['donor_email'] ?? '');
+            $amount = isset($requestData['amount']) && is_numeric($requestData['amount']) ? (float)$requestData['amount'] : null;
+            $currency = strtoupper(trim($requestData['currency'] ?? 'USD'));
+            $paymentMethod = trim($requestData['payment_method'] ?? 'Manual Transfer');
+            $transactionRef = trim($requestData['transaction_reference'] ?? '');
+            $message = trim($requestData['message'] ?? '');
+            $now = date('Y-m-d H:i:s');
+
+            if (!$amount || $amount < 0.5) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Please provide a valid donation amount (minimum 0.50).'
+                ]);
+                break;
+            }
+
+            $stmt = $pdo->prepare("INSERT INTO donation_records (user_id, donor_name, is_anonymous, donor_email, amount, currency, payment_method, transaction_reference, message, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?)");
+            $stmt->execute([
+                $userId ?: null,
+                $donorName ?: null,
+                $isAnonymous,
+                $donorEmail ?: null,
+                $amount,
+                $currency ?: 'USD',
+                $paymentMethod ?: 'Manual Transfer',
+                $transactionRef ?: null,
+                $message ?: null,
+                $now,
+                $now
+            ]);
+            $donationId = (int)$pdo->lastInsertId();
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'JazakAllahu Khairan! Your donation notification has been submitted.',
+                'data' => [
+                    'id' => $donationId,
+                    'is_anonymous' => (bool)$isAnonymous,
+                    'amount' => $amount,
+                    'currency' => $currency
+                ]
+            ]);
+            break;
+
         default:
             echo json_encode([
                 'status' => 'error',

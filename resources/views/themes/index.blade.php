@@ -50,8 +50,10 @@
     <div class="animate-fadeIn">
         {{-- Hero Section with Banner --}}
         <div class="relative rounded-[3rem] overflow-hidden mb-16 shadow-2xl hero-pattern">
-            <img src="{{ asset('islamic_knowledge_banner_1777953676083.png') }}"
-                class="w-full h-80 md:h-[450px] object-cover opacity-60 mix-blend-overlay">
+            <img src="{{ asset('images/hero_banner.webp') }}"
+                alt="Islamic Knowledge and Quranic Themes Banner"
+                class="w-full h-80 md:h-[450px] object-cover opacity-60 mix-blend-overlay"
+                loading="eager">
             <div class="absolute inset-0 bg-gradient-to-t from-emerald-950 via-emerald-900/40 to-transparent"></div>
             <div class="absolute inset-0 flex flex-col items-center justify-center text-center p-6">
                 <h1 class="text-5xl md:text-7xl font-black text-white tracking-tight mb-6 drop-shadow-lg">

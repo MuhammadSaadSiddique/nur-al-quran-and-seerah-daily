@@ -64,6 +64,19 @@
         ]
     }
     </script>
+    <script type="application/ld+json">
+    {
+        "@@context": "https://schema.org",
+        "@@type": "WebSite",
+        "name": "The Eternal Echo",
+        "url": "{{ url('/') }}",
+        "potentialAction": {
+            "@@type": "SearchAction",
+            "target": "{{ route('welcome') }}?search={search_term_string}",
+            "query-input": "required name=search_term_string"
+        }
+    }
+    </script>
 
     <!-- Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -111,6 +124,11 @@
                         Research</a>
                     <a href="{{ route('quiz.learning') }}"
                         class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Quiz Platform</a>
+                    <a href="{{ route('donate') }}"
+                        class="text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors inline-flex items-center space-x-1">
+                        <span>💚</span>
+                        <span>Support Us</span>
+                    </a>
                     @auth
                         <a href="{{ route('home') }}"
                             class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Dashboard</a>
@@ -483,7 +501,8 @@
                 An advanced Quranic research database cataloging comparative theology and scientific concordance
                 mapping.
             </p>
-            <div class="flex justify-center space-x-6 text-[10px] uppercase font-black tracking-widest text-slate-600">
+            <div class="flex flex-wrap justify-center gap-4 sm:gap-6 text-[10px] uppercase font-black tracking-widest text-slate-500">
+                <a href="{{ route('donate') }}" class="text-emerald-400 hover:text-emerald-300 font-black transition-colors">🤲 Sadaqah Jariyah & Donate</a>
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
                 <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>
             </div>
@@ -492,6 +511,8 @@
             </p>
         </div>
     </footer>
+
+    @include('partials.app-feedback-modal')
 
 </body>
 

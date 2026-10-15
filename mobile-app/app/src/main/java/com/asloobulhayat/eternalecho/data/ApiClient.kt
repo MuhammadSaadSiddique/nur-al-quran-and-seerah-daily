@@ -29,6 +29,7 @@ object ApiClient {
         get() = AppSecurity.deobfuscate(OBFUSCATED_BASE_URL, OBFUSCATION_KEY)
 
     const val ACCOUNT_DELETE_URL: String = "https://theeternalecho.asloobulhayat.com/delete-account"
+    const val DONATION_URL: String = "https://theeternalecho.asloobulhayat.com/donate"
 
     private suspend fun makeGetRequest(urlStr: String): String = withContext(Dispatchers.IO) {
         if (!urlStr.startsWith("https://", ignoreCase = true)) {
@@ -1132,6 +1133,50 @@ object ApiClient {
             }
         } catch (e: Exception) {
             android.util.Log.e("ApiClient", "Failed to review research contribution: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun submitAppFeedback(
+        rating: Int,
+        category: String = "app_experience",
+        message: String = "",
+        userId: Int? = null,
+        userName: String? = null,
+        userEmail: String? = null,
+        deviceInfo: String? = null
+    ): Result<String> {
+        return try {
+            val params = mutableMapOf(
+                "rating" to rating.toString(),
+                "category" to category,
+                "message" to message,
+                "platform" to "android"
+            )
+            if (userId != null && userId > 0) {
+                params["user_id"] = userId.toString()
+            }
+            if (!userName.isNullOrBlank()) {
+                params["user_name"] = userName
+            }
+            if (!userEmail.isNullOrBlank()) {
+                params["user_email"] = userEmail
+            }
+            if (!deviceInfo.isNullOrBlank()) {
+                params["device_info"] = deviceInfo
+            }
+
+            val jsonStr = makePostRequest("$BASE_URL?action=submit_app_feedback", params)
+            val jsonObj = JSONObject(jsonStr)
+            if (jsonObj.optString("status") == "success") {
+                val msg = jsonObj.optString("message", "JazakAllahu Khairan! Thank you for sharing your feedback.")
+                Result.success(msg)
+            } else {
+                val msg = jsonObj.optString("message", "Unable to submit feedback.")
+                Result.failure(Exception(msg))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to submit app feedback: ${e.message}", e)
             Result.failure(e)
         }
     }

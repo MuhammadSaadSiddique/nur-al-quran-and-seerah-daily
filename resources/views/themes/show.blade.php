@@ -2,9 +2,37 @@
 
 @section('title', $theme->name . ' - Islamic Knowledge & Quranic Insights')
 @section('meta_description', $theme->description ?? 'Explore in-depth questions and knowledge regarding ' . $theme->name . '. Build your understanding of this Islamic theme with our AI-powered learning platform.')
-@section('keywords', $theme->name . ', Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app,Islamic Knowledge, Quranic Insights, Hadith, Tafsir, Sunnah, Islamic Teachings, Holy Quran, Seerah, Fiqh, Islamic Studies, Prophetic Traditions, Quranic Exegesis, Daily Adhkar, Dua, Islamic Theology, Sharia')
+@section('keywords', $theme->name . ', Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app, Islamic Knowledge, Quranic Insights, Hadith, Tafsir, Sunnah, Islamic Teachings, Holy Quran, Seerah, Fiqh, Islamic Studies, Prophetic Traditions, Quranic Exegesis, Daily Adhkar, Dua, Islamic Theology, Sharia')
+@section('canonical', route('themes.show', $theme->slug))
 
-@push('styles')
+@push('schema')
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "{{ url('/') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Themes",
+            "item": "{{ route('themes.index') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "{{ addslashes($theme->name) }}",
+            "item": "{{ route('themes.show', $theme->slug) }}"
+        }
+    ]
+}
+</script>
+@endpush
 <style>
     .theme-header {
         background: linear-gradient(135deg, {{ $theme->type === 'PARA' ? '#0c4a6e 0%, #075985 100%' : '#78350f 0%, #92400e 100%' }});

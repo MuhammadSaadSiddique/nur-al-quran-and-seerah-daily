@@ -144,6 +144,7 @@ fun MainScreen(
 
     var showAccountDialog by remember { mutableStateOf(false) }
     var showThemeSettingsDialog by remember { mutableStateOf(false) }
+    var showFeedbackSheet by remember { mutableStateOf(false) }
     var showDeleteAccountConfirmDialog by remember { mutableStateOf(false) }
     var isDeletingAccount by remember { mutableStateOf(false) }
     var deleteAccountError by remember { mutableStateOf("") }
@@ -246,6 +247,36 @@ fun MainScreen(
         )
     }
 
+    if (showFeedbackSheet) {
+        val feedbackPalette = com.asloobulhayat.eternalecho.ui.home.rememberHomeThemePalette()
+        com.asloobulhayat.eternalecho.ui.home.AppFeedbackBottomSheet(
+            palette = feedbackPalette,
+            onDismiss = {
+                showFeedbackSheet = false
+                prefs.putLong("feedback_dismissed_timestamp", System.currentTimeMillis())
+            },
+            onSubmitFeedback = { rating, category, message, onSuccess, onError ->
+                scope.launch {
+                    val result = repository.submitAppFeedback(
+                        rating = rating,
+                        category = category,
+                        message = message,
+                        userId = if (userId > 0) userId else null,
+                        userName = userName.ifEmpty { null },
+                        userEmail = userEmail.ifEmpty { null },
+                        deviceInfo = "Android " + android.os.Build.VERSION.RELEASE
+                    )
+                    if (result.isSuccess) {
+                        prefs.putBoolean("feedback_submitted", true)
+                        onSuccess()
+                    } else {
+                        onError(result.exceptionOrNull()?.message ?: "Unable to submit feedback.")
+                    }
+                }
+            }
+        )
+    }
+
     if (showAccountDialog) {
         AlertDialog(
             onDismissRequest = { showAccountDialog = false },
@@ -292,6 +323,50 @@ fun MainScreen(
 
                     Card(
                         colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                try {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ApiClient.DONATION_URL))
+                                    context.startActivity(intent)
+                                } catch (_: Exception) {}
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text("🤲", fontSize = 20.sp)
+                                Column {
+                                    Text("Support Project", fontWeight = FontWeight.Bold)
+                                    Text(
+                                        text = "Sadaqah Jariyah & Donate",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Donate",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ),
                         shape = RoundedCornerShape(12.dp),
@@ -332,6 +407,48 @@ fun MainScreen(
                             Text(
                                 text = "Change",
                                 style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                showAccountDialog = false
+                                showFeedbackSheet = true
+                            }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(14.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Text("⭐", fontSize = 18.sp)
+                                Column {
+                                    Text("Send Feedback", fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        text = "Share suggestions or report issues",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                            Text(
+                                text = "Rate",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -652,6 +769,16 @@ fun MainScreen(
                     onReflectClick = { onItemClick(SurahNavKey(2, 286)) },
                     onReadingProgressClick = { onItemClick(SurahNavKey(2, 142)) },
                     onThemeSettingsClick = { showThemeSettingsDialog = true },
+                    onSubmitFeedback = { rating, category, message ->
+                        repository.submitAppFeedback(
+                            rating = rating,
+                            category = category,
+                            message = message,
+                            userId = if (userId > 0) userId else null,
+                            userName = userName.ifBlank { null },
+                            userEmail = userEmail.ifBlank { null }
+                        )
+                    },
                     selectedBottomNavIndex = 0,
                     onBottomNavSelected = { navIdx ->
                         when (navIdx) {

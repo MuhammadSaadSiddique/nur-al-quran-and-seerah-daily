@@ -30,6 +30,14 @@ Route::post('/research-contributions', [\App\Http\Controllers\QuranResearchContr
 Route::get('/categories', [\App\Http\Controllers\CategoryController::class, 'apiIndex']);
 Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'apiStore']);
 
+// User & App Feedback API endpoint (Mobile / Web)
+Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store']);
+Route::post('/v1/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store']);
+
+// Donation Notification API endpoint (Mobile / Web)
+Route::post('/donate/notify', [\App\Http\Controllers\DonationController::class, 'storeNotification']);
+Route::post('/v1/donate/notify', [\App\Http\Controllers\DonationController::class, 'storeNotification']);
+
 // Protected endpoints
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/research', [ResearchApiController::class, 'store']);

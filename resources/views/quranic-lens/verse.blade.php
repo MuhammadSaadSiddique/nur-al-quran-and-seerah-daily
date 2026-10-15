@@ -1,6 +1,115 @@
 @extends('layouts.app')
 
-@section('title', "Surah {$surahInfo['name_simple']} — Verse {$verse} Analysis")
+@php
+    $firstTransText = !empty($verseDetail['translations']) ? strip_tags($verseDetail['translations'][0]['text']) : '';
+    
+    // Extract Science Facts for dynamic SEO enrichment
+    $scienceCount = isset($localScience) ? (method_exists($localScience, 'total') ? $localScience->total() : count($localScience)) : 0;
+    $scienceTitles = [];
+    $scienceFields = [];
+    if ($scienceCount > 0) {
+        foreach ($localScience as $sci) {
+            if (!empty($sci->field)) {
+                $scienceFields[] = ucfirst($sci->field);
+            }
+            if (!empty($sci->title)) {
+                $scienceTitles[] = $sci->title;
+            }
+        }
+        $scienceFields = array_values(array_unique($scienceFields));
+        $scienceTitles = array_values(array_unique($scienceTitles));
+    }
+
+    if ($scienceCount > 0) {
+        $topFields = implode(', ', array_slice($scienceFields, 0, 3));
+        $topTitles = implode('; ', array_slice($scienceTitles, 0, 2));
+        $pageTitle = "Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}) — Science Facts ({$topFields}) & Tafsir";
+        $pageDescription = "Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}) scientific analysis: Explore modern facts in {$topFields} ({$topTitles}). Complete with Arabic text, English translation, Tafsir, and historical context.";
+    } else {
+        $pageTitle = "Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}) — Meaning & Analysis";
+        $pageDescription = "Read and study Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}). " . ($firstTransText ? \Illuminate\Support\Str::limit($firstTransText, 130) : 'Linguistic insights, classical Tafsir, Hadith references, and thematic connections.');
+    }
+
+    $dynamicKeywords = "Surah {$surahInfo['name_simple']} {$verse}, Ayah {$verse}, Quran {$surahInfo['id']}:{$verse}, Quran translation, Tafsir, Quranic Arabic";
+    if ($scienceCount > 0) {
+        $dynamicKeywords .= ", Quran science, scientific miracles in Quran, " . implode(', ', $scienceFields) . ", " . implode(', ', array_slice($scienceTitles, 0, 3));
+    }
+@endphp
+
+@section('title', $pageTitle)
+@section('meta_description', $pageDescription)
+@section('keywords', $dynamicKeywords)
+@section('canonical', route('lens.verse', [$surahInfo['id'], $verse]))
+
+@push('schema')
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    "itemListElement": [
+        {
+            "@type": "ListItem",
+            "position": 1,
+            "name": "Home",
+            "item": "{{ url('/') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 2,
+            "name": "Quranic Lens",
+            "item": "{{ route('welcome') }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 3,
+            "name": "{{ $surahInfo['name_simple'] }}",
+            "item": "{{ route('lens.surah', $surahInfo['id']) }}"
+        },
+        {
+            "@type": "ListItem",
+            "position": 4,
+            "name": "Verse {{ $verse }}",
+            "item": "{{ route('lens.verse', [$surahInfo['id'], $verse]) }}"
+        }
+    ]
+}
+</script>
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "Surah {{ $surahInfo['name_simple'] }} Verse {{ $verse }} Analysis & Scientific Correlations",
+    "description": "{{ addslashes($pageDescription) }}",
+    "mainEntityOfPage": "{{ route('lens.verse', [$surahInfo['id'], $verse]) }}",
+    "inLanguage": "en",
+    "publisher": {
+        "@type": "Organization",
+        "name": "The Eternal Echo",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "{{ asset('eternal.png') }}"
+        }
+    }@if($scienceCount > 0),
+    "about": [
+        @foreach($scienceFields as $field)
+        {
+            "@type": "Thing",
+            "name": "{{ $field }}"
+        }@if(!$loop->last),@endif
+        @endforeach
+    ],
+    "mentions": [
+        @foreach(array_slice($scienceTitles, 0, 5) as $title)
+        {
+            "@type": "CreativeWork",
+            "name": "{{ addslashes($title) }}"
+        }@if(!$loop->last),@endif
+        @endforeach
+    ]
+    @endif
+}
+</script>
+@endpush
 
 @section('content')
 <div class="space-y-10 animate-fadeIn" x-data="verseAnalysisPage()">
@@ -41,7 +150,9 @@
     {{-- Verse Details Card --}}
     <div class="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm space-y-6">
         <div class="flex items-center justify-between border-b border-slate-50 pb-4">
-            <span class="text-xs font-black uppercase tracking-widest text-slate-400">Verse Text</span>
+            <h1 class="text-base md:text-lg font-black text-slate-900 tracking-tight">
+                Surah {{ $surahInfo['name_simple'] }} &bull; Ayah {{ $verse }}
+            </h1>
             <div class="flex items-center space-x-2">
                 @if(isset($juz))
                     <span class="text-[10px] font-black uppercase tracking-widest bg-indigo-50 text-indigo-800 border border-indigo-100 px-3 py-1 rounded-full">
@@ -51,6 +162,12 @@
                 <span class="text-[10px] font-black uppercase tracking-widest bg-emerald-50 text-emerald-800 border border-emerald-100 px-3 py-1 rounded-full">
                     Surah {{ $surahInfo['id'] }} : {{ $verse }}
                 </span>
+                @if($scienceCount > 0)
+                    <span class="text-[10px] font-black uppercase tracking-widest bg-purple-50 text-purple-800 border border-purple-100 px-3 py-1 rounded-full flex items-center gap-1">
+                        <span>🔬</span>
+                        <span>{{ $scienceCount }} Science {{ \Illuminate\Support\Str::plural('Fact', $scienceCount) }}</span>
+                    </span>
+                @endif
             </div>
         </div>
 
@@ -297,6 +414,15 @@
                     {{-- Local database Science links --}}
                     @if((method_exists($localScience, 'total') ? $localScience->total() : $localScience->count()) > 0)
                         <div x-show="activeLens === 'science'" class="space-y-6" x-cloak>
+                            <div class="border-b border-purple-100/60 pb-3 mb-2">
+                                <h2 class="text-base md:text-lg font-black text-slate-800 tracking-tight flex items-center gap-2">
+                                    <span>🔬</span>
+                                    <span>Scientific Connections & Modern Discoveries in Surah {{ $surahInfo['name_simple'] }} : {{ $verse }}</span>
+                                </h2>
+                                <p class="text-xs text-slate-500 font-medium mt-1">
+                                    Empirical observations, cosmic phenomena, and biological facts correlated with this Ayah.
+                                </p>
+                            </div>
                             @php
                                 $categorizedScience = [];
                                 $uncategorizedScience = [];

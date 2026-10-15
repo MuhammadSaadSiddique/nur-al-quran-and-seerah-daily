@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('title', $title . ' Quiz - The Eternal Echo')
-@section('meta_description', 'Take the ' . $title . ' quiz at ' . $difficulty . ' difficulty. Test your Islamic knowledge with AI-generated questions.')
+@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"

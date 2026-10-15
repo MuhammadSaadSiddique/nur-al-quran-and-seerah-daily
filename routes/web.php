@@ -19,10 +19,15 @@ use App\Http\Controllers\Admin\QuranicLensApprovalController;
 use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\DuaController;
 use App\Http\Controllers\ReadingController;
+use App\Http\Controllers\DonationController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
 Route::get('/', [QuranicLensController::class, 'landing'])->name('lens.landing');
+
+// Sadaqah Jariyah & Support
+Route::get('/donate', [DonationController::class, 'index'])->name('donate');
+Route::post('/donate/notify', [DonationController::class, 'storeNotification'])->name('donate.notify');
 
 // Authentic Duas & Meanings
 Route::get('/duas', [DuaController::class, 'index'])->name('duas.index');
@@ -30,6 +35,9 @@ Route::get('/duas/create', [DuaController::class, 'create'])->name('duas.create'
 Route::post('/duas', [DuaController::class, 'store'])->name('duas.store');
 Route::get('/duas/{dua:slug}', [DuaController::class, 'show'])->name('duas.show');
 Route::get('/daily-dua', [DuaController::class, 'daily'])->name('daily.dua');
+
+// User & App Feedback Submission
+Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store'])->name('app-feedback.store');
 
 Route::get('/quiz-learning', function () {
     $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();
@@ -146,6 +154,8 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/feedback', [AdminQuestionController::class, 'feedbackIndex'])->name('feedback.index');
         Route::patch('/feedback/{feedback}/status', [AdminQuestionController::class, 'feedbackUpdateStatus'])->name('feedback.update-status');
+        Route::get('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'adminIndex'])->name('app-feedback.index');
+        Route::patch('/app-feedback/{appFeedback}/status', [\App\Http\Controllers\AppFeedbackController::class, 'updateStatus'])->name('app-feedback.update-status');
 
         Route::get('/duplicates', [AdminQuestionController::class, 'duplicates'])->name('duplicates');
         Route::post('/duplicates/bulk-delete', [AdminQuestionController::class, 'bulkDelete'])->name('duplicates.bulk-delete');
@@ -173,6 +183,10 @@ Route::middleware('auth')->group(function () {
         Route::put('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'update'])->name('categories.update');
         Route::match(['post', 'patch'], '/categories/{category}/toggle-active', [\App\Http\Controllers\Admin\CategoryController::class, 'toggleActive'])->name('categories.toggle-active');
         Route::delete('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'destroy'])->name('categories.destroy');
+
+        // Donations & Sadaqah Jariyah Management
+        Route::get('/donations', [DonationController::class, 'adminIndex'])->name('donations.index');
+        Route::patch('/donations/{donation}/status', [DonationController::class, 'updateStatus'])->name('donations.update-status');
     });
 
     // Quranic Lens approvals (accessible by Researchers and Admins)

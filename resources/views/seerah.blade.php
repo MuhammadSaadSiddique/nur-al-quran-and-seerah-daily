@@ -1,7 +1,27 @@
 @extends('layouts.app')
-@section('title', 'Seerah Insight - The Eternal Echo')
+@section('title', ($insight['title'] ?? 'Prophetic Seerah') . ' — Seerah Insight & Reflections')
+@section('meta_description', \Illuminate\Support\Str::limit(strip_tags($insight['text'] ?? "Explore profound historical lessons and reflections from the Prophetic Seerah regarding " . ($insight['title'] ?? 'Prophet Muhammad')), 155))
+@section('canonical', route('seerah'))
 
-@section('content')
+@push('schema')
+<script type="application/ld+json">
+{
+    "@context": "https://schema.org",
+    "@type": "Article",
+    "headline": "{{ addslashes($insight['title'] ?? 'Seerah Insight') }}",
+    "description": "{{ addslashes(\Illuminate\Support\Str::limit(strip_tags($insight['text'] ?? ''), 155)) }}",
+    "mainEntityOfPage": "{{ route('seerah') }}",
+    "publisher": {
+        "@type": "Organization",
+        "name": "The Eternal Echo",
+        "logo": {
+            "@type": "ImageObject",
+            "url": "{{ asset('eternal.png') }}"
+        }
+    }
+}
+</script>
+@endpush
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"
         x-data="insightQuiz({{ json_encode($insight['question']) }}, {{ $isRead ? 'true' : 'false' }})">
         {{-- Toast Feedback --}}

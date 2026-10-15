@@ -11,12 +11,12 @@
         content="Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app, learn Quran online">
     <meta name="author" content="The Eternal Echo">
     <meta name="robots" content="index, follow">
-    <link rel="canonical" href="{{ url('/') }}">
+    <link rel="canonical" href="{{ route('quiz.learning') }}">
     <link rel="icon" href="{{ asset('eternal.png') }}" type="image/png">
 
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ url('/') }}">
+    <meta property="og:url" content="{{ route('quiz.learning') }}">
     <meta property="og:title" content="The Eternal Echo — AI-Powered Islamic Learning">
     <meta property="og:description"
         content="Interactive Quran Para quizzes, Seerah knowledge challenges, and AI-powered personalized insights. Free Islamic learning platform.">
@@ -94,11 +94,18 @@
 
                 </a>
                 <div class="flex items-center space-x-6">
+                    <a href="{{ route('duas.index') }}"
+                        class="text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors">Duas Library</a>
                     <a href="{{ route('welcome') }}"
                         class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Explorer
                         Research</a>
                     <a href="{{ route('quiz.learning') }}"
                         class="text-sm font-bold text-slate-300 hover:text-white transition-colors">Quiz Platform</a>
+                    <a href="{{ route('donate') }}"
+                        class="text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors inline-flex items-center space-x-1">
+                        <span>💚</span>
+                        <span>Support Us</span>
+                    </a>
                     @auth
                         <a href="{{ route('home') }}"
                             class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-bold rounded-full shadow-lg shadow-emerald-600/30 transition-all">My
@@ -118,8 +125,11 @@
     <section class="relative min-h-screen flex items-center justify-center pt-20 overflow-hidden">
         <!-- Background Hero Image -->
         <div class="absolute inset-0 z-0">
-            <img src="{{ asset('images/hero_banner.png') }}" alt="Islamic Geometric Pattern"
-                class="w-full h-full object-cover opacity-40">
+            <picture>
+                <source srcset="{{ asset('images/hero_banner.webp') }}" type="image/webp">
+                <img src="{{ asset('images/hero_banner.png') }}" alt="Islamic Geometric Pattern Background"
+                    class="w-full h-full object-cover opacity-40" fetchpriority="high">
+            </picture>
             <div class="absolute inset-0 bg-gradient-to-t from-slate-900 via-slate-900/60 to-transparent"></div>
             <div class="absolute inset-0 bg-gradient-to-b from-slate-900 via-transparent to-transparent opacity-80">
             </div>
@@ -393,11 +403,18 @@
 
     <!-- Footer -->
     <footer class="bg-black py-12 border-t border-white/5 relative z-10">
-        <div class="max-w-7xl mx-auto px-4 text-center">
+        <div class="max-w-7xl mx-auto px-4 text-center space-y-3">
             <p class="text-slate-600 font-bold text-sm tracking-widest uppercase">&copy; {{ date('Y') }} The Eternal
                 Echo. <a href="https://asloobulhayat.com/">Asloob ul Hayat Project.</a></p>
+            <div class="flex items-center justify-center space-x-6 text-xs font-bold text-slate-500">
+                <a href="{{ route('donate') }}" class="text-emerald-400 hover:text-emerald-300 transition-colors">🤲 Sadaqah Jariyah & Donate</a>
+                <a href="{{ route('privacy') }}" class="hover:text-slate-400 transition-colors">Privacy Policy</a>
+                <a href="{{ route('terms') }}" class="hover:text-slate-400 transition-colors">Terms of Service</a>
+            </div>
         </div>
     </footer>
+
+    @include('partials.app-feedback-modal')
 
 </body>
 

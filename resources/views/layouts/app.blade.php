@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 
 <head>
     <meta charset="UTF-8">
@@ -10,44 +10,61 @@
     <title>@yield('title', 'The Eternal Echo - AI-Powered Islamic Learning')</title>
     <meta name="description"
         content="@yield('meta_description', 'The Eternal Echo — An AI-powered Islamic learning platform. Take personalized Quran Para quizzes, Seerah knowledge challenges, and track your spiritual growth journey.')">
-    <meta name="keywords"
-        content="Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app">
+    @hasSection('keywords')
+        <meta name="keywords" content="@yield('keywords')">
+    @else
+        <meta name="keywords" content="Quran quiz, Islamic learning, Seerah, Prophet Muhammad, AI education, Islamic knowledge, Quran paras, Islamic quiz app">
+    @endif
     <meta name="author" content="The Eternal Echo">
-    <meta name="robots" content="index, follow">
-    <link rel="canonical" href="{{ url()->current() }}">
+    <meta name="robots" content="@yield('robots', 'index, follow')">
+    <link rel="canonical" href="@yield('canonical', url()->current())">
+    <link rel="icon" href="{{ asset('favicon.ico') }}" sizes="any">
     <link rel="icon" href="{{ asset('eternal.png') }}" type="image/png">
+    <link rel="apple-touch-icon" href="{{ asset('eternal.png') }}">
 
     {{-- Open Graph / Facebook --}}
-    <meta property="og:type" content="website">
-    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:type" content="@yield('og_type', 'website')">
+    <meta property="og:url" content="@yield('canonical', url()->current())">
     <meta property="og:title" content="@yield('title', 'The Eternal Echo - AI-Powered Islamic Learning')">
     <meta property="og:description"
         content="@yield('meta_description', 'AI-powered Islamic learning platform with Quran Para quizzes, Seerah challenges, and personalized insights.')">
+    <meta property="og:image" content="@yield('og_image', asset('eternal.png'))">
+    <meta property="og:image:alt" content="The Eternal Echo">
     <meta property="og:site_name" content="The Eternal Echo">
+    <meta property="og:locale" content="{{ str_replace('-', '_', app()->getLocale()) }}">
 
     {{-- Twitter Card --}}
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="@yield('title', 'The Eternal Echo - AI-Powered Islamic Learning')">
     <meta name="twitter:description"
         content="@yield('meta_description', 'AI-powered Islamic learning platform with Quran Para quizzes, Seerah challenges, and personalized insights.')">
+    <meta name="twitter:image" content="@yield('og_image', asset('eternal.png'))">
+    <meta name="twitter:image:alt" content="The Eternal Echo">
 
     {{-- JSON-LD Structured Data --}}
-    <script type="application/ld+json">
-    {
-        "@@context": "https://schema.org",
-        "@@type": "EducationalApplication",
-        "name": "The Eternal Echo",
-        "description": "AI-powered Islamic learning platform with personalized Quran quizzes and Seerah knowledge challenges",
-        "applicationCategory": "EducationalApplication",
-        "operatingSystem": "Web",
-        "offers": {
-            "@@type": "Offer",
-            "price": "0",
-            "priceCurrency": "USD"
+    @stack('schema')
+    @hasSection('schema')
+        @yield('schema')
+    @else
+        <script type="application/ld+json">
+        {
+            "@@context": "https://schema.org",
+            "@@type": "EducationalApplication",
+            "name": "The Eternal Echo",
+            "description": "AI-powered Islamic learning platform with personalized Quran quizzes and Seerah knowledge challenges",
+            "applicationCategory": "EducationalApplication",
+            "operatingSystem": "Web",
+            "offers": {
+                "@@type": "Offer",
+                "price": "0",
+                "priceCurrency": "USD"
+            }
         }
-    }
-    </script>
+        </script>
+    @endif
 
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link
@@ -169,6 +186,13 @@
             </nav>
 
             <div class="flex items-center space-x-3">
+                <a href="{{ route('donate') }}" 
+                   class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 hover:border-emerald-400/50 transition-all shadow-sm"
+                   title="Support This Mission (Sadaqah Jariyah)">
+                    <span>💚</span>
+                    <span>Support Us</span>
+                </a>
+
                 @auth
                     @php
                         $streakStatus = auth()->user()->getStreakStatus();
@@ -262,7 +286,8 @@
                     href="https://asloobulhayat.com/">Asloob
                     ul Hayat Project.</a></p>
             <div
-                class="flex items-center justify-center space-x-6 text-[10px] uppercase font-black tracking-widest text-slate-600">
+                class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-[10px] uppercase font-black tracking-widest text-slate-500">
+                <a href="{{ route('donate') }}" class="text-emerald-400 hover:text-emerald-300 font-black transition-colors">🤲 Sadaqah Jariyah / Donate</a>
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
                 <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>
                 <a href="{{ route('account.delete') }}" class="hover:text-rose-400 transition-colors">Delete Account</a>
@@ -284,6 +309,9 @@
             </a>
         @endforeach
     </div>
+    
+    {{-- Global App Feedback Widget (Modal & Trigger) --}}
+    @include('partials.app-feedback-modal')
 
     @stack('scripts')
 </body>

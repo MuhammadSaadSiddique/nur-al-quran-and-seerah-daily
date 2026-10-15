@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Bookmarks - The Eternal Echo')
-@section('meta_description', 'Your bookmarked quiz questions. Review saved questions and deepen your understanding of the Quran and Seerah.')
+@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn" x-data="bookmarkPage({{ json_encode($bookmarks) }})">

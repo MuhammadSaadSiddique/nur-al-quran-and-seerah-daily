@@ -1,10 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Privacy Policy - The Eternal Echo')
+@section('meta_description', 'Privacy Policy for The Eternal Echo platform. Learn how we handle your personal data, quiz progression, and ensure transparency.')
+@section('canonical', route('privacy'))
 
 @section('content')
 <div class="max-w-4xl mx-auto space-y-12 pb-20 animate-fadeIn">
     <div class="text-center space-y-4">
-        <h2 class="text-3xl font-extrabold text-slate-900 md:text-5xl">Privacy Policy</h2>
+        <h1 class="text-3xl font-extrabold text-slate-900 md:text-5xl">Privacy Policy</h1>
         <p class="text-slate-500 font-medium">Last Updated: {{ date('F d, Y') }}</p>
     </div>
 

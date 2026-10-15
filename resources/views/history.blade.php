@@ -1,6 +1,6 @@
 @extends('layouts.app')
 @section('title', 'Quiz History - The Eternal Echo')
-@section('meta_description', 'View your complete quiz history. Review past Quran and Seerah quiz performance and track your improvement over time.')
+@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-4xl mx-auto space-y-8 pb-10 animate-fadeIn">

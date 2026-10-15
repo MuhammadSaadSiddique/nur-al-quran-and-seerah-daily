@@ -15,8 +15,14 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.asloobulhayat.eternalecho.data.DefaultDataRepository
+import com.asloobulhayat.eternalecho.security.SecurePreferences
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -188,15 +194,38 @@ fun HomeScreen(
     onReadingProgressClick: () -> Unit = {},
     onClaimStreakClick: () -> Unit = {},
     onThemeSettingsClick: (() -> Unit)? = null,
+    onSubmitFeedback: (suspend (rating: Int, category: String, message: String) -> Result<String>)? = null,
     selectedBottomNavIndex: Int = 0,
     onBottomNavSelected: (Int) -> Unit = {},
     showBottomBar: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val prefs = remember { SecurePreferences.getInstance(context) }
+    val scope = rememberCoroutineScope()
+    val repository = remember { DefaultDataRepository() }
+
     val palette = rememberHomeThemePalette()
     var showReflectionSheet by remember { mutableStateOf(false) }
     var showStreakDialog by remember { mutableStateOf(false) }
     var showLocalThemeDialog by remember { mutableStateOf(false) }
+    var showFeedbackSheet by remember { mutableStateOf(false) }
+
+    val scrollState = rememberScrollState()
+    var autoPromptTriggered by remember { mutableStateOf(false) }
+
+    // Automatically prompt for user feedback once the user scrolls down on the home front page
+    LaunchedEffect(scrollState.value) {
+        if (!autoPromptTriggered && scrollState.value > 250 && !showFeedbackSheet) {
+            val isSubmitted = prefs.getBoolean("feedback_submitted", false)
+            val dismissedTime = prefs.getLong("feedback_dismissed_timestamp", 0L)
+            val sevenDaysMs = 7L * 24 * 60 * 60 * 1000L
+            if (!isSubmitted && (System.currentTimeMillis() - dismissedTime > sevenDaysMs)) {
+                autoPromptTriggered = true
+                showFeedbackSheet = true
+            }
+        }
+    }
 
     if (showLocalThemeDialog) {
         ThemeSettingDialog(
@@ -213,6 +242,43 @@ fun HomeScreen(
             onDismiss = { showStreakDialog = false },
             onClaimStreak = {
                 onClaimStreakClick()
+            }
+        )
+    }
+
+    if (showFeedbackSheet) {
+        AppFeedbackBottomSheet(
+            palette = palette,
+            onDismiss = {
+                showFeedbackSheet = false
+                prefs.putLong("feedback_dismissed_timestamp", System.currentTimeMillis())
+            },
+            onSubmitFeedback = { rating, category, message, onSuccess, onError ->
+                scope.launch {
+                    val result = if (onSubmitFeedback != null) {
+                        onSubmitFeedback(rating, category, message)
+                    } else {
+                        val userId = prefs.getInt("user_id", -1)
+                        val storedUserName = prefs.getString("user_name", "") ?: ""
+                        val storedUserEmail = prefs.getString("user_email", "") ?: ""
+                        repository.submitAppFeedback(
+                            rating = rating,
+                            category = category,
+                            message = message,
+                            userId = if (userId > 0) userId else null,
+                            userName = storedUserName.ifBlank { null },
+                            userEmail = storedUserEmail.ifBlank { null },
+                            deviceInfo = "${android.os.Build.MANUFACTURER} ${android.os.Build.MODEL} (Android ${android.os.Build.VERSION.RELEASE})"
+                        )
+                    }
+
+                    if (result.isSuccess) {
+                        prefs.putBoolean("feedback_submitted", true)
+                        onSuccess()
+                    } else {
+                        onError(result.exceptionOrNull()?.message ?: "Unable to submit feedback.")
+                    }
+                }
             }
         )
     }
@@ -259,7 +325,7 @@ fun HomeScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
+                    .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 // 1. Top Header (Greeting + Name + Streak + Theme Quick Switch)
@@ -300,6 +366,14 @@ fun HomeScreen(
                     onExploreHistoryClick = onExploreHistoryClick,
                     onDeepDiveClick = onDeepDiveClick,
                     onReadDuasClick = onReadDuasClick
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // 4. In-Page Feedback Card
+                HomeFeedbackCard(
+                    palette = palette,
+                    onOpenFeedback = { showFeedbackSheet = true }
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -1294,3 +1368,386 @@ fun DailyStreakDialog(
         }
     )
 }
+
+// ----------------- APP EXPERIENCE FEEDBACK -----------------
+
+/**
+ * In-Page Feedback Card displayed at the bottom of the home front page.
+ */
+@Composable
+fun HomeFeedbackCard(
+    palette: HomeThemePalette,
+    onOpenFeedback: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.cardBg),
+        border = BorderStroke(1.dp, palette.cardBorder),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable { onOpenFeedback() }
+            .testTag("home_feedback_card")
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.weight(1f)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(12.dp),
+                    color = palette.actionButtonBg,
+                    border = BorderStroke(1.dp, palette.actionButtonBorder),
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(text = "⭐", fontSize = 18.sp)
+                    }
+                }
+                Column {
+                    Text(
+                        text = "Share Your Experience",
+                        color = palette.textPrimary,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Help us improve with your valuable feedback",
+                        color = palette.textMuted,
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = palette.primaryButtonBg
+            ) {
+                Text(
+                    text = "Rate App",
+                    color = palette.primaryButtonContent,
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Modal Bottom Sheet asking for user experience feedback and rating.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun AppFeedbackBottomSheet(
+    palette: HomeThemePalette,
+    onDismiss: () -> Unit,
+    onSubmitFeedback: (rating: Int, category: String, message: String, onSuccess: () -> Unit, onError: (String) -> Unit) -> Unit
+) {
+    var rating by remember { mutableIntStateOf(5) }
+    var selectedCategory by remember { mutableStateOf("app_experience") }
+    var message by remember { mutableStateOf("") }
+    var isSubmitting by remember { mutableStateOf(false) }
+    var isSuccess by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    val categories = listOf(
+        "app_experience" to "🌟 Overall App",
+        "content" to "📖 Quran & Duas",
+        "feature_request" to "💡 Feature Idea",
+        "bug" to "🐞 Report Issue"
+    )
+
+    ModalBottomSheet(
+        onDismissRequest = onDismiss,
+        containerColor = palette.sheetBg,
+        contentColor = palette.textPrimary
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp)
+                .navigationBarsPadding(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            if (isSuccess) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(text = "✨", fontSize = 42.sp)
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "JazakAllahu Khairan!",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.textPrimary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Thank you for your valuable feedback. May Allah bless you in your spiritual and educational journey.",
+                    fontSize = 13.sp,
+                    color = palette.textSecondary,
+                    textAlign = TextAlign.Center,
+                    lineHeight = 18.sp
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = palette.primaryButtonBg),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Close", color = palette.primaryButtonContent, fontWeight = FontWeight.Bold)
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(text = "⭐", fontSize = 20.sp)
+                        Text(
+                            text = "How is your experience?",
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.textPrimary
+                        )
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = palette.textMuted)
+                    }
+                }
+
+                Text(
+                    text = "Help us improve The Eternal Echo with your ratings & suggestions.",
+                    fontSize = 12.sp,
+                    color = palette.textMuted,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 2.dp, bottom = 14.dp)
+                )
+
+                // 5 Star Rating Selector
+                Surface(
+                    shape = RoundedCornerShape(14.dp),
+                    color = palette.sheetCardBg,
+                    border = BorderStroke(1.dp, palette.cardBorder),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 12.dp, horizontal = 8.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(
+                            horizontalArrangement = Arrangement.Center,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            for (i in 1..5) {
+                                val isSelected = i <= rating
+                                IconButton(
+                                    onClick = { rating = i },
+                                    modifier = Modifier.size(42.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (isSelected) Icons.Filled.Star else Icons.Outlined.Star,
+                                        contentDescription = "Star $i",
+                                        tint = if (isSelected) palette.goldAccent else palette.textMuted,
+                                        modifier = Modifier.size(30.dp)
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = when (rating) {
+                                5 -> "Exceptional! ⭐ 5/5"
+                                4 -> "Great! 👍 4/5"
+                                3 -> "Good 🙂 3/5"
+                                2 -> "Needs Improvement 🛠️ 2/5"
+                                else -> "Poor ⚠️ 1/5"
+                            },
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.goldAccent,
+                            modifier = Modifier.padding(top = 2.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Category selector chips
+                Text(
+                    text = "Category",
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.textMuted,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.take(2).forEach { (catKey, catLabel) ->
+                        val isCatSelected = selectedCategory == catKey
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isCatSelected) palette.primaryButtonBg else palette.sheetCardBg,
+                            border = BorderStroke(1.dp, if (isCatSelected) palette.primaryAccent else palette.cardBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { selectedCategory = catKey }
+                        ) {
+                            Text(
+                                text = catLabel,
+                                fontSize = 11.sp,
+                                fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isCatSelected) palette.primaryButtonContent else palette.textSecondary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    categories.drop(2).forEach { (catKey, catLabel) ->
+                        val isCatSelected = selectedCategory == catKey
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            color = if (isCatSelected) palette.primaryButtonBg else palette.sheetCardBg,
+                            border = BorderStroke(1.dp, if (isCatSelected) palette.primaryAccent else palette.cardBorder),
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .clickable { selectedCategory = catKey }
+                        ) {
+                            Text(
+                                text = catLabel,
+                                fontSize = 11.sp,
+                                fontWeight = if (isCatSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isCatSelected) palette.primaryButtonContent else palette.textSecondary,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                // Comments input
+                OutlinedTextField(
+                    value = message,
+                    onValueChange = { if (it.length <= 1000) message = it },
+                    placeholder = {
+                        Text(
+                            "Share your thoughts, suggestions, or ideas (Optional)...",
+                            fontSize = 12.sp,
+                            color = palette.textMuted
+                        )
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = palette.primaryAccent,
+                        unfocusedBorderColor = palette.cardBorder,
+                        focusedTextColor = palette.textPrimary,
+                        unfocusedTextColor = palette.textPrimary,
+                        cursorColor = palette.primaryAccent
+                    ),
+                    maxLines = 4,
+                    minLines = 3
+                )
+
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage ?: "",
+                        color = MaterialTheme.colorScheme.error,
+                        fontSize = 11.sp,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 4.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, palette.cardBorder),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Maybe Later", color = palette.textMuted, fontSize = 12.sp)
+                    }
+
+                    Button(
+                        onClick = {
+                            isSubmitting = true
+                            errorMessage = null
+                            onSubmitFeedback(
+                                rating,
+                                selectedCategory,
+                                message,
+                                {
+                                    isSubmitting = false
+                                    isSuccess = true
+                                },
+                                { err ->
+                                    isSubmitting = false
+                                    errorMessage = err
+                                }
+                            )
+                        },
+                        enabled = !isSubmitting,
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = palette.primaryButtonBg),
+                        modifier = Modifier.weight(1.4f)
+                    ) {
+                        if (isSubmitting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = palette.primaryButtonContent,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                        }
+                        Text(
+                            text = if (isSubmitting) "Submitting..." else "Submit Feedback",
+                            color = palette.primaryButtonContent,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+            }
+        }
+    }
+}
+

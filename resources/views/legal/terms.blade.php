@@ -1,10 +1,12 @@
 @extends('layouts.app')
 @section('title', 'Terms of Service - The Eternal Echo')
+@section('meta_description', 'Terms of Service for The Eternal Echo platform. Read our terms, conditions, and usage guidelines for Islamic learning and research.')
+@section('canonical', route('terms'))
 
 @section('content')
 <div class="max-w-4xl mx-auto space-y-12 pb-20 animate-fadeIn">
     <div class="text-center space-y-4">
-        <h2 class="text-3xl font-extrabold text-slate-900 md:text-5xl">Terms of Service</h2>
+        <h1 class="text-3xl font-extrabold text-slate-900 md:text-5xl">Terms of Service</h1>
         <p class="text-slate-500 font-medium">Agreement Updated: {{ date('F d, Y') }}</p>
     </div>
 

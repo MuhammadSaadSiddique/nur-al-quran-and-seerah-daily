@@ -146,5 +146,20 @@ class DailyEngagementTest extends TestCase
         $response->assertSee('Today', false);
         $response->assertSee('Devotion', false);
         $response->assertSee('Complete a quiz');
+        $response->assertSee(route('quiz.learning'), false);
+        $response->assertSee(route('lens.index'), false);
+    }
+
+    public function test_activity_links_leave_the_dashboard(): void
+    {
+        $user = User::factory()->create();
+        $status = app(DailyEngagementService::class)->todayStatus($user);
+
+        $this->assertSame(route('quiz.learning'), $status['activities']['quiz']['href']);
+        $this->assertSame(route('lens.index'), $status['activities']['read']['href']);
+        $this->assertSame(route('seerah'), $status['activities']['insight']['href']);
+        $this->assertSame(route('daily.dua'), $status['activities']['dua']['href']);
+        $this->assertStringNotContainsString('/dashboard', $status['activities']['read']['href']);
+        $this->assertStringNotContainsString('/dashboard', $status['activities']['quiz']['href']);
     }
 }

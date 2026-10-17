@@ -31,6 +31,7 @@ fun NotificationsBottomSheet(
     onDismiss: () -> Unit,
     onMarkAsRead: (Long) -> Unit,
     onMarkAllAsRead: () -> Unit,
+    onOpen: (NotificationItem) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val unreadCount = notifications.count { !it.isRead }
@@ -171,7 +172,10 @@ fun NotificationsBottomSheet(
                     items(notifications, key = { it.id }) { item ->
                         NotificationCard(
                             item = item,
-                            onClick = { onMarkAsRead(item.id) }
+                            onClick = {
+                                onMarkAsRead(item.id)
+                                onOpen(item)
+                            }
                         )
                     }
                 }
@@ -208,9 +212,7 @@ fun NotificationCard(
             .fillMaxWidth()
             .clickable {
                 expanded = !expanded
-                if (!item.isRead) {
-                    onClick()
-                }
+                onClick()
             }
     ) {
         Column(

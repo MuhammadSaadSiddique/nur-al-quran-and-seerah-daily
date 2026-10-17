@@ -6,12 +6,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.asloobulhayat.eternalecho.MainActivity
 import com.asloobulhayat.eternalecho.R
+import com.asloobulhayat.eternalecho.util.DeepLinkHelper
 
 object NotificationHelper {
     const val CHANNEL_ID = "eternal_echo_announcements"
@@ -58,8 +60,12 @@ object NotificationHelper {
         createNotificationChannel(context)
 
         val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            actionUrl?.let { putExtra("EXTRA_ACTION_URL", it) }
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = Intent.ACTION_VIEW
+            actionUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                putExtra("EXTRA_ACTION_URL", url)
+                data = Uri.parse(DeepLinkHelper.toAbsoluteUrl(url))
+            }
             putExtra("EXTRA_NOTIFICATION_ID", notificationId)
         }
 

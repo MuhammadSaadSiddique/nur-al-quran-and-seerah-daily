@@ -570,7 +570,8 @@ fun DuaCard(
                             title = dua.title,
                             arabicText = dua.arabicText,
                             translation = translation,
-                            reference = dua.quranReference ?: dua.hadithReference
+                            reference = dua.quranReference ?: dua.hadithReference,
+                            idOrSlug = dua.slug.ifBlank { dua.id.toString() }
                         )
                     },
                     modifier = Modifier.size(32.dp)

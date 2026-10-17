@@ -150,6 +150,26 @@ class DeepLinkHelperTest {
     }
 
     @Test
+    fun testRelativeAndHostOnlyPaths() {
+        assertEquals(
+            DeepLinkDestination.DuaDetail("ayat-al-kursi"),
+            DeepLinkHelper.parse("/duas/ayat-al-kursi")
+        )
+        assertEquals(
+            DeepLinkDestination.Surah(2, 255),
+            DeepLinkHelper.parse("lens/2/255")
+        )
+        assertEquals(
+            DeepLinkDestination.Seerah,
+            DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/seerah")
+        )
+        assertEquals(
+            "https://theeternalecho.asloobulhayat.com/duas/ayat-al-kursi",
+            DeepLinkHelper.toAbsoluteUrl("/duas/ayat-al-kursi")
+        )
+    }
+
+    @Test
     fun testInvalidOrUnsupportedUrls() {
         assertNull(DeepLinkHelper.parse(null as String?))
         assertNull(DeepLinkHelper.parse(null as android.net.Uri?))

@@ -1,0 +1,13 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.asloobulhayat.eternalecho",
+      "sha256_cert_fingerprints": [
+        "75:40:F0:EC:5E:C0:BB:8F:AE:95:85:44:36:F6:4F:39:53:7D:A3:58:59:AD:65:A8:AC:6F:63:1C:77:95:3F:E9",
+        "87:39:6D:98:1A:74:F3:73:84:DA:72:3C:60:7E:44:0B:98:70:86:2B:69:49:72:D2:6F:A5:88:19:06:B3:A0:55"
+      ]
+    }
+  }
+]

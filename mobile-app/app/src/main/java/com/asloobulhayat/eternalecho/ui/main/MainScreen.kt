@@ -51,6 +51,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation3.runtime.NavKey
 import com.asloobulhayat.eternalecho.AuthRoute
+import com.asloobulhayat.eternalecho.DuaDetailRoute
 import com.asloobulhayat.eternalecho.DuasRoute
 import com.asloobulhayat.eternalecho.OnboardingRoute
 import com.asloobulhayat.eternalecho.ThemeQuizSelection
@@ -68,6 +69,8 @@ import com.asloobulhayat.eternalecho.ui.research.ContributeResearchBottomSheet
 import com.asloobulhayat.eternalecho.ui.research.ContributionCard
 import com.asloobulhayat.eternalecho.ui.research.VerificationDialog
 import com.asloobulhayat.eternalecho.ui.surah.SurahReaderContent
+import com.asloobulhayat.eternalecho.util.DeepLinkDestination
+import com.asloobulhayat.eternalecho.util.DeepLinkHelper
 import com.asloobulhayat.eternalecho.util.ShareHelper
 import kotlinx.coroutines.launch
 
@@ -77,10 +80,17 @@ fun MainScreen(
     onItemClick: (NavKey) -> Unit,
     modifier: Modifier = Modifier,
     initialTab: Int = 0,
+    tabRequestId: Int = 0,
     onTabSelected: (Int) -> Unit = {},
     viewModel: MainScreenViewModel = viewModel { MainScreenViewModel(DefaultDataRepository()) }
 ) {
-    var selectedTab by remember(initialTab) { mutableIntStateOf(initialTab) }
+    var selectedTab by remember { mutableIntStateOf(initialTab) }
+
+    LaunchedEffect(tabRequestId) {
+        if (tabRequestId > 0) {
+            selectedTab = initialTab
+        }
+    }
     val adaptiveInfo = rememberWindowAdaptiveInfo()
 
     val context = LocalContext.current
@@ -720,7 +730,41 @@ fun MainScreen(
             notifications = notifications,
             onDismiss = { showNotificationsSheet = false },
             onMarkAsRead = { notificationRepo.markAsRead(it) },
-            onMarkAllAsRead = { notificationRepo.markAllAsRead() }
+            onMarkAllAsRead = { notificationRepo.markAllAsRead() },
+            onOpen = open@{ item ->
+                notificationRepo.markAsRead(item.id)
+                val destination = DeepLinkHelper.parse(item.actionUrl) ?: return@open
+                showNotificationsSheet = false
+                when (destination) {
+                    is DeepLinkDestination.Surah ->
+                        onItemClick(SurahNavKey(destination.surahNumber, destination.verseNumber))
+                    is DeepLinkDestination.Duas ->
+                        onItemClick(DuasRoute)
+                    is DeepLinkDestination.DuaDetail -> {
+                        val numId = destination.idOrSlug.toIntOrNull() ?: 0
+                        val slug = if (numId == 0) destination.idOrSlug else ""
+                        onItemClick(DuaDetailRoute(numId, slug))
+                    }
+                    is DeepLinkDestination.Quiz ->
+                        onItemClick(ThemeQuizSelection)
+                    is DeepLinkDestination.Seerah -> {
+                        selectedTab = 2
+                        onTabSelected(2)
+                    }
+                    is DeepLinkDestination.History -> {
+                        selectedTab = 3
+                        onTabSelected(3)
+                    }
+                    is DeepLinkDestination.Leaderboard -> {
+                        selectedTab = 1
+                        onTabSelected(1)
+                    }
+                    is DeepLinkDestination.Home -> {
+                        selectedTab = 0
+                        onTabSelected(0)
+                    }
+                }
+            }
         )
     }
 

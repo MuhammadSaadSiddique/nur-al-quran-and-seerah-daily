@@ -23,6 +23,16 @@ use App\Http\Controllers\DonationController;
 use App\Http\Controllers\EngagementController;
 use Illuminate\Support\Facades\Route;
 
+// Android App Links verification. A static copy also lives in public/.well-known/.
+Route::get('/.well-known/assetlinks.json', function () {
+    $path = public_path('.well-known/assetlinks.json');
+    abort_unless(is_file($path), 404);
+
+    return response(file_get_contents($path), 200, [
+        'Content-Type' => 'application/json',
+    ]);
+})->name('assetlinks');
+
 // Public routes
 Route::get('/', [QuranicLensController::class, 'landing'])->name('lens.landing');
 

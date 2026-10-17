@@ -40,60 +40,53 @@ fun MainNavigation(
   val initialKey = if (hasCompletedOnboarding) Main else OnboardingRoute
   val backStack = rememberNavBackStack(initialKey)
   var mainTab by remember { mutableIntStateOf(0) }
+  var tabRequestId by remember { mutableIntStateOf(0) }
+
+  fun ensureMainUnderneath() {
+    if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
+      backStack.clear()
+      backStack.add(Main)
+    }
+  }
+
+  fun showMainTab(tab: Int) {
+    if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
+      backStack.clear()
+      backStack.add(Main)
+    } else {
+      while (backStack.size > 1) {
+        backStack.removeLastOrNull()
+      }
+    }
+    mainTab = tab
+    tabRequestId += 1
+  }
 
   LaunchedEffect(deepLinkDestination) {
     deepLinkDestination?.let { destination ->
       when (destination) {
         is DeepLinkDestination.Surah -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           backStack.add(SurahNavKey(destination.surahNumber, destination.verseNumber))
         }
         is DeepLinkDestination.Duas -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           backStack.add(DuasRoute)
         }
         is DeepLinkDestination.DuaDetail -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           val numId = destination.idOrSlug.toIntOrNull() ?: 0
           val slug = if (numId == 0) destination.idOrSlug else ""
           backStack.add(DuaDetailRoute(numId, slug))
         }
         is DeepLinkDestination.Quiz -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           backStack.add(ThemeQuizSelection)
         }
-        is DeepLinkDestination.Seerah -> {
-          mainTab = 2
-          backStack.clear()
-          backStack.add(Main)
-        }
-        is DeepLinkDestination.History -> {
-          mainTab = 3
-          backStack.clear()
-          backStack.add(Main)
-        }
-        is DeepLinkDestination.Leaderboard -> {
-          mainTab = 1
-          backStack.clear()
-          backStack.add(Main)
-        }
-        is DeepLinkDestination.Home -> {
-          mainTab = 0
-          backStack.clear()
-          backStack.add(Main)
-        }
+        is DeepLinkDestination.Seerah -> showMainTab(2)
+        is DeepLinkDestination.History -> showMainTab(3)
+        is DeepLinkDestination.Leaderboard -> showMainTab(1)
+        is DeepLinkDestination.Home -> showMainTab(0)
       }
       onDeepLinkHandled()
     }
@@ -116,6 +109,7 @@ fun MainNavigation(
           MainScreen(
             onItemClick = { navKey -> backStack.add(navKey) },
             initialTab = mainTab,
+            tabRequestId = tabRequestId,
             onTabSelected = { mainTab = it },
             modifier = Modifier
           )

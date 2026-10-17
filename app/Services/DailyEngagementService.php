@@ -91,11 +91,11 @@ class DailyEngagementService
         return [
             UserDailyEngagement::ACTIVITY_QUIZ => [
                 'label' => 'Complete a quiz',
-                'href' => $this->safeRoute('home', '/dashboard'),
+                'href' => $this->safeRoute('quiz.learning', '/quiz-learning'),
             ],
             UserDailyEngagement::ACTIVITY_READ => [
                 'label' => 'Read a Surah or Para',
-                'href' => $this->safeRoute('home', '/dashboard'),
+                'href' => $this->safeRoute('lens.index', '/lens'),
             ],
             UserDailyEngagement::ACTIVITY_INSIGHT => [
                 'label' => 'Read a Seerah or Quran insight',

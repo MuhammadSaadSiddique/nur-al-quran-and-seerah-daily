@@ -18,7 +18,7 @@
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTop"
+            android:launchMode="singleTask"
             android:resizeableActivity="true"
             android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
             <!--<intent-filter>
@@ -31,7 +31,7 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link intent filter for HTTPS web links -->
+            <!-- Verified App Links. HTTP is a separate filter: mixing it into autoVerify fails verification. -->
             <intent-filter android:autoVerify="true">
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -39,6 +39,11 @@
                 <data
                     android:scheme="https"
                     android:host="theeternalecho.asloobulhayat.com" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="http"
                     android:host="theeternalecho.asloobulhayat.com" />
@@ -55,19 +60,10 @@
         </activity>
         <activity
             android:name=".AppActivity"
-            android:exported="true"
+            android:exported="false"
             android:launchMode="singleTop"
             android:resizeableActivity="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize">
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data
-                    android:scheme="eternalecho"
-                    android:host="app" />
-            </intent-filter>
-        </activity>
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
 
         <service
             android:name=".notifications.EternalEchoMessagingService"

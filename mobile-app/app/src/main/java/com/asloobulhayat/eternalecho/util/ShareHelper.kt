@@ -117,9 +117,14 @@ object ShareHelper {
         title: String,
         arabicText: String,
         translation: String,
-        reference: String? = null
+        reference: String? = null,
+        idOrSlug: String? = null
     ): String = buildString {
-        val link = DeepLinkHelper.getDuasUrl()
+        val link = if (!idOrSlug.isNullOrBlank()) {
+            DeepLinkHelper.getDuaDetailUrl(idOrSlug)
+        } else {
+            DeepLinkHelper.getDuasUrl()
+        }
         appendLine("🤲 $title")
         appendLine()
         appendLine(arabicText)
@@ -143,9 +148,14 @@ object ShareHelper {
         title: String,
         arabicText: String,
         translation: String,
-        reference: String? = null
+        reference: String? = null,
+        idOrSlug: String? = null
     ) {
-        shareText(context, buildDuaShareText(title, arabicText, translation, reference), subject = "Dua: $title")
+        shareText(
+            context,
+            buildDuaShareText(title, arabicText, translation, reference, idOrSlug),
+            subject = "Dua: $title"
+        )
     }
 
     /**

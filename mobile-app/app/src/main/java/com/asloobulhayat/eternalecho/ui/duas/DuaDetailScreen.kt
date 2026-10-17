@@ -201,7 +201,8 @@ fun DuaDetailScreen(
                                 title = dua.title,
                                 arabicText = dua.arabicText,
                                 translation = trans,
-                                reference = dua.quranReference ?: dua.hadithReference
+                                reference = dua.quranReference ?: dua.hadithReference,
+                                idOrSlug = dua.slug.ifBlank { dua.id.toString() }
                             )
                         }) {
                             Icon(Icons.Default.Share, contentDescription = "Share Dua")

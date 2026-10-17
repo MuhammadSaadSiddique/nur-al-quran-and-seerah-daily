@@ -15,25 +15,14 @@ class QuranTranslationPageTest extends TestCase
     public function test_surah_and_verse_pages_show_translations_from_the_web(): void
     {
         Http::fake([
-            'api.alquran.cloud/*' => Http::response([
-                'code' => 200,
-                'data' => [
+            'api.quran.com/*' => Http::response([
+                'verses' => [
                     [
-                        'edition' => ['identifier' => 'en.sahih'],
-                        'ayahs' => [
-                            ['numberInSurah' => 1, 'text' => 'In the name of Allah, the Entirely Merciful.'],
-                        ],
-                    ],
-                    [
-                        'edition' => ['identifier' => 'en.pickthall'],
-                        'ayahs' => [
-                            ['numberInSurah' => 1, 'text' => 'In the name of Allah, the Beneficent, the Merciful.'],
-                        ],
-                    ],
-                    [
-                        'edition' => ['identifier' => 'ur.jalandhry'],
-                        'ayahs' => [
-                            ['numberInSurah' => 1, 'text' => 'شروع الله کا نام لے کر'],
+                        'verse_number' => 1,
+                        'translations' => [
+                            ['resource_id' => 20, 'text' => 'In the name of Allah, the Entirely Merciful.'],
+                            ['resource_id' => 19, 'text' => 'In the name of Allah, the Beneficent, the Merciful.'],
+                            ['resource_id' => 234, 'text' => 'شروع الله کا نام لے کر'],
                         ],
                     ],
                 ],
@@ -63,6 +52,7 @@ class QuranTranslationPageTest extends TestCase
 
         $surah = $this->get(route('lens.surah', 1));
         $surah->assertOk();
+        $surah->assertSee('Quran.com');
         $surah->assertSee('Saheeh International');
         $surah->assertSee('Jalandhry (Urdu)');
         $surah->assertSee('In the name of Allah, the Entirely Merciful.');

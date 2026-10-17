@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"
-        x-data="quizApp({{ json_encode($questions) }}, '{{ $type }}', '{{ $title }}', '{{ $difficulty }}', '{{ $theme }}', {{ $paraNumber ?? 'null' }})">
+        x-data="quizApp({{ json_encode($questions) }}, '{{ $type }}', '{{ $title }}', '{{ $difficulty }}', '{{ $theme }}', {{ $paraNumber ?? 'null' }}, {{ json_encode($attemptToken ?? '') }})">
 
         {{-- Header --}}
         <div class="flex justify-between items-center px-2">
@@ -346,7 +346,7 @@
 
 @push('scripts')
     <script>
-        function quizApp(questions, type, title, difficulty, theme, paraNumber) {
+        function quizApp(questions, type, title, difficulty, theme, paraNumber, attemptToken) {
             return {
                 questions,
                 type,
@@ -354,6 +354,7 @@
                 difficulty,
                 theme,
                 paraNumber,
+                attemptToken: attemptToken || '',
                 currentIndex: 0,
                 score: 0,
                 selectedAnswer: null,
@@ -509,6 +510,7 @@
                                 questions: JSON.stringify(this.questions),
                                 userAnswers: JSON.stringify(this.userAnswers),
                                 paraNumber: this.paraNumber,
+                                attemptToken: this.attemptToken,
                             }),
                         });
                         const data = await res.json();

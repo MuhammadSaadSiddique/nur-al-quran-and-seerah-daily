@@ -3,22 +3,23 @@
 namespace App\Services;
 
 use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class QuranTranslationService
 {
     /**
-     * Published translations served by AlQuran Cloud. Display names stay in English
-     * so the reader can switch between them without decoding the edition id.
+     * Published translations on Quran.com. Display names stay in English
+     * so the reader can switch between them without decoding the resource id.
+     *
+     * @var array<string, array{name: string, language: string, direction: string, resource_id: int}>
      */
     public const EDITIONS = [
-        'en.sahih' => ['name' => 'Saheeh International', 'language' => 'en', 'direction' => 'ltr'],
-        'en.pickthall' => ['name' => 'Pickthall', 'language' => 'en', 'direction' => 'ltr'],
-        'en.yusufali' => ['name' => 'Yusuf Ali', 'language' => 'en', 'direction' => 'ltr'],
-        'en.hilali' => ['name' => 'Hilali & Khan', 'language' => 'en', 'direction' => 'ltr'],
-        'ur.jalandhry' => ['name' => 'Jalandhry (Urdu)', 'language' => 'ur', 'direction' => 'rtl'],
-        'ur.maududi' => ['name' => 'Maududi (Urdu)', 'language' => 'ur', 'direction' => 'rtl'],
+        'en.sahih' => ['name' => 'Saheeh International', 'language' => 'en', 'direction' => 'ltr', 'resource_id' => 20],
+        'en.pickthall' => ['name' => 'Pickthall', 'language' => 'en', 'direction' => 'ltr', 'resource_id' => 19],
+        'en.yusufali' => ['name' => 'Yusuf Ali', 'language' => 'en', 'direction' => 'ltr', 'resource_id' => 22],
+        'en.hilali' => ['name' => 'Hilali & Khan', 'language' => 'en', 'direction' => 'ltr', 'resource_id' => 203],
+        'ur.jalandhry' => ['name' => 'Jalandhry (Urdu)', 'language' => 'ur', 'direction' => 'rtl', 'resource_id' => 234],
+        'ur.maududi' => ['name' => 'Maududi (Urdu)', 'language' => 'ur', 'direction' => 'rtl', 'resource_id' => 97],
     ];
 
     /**
@@ -168,16 +169,20 @@ class QuranTranslationService
      */
     private function fetchSurah(int $surahNumber): array
     {
-        $editionIds = implode(',', array_keys(self::EDITIONS));
+        $byResource = [];
+        foreach (self::EDITIONS as $id => $meta) {
+            $byResource[(int) $meta['resource_id']] = $id;
+        }
+
         $url = rtrim((string) config('services.quran_translations.base_url'), '/')
-            . "/surah/{$surahNumber}/editions/{$editionIds}";
+            . "/verses/by_chapter/{$surahNumber}";
 
         try {
-            $response = Http::withOptions($this->httpOptions())
-                ->connectTimeout(5)
-                ->timeout(25)
-                ->acceptJson()
-                ->get($url);
+            $response = QuranHttp::pending(25)->get($url, [
+                'translations' => implode(',', array_keys($byResource)),
+                'per_page' => 286,
+                'fields' => 'verse_number',
+            ]);
         } catch (\Throwable $e) {
             Log::warning('Quran translation request failed', [
                 'surah' => $surahNumber,
@@ -187,7 +192,7 @@ class QuranTranslationService
             return [];
         }
 
-        if (!$response->successful() || (int) $response->json('code') !== 200) {
+        if (!$response->successful()) {
             Log::warning('Quran translation request returned an error', [
                 'surah' => $surahNumber,
                 'status' => $response->status(),
@@ -196,34 +201,38 @@ class QuranTranslationService
             return [];
         }
 
-        $blocks = $response->json('data');
-        if (!is_array($blocks)) {
+        $verses = $response->json('verses');
+        if (!is_array($verses)) {
             return [];
         }
 
         $byVerse = [];
-        foreach ($blocks as $block) {
-            if (!is_array($block)) {
+        foreach ($verses as $verse) {
+            if (!is_array($verse)) {
                 continue;
             }
 
-            $identifier = (string) ($block['edition']['identifier'] ?? '');
-            if (!isset(self::EDITIONS[$identifier])) {
+            $number = (int) ($verse['verse_number'] ?? 0);
+            if ($number < 1) {
                 continue;
             }
 
-            $meta = self::EDITIONS[$identifier];
-            foreach ($block['ayahs'] ?? [] as $ayah) {
-                if (!is_array($ayah)) {
+            foreach ($verse['translations'] ?? [] as $translation) {
+                if (!is_array($translation)) {
                     continue;
                 }
 
-                $number = (int) ($ayah['numberInSurah'] ?? 0);
-                $text = $this->cleanText((string) ($ayah['text'] ?? ''));
-                if ($number < 1 || $text === '') {
+                $identifier = $byResource[(int) ($translation['resource_id'] ?? 0)] ?? null;
+                if ($identifier === null) {
                     continue;
                 }
 
+                $text = $this->cleanText((string) ($translation['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+
+                $meta = self::EDITIONS[$identifier];
                 $byVerse[$number][] = [
                     'id' => $identifier,
                     'name' => $meta['name'],
@@ -251,33 +260,7 @@ class QuranTranslationService
     {
         $editionKey = md5(implode(',', array_keys(self::EDITIONS)));
 
-        return "quran.translations.v2.surah.{$surahNumber}.{$editionKey}";
-    }
-
-    /**
-     * Windows PHP often has no CA bundle configured. Use the system bundle,
-     * then a local Git bundle, so the public translation API can be verified.
-     *
-     * @return array<string, mixed>
-     */
-    private function httpOptions(): array
-    {
-        $configured = (string) config('services.quran_translations.ca_bundle');
-        $candidates = array_filter([
-            $configured,
-            (string) ini_get('curl.cainfo'),
-            (string) ini_get('openssl.cafile'),
-            'C:\\Program Files\\Git\\mingw64\\etc\\ssl\\certs\\ca-bundle.crt',
-            'C:\\Program Files\\Git\\usr\\ssl\\certs\\ca-bundle.crt',
-        ]);
-
-        foreach ($candidates as $path) {
-            if (is_file($path)) {
-                return ['verify' => $path];
-            }
-        }
-
-        return [];
+        return "quran.translations.v3.surah.{$surahNumber}.{$editionKey}";
     }
 
     private function cacheGet(string $key): mixed
@@ -302,6 +285,7 @@ class QuranTranslationService
 
     private function cleanText(string $text): string
     {
+        $text = preg_replace('/<sup\b[^>]*>.*?<\/sup>/isu', '', $text) ?? $text;
         $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 

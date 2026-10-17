@@ -23,8 +23,8 @@ interface DataRepository {
         historyCategory: String = ""
     ): InsightsData
     suspend fun getThemes(): List<Theme>
-    suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): List<QuizQuestion>
-    suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): List<QuizQuestion>
+    suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): QuizSession
+    suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): QuizSession
     suspend fun login(email: String, password: String): UserSession
     suspend fun register(name: String, email: String, password: String): UserSession
     suspend fun requestOtp(email: String): Boolean
@@ -46,7 +46,8 @@ interface DataRepository {
         totalQuestions: Int,
         difficulty: String,
         questionsJson: String,
-        userAnswersJson: String
+        userAnswersJson: String,
+        attemptToken: String = ""
     ): Boolean
     suspend fun getDuas(category: String = "", search: String = "", sourceType: String = ""): List<Dua>
     suspend fun getDua(id: Int = 0, slug: String = ""): Dua? = null
@@ -160,11 +161,11 @@ class DefaultDataRepository : DataRepository {
         return ApiClient.fetchThemes()
     }
 
-    override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> {
+    override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): QuizSession {
         return ApiClient.fetchThemeQuiz(themeId, difficulty, quantity)
     }
 
-    override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> {
+    override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): QuizSession {
         return ApiClient.fetchGrandQuiz(quizType, difficulty, quantity)
     }
 
@@ -216,9 +217,13 @@ class DefaultDataRepository : DataRepository {
         totalQuestions: Int,
         difficulty: String,
         questionsJson: String,
-        userAnswersJson: String
+        userAnswersJson: String,
+        attemptToken: String
     ): Boolean {
-        return ApiClient.submitQuiz(userId, type, title, score, totalQuestions, difficulty, questionsJson, userAnswersJson)
+        return ApiClient.submitQuiz(
+            userId, type, title, score, totalQuestions, difficulty,
+            questionsJson, userAnswersJson, attemptToken
+        )
     }
 
     override suspend fun getDuas(category: String, search: String, sourceType: String): List<Dua> {

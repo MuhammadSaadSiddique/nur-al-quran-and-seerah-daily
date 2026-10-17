@@ -283,17 +283,17 @@ private class FakeQuizRepository(private val mockQuestions: List<QuizQuestion>) 
     override suspend fun getInsights(seerahPage: Int, historyPage: Int, seerahCategory: String, historyCategory: String): InsightsData =
         InsightsData(emptyList(), emptyList(), seerahPage, 1, historyPage, 1, emptyList(), emptyList())
     override suspend fun getThemes(): List<Theme> = emptyList()
-    override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> {
+    override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): QuizSession {
         requestedThemeId = themeId
         requestedThemeDifficulty = difficulty
         requestedThemeQuantity = quantity
-        return mockQuestions
+        return QuizSession(mockQuestions, "test-attempt-token")
     }
-    override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> {
+    override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): QuizSession {
         requestedGrandType = quizType
         requestedGrandDifficulty = difficulty
         requestedGrandQuantity = quantity
-        return mockQuestions
+        return QuizSession(mockQuestions, "test-attempt-token")
     }
     override suspend fun login(email: String, password: String): UserSession = UserSession(0, "", "", 0)
     override suspend fun register(name: String, email: String, password: String): UserSession = UserSession(0, "", "", 0)
@@ -311,8 +311,9 @@ private class FakeQuizRepository(private val mockQuestions: List<QuizQuestion>) 
         totalQuestions: Int,
         difficulty: String,
         questionsJson: String,
-        userAnswersJson: String
-    ): Boolean {
+        userAnswersJson: String,
+      attemptToken: String = ""
+  ): Boolean {
         submittedUserId = userId
         submittedType = type
         submittedTitle = title

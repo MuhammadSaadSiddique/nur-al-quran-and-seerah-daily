@@ -128,8 +128,9 @@ class InsightController extends Controller
                 'id' => $insightItem->question_id,
                 'text' => $insightItem->text,
                 'options' => $insightItem->options,
-                'correctAnswerIndex' => $insightItem->correct_answer_index,
-                'explanation' => $insightItem->explanation,
+                // Reveal only after answer via insight.answer / quiz.check-answer.
+                'correctAnswerIndex' => -1,
+                'explanation' => null,
                 'theme' => $insightItem->theme,
                 'reference' => $insightItem->reference,
                 'difficulty' => $insightItem->difficulty,
@@ -209,8 +210,9 @@ class InsightController extends Controller
                 'id' => $insightItem->question_id,
                 'text' => $insightItem->text,
                 'options' => $insightItem->options,
-                'correctAnswerIndex' => $insightItem->correct_answer_index,
-                'explanation' => $insightItem->explanation,
+                // Reveal only after answer via insight.answer / quiz.check-answer.
+                'correctAnswerIndex' => -1,
+                'explanation' => null,
                 'theme' => $insightItem->theme,
                 'reference' => $insightItem->reference,
                 'difficulty' => $insightItem->difficulty,
@@ -279,6 +281,8 @@ class InsightController extends Controller
             'success' => true,
             'correct' => $isCorrect,
             'already_answered' => $alreadyAnswered,
+            'correctAnswerIndex' => (int) $question->correct_answer_index,
+            'explanation' => (string) ($question->explanation ?? ''),
         ]);
     }
 }

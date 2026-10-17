@@ -949,6 +949,41 @@ try {
             $stmtHist->execute();
             $historyEvents = $stmtHist->fetchAll();
 
+            // Attach knowledge-check questions without answer keys (reveal via check_answer).
+            $randFunc = $isSqlite ? 'RANDOM()' : 'RAND()';
+            $attachInsightQuestions = static function (array $events, string $questionType) use ($pdo, $randFunc): array {
+                if ($events === []) {
+                    return $events;
+                }
+                $needed = count($events);
+                $stmt = $pdo->prepare("SELECT question_id, text, options FROM generated_questions WHERE type = :type ORDER BY $randFunc LIMIT :limit");
+                $stmt->bindValue(':type', $questionType, PDO::PARAM_STR);
+                $stmt->bindValue(':limit', $needed, PDO::PARAM_INT);
+                $stmt->execute();
+                $pool = $stmt->fetchAll() ?: [];
+                if ($pool === []) {
+                    return $events;
+                }
+                foreach ($events as $i => $event) {
+                    $row = $pool[$i % count($pool)];
+                    $options = $row['options'] ?? [];
+                    if (is_string($options)) {
+                        $options = json_decode($options, true) ?: [];
+                    }
+                    $events[$i]['question_id'] = (string) ($row['question_id'] ?? '');
+                    $events[$i]['question_text'] = (string) ($row['text'] ?? '');
+                    $events[$i]['options'] = array_values($options);
+                    // Never ship the real key / explanation before the client answers.
+                    $events[$i]['correct_answer_index'] = -1;
+                    $events[$i]['explanation'] = '';
+                }
+
+                return $events;
+            };
+
+            $seeratEvents = $attachInsightQuestions($seeratEvents, 'SEERAH_INSIGHT');
+            $historyEvents = $attachInsightQuestions($historyEvents, 'QURAN_HISTORY');
+
             echo json_encode([
                 'status' => 'success',
                 'data' => [
@@ -1022,11 +1057,20 @@ try {
                 $questions[] = $row;
             }
 
+            $attemptUser = \App\Services\MobileApiAuthService::userFromRequest();
+            $tokenQuestions = array_map(static function ($row) {
+                return ['id' => (string) (($row['question_id'] ?? '') !== '' ? $row['question_id'] : $row['id'])];
+            }, $questions);
+            $attemptToken = $attemptUser
+                ? \App\Services\QuizCompletionService::issueAttempt((int) $attemptUser->id, $tokenQuestions)
+                : null;
+
             echo json_encode([
                 'status' => 'success',
                 'theme_id' => $themeId,
                 'difficulty' => $difficulty,
                 'quantity' => count($questions),
+                'attempt_token' => $attemptToken,
                 'data' => $questions
             ]);
             break;
@@ -1077,9 +1121,18 @@ try {
                 $questions[] = $row;
             }
 
+            $attemptUser = \App\Services\MobileApiAuthService::userFromRequest();
+            $tokenQuestions = array_map(static function ($row) {
+                return ['id' => (string) (($row['question_id'] ?? '') !== '' ? $row['question_id'] : $row['id'])];
+            }, $questions);
+            $attemptToken = $attemptUser
+                ? \App\Services\QuizCompletionService::issueAttempt((int) $attemptUser->id, $tokenQuestions)
+                : null;
+
             echo json_encode([
                 'status' => 'success',
                 'quiz_type' => $quizType,
+                'attempt_token' => $attemptToken,
                 'difficulty' => $difficulty,
                 'quantity' => count($questions),
                 'data' => $questions
@@ -1361,6 +1414,7 @@ try {
             $difficulty = isset($requestData['difficulty']) ? (string)$requestData['difficulty'] : 'Medium';
             $questionsJson = isset($requestData['questions']) ? (string)$requestData['questions'] : '[]';
             $userAnswersJson = isset($requestData['user_answers']) ? (string)$requestData['user_answers'] : '[]';
+            $attemptToken = isset($requestData['attempt_token']) ? trim((string)$requestData['attempt_token']) : '';
 
             // Soft rate-limit quiz submissions to slow leaderboard farming.
             $quizRateKey = 'mobile:quiz_submit:' . $userId . ':' . date('YmdH');
@@ -1383,6 +1437,14 @@ try {
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'No valid quiz questions found to score.'
+                ]);
+                break;
+            }
+
+            if (!\App\Services\QuizCompletionService::consumeAttempt($userId, $attemptToken, $questionsArr)) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Invalid or expired quiz attempt. Please start a new quiz.'
                 ]);
                 break;
             }
@@ -2359,68 +2421,32 @@ try {
             $vote = trim($requestData['vote'] ?? '');
             $feedback = trim($requestData['feedback'] ?? '');
 
-            $ownerCheck = $pdo->prepare("SELECT user_id FROM quran_research_contributions WHERE id = ? AND deleted_at IS NULL");
-            $ownerCheck->execute([$contributionId]);
-            $ownerRow = $ownerCheck->fetch();
-            if ($ownerRow && (int) ($ownerRow['user_id'] ?? 0) === $userId) {
-                echo json_encode(['status' => 'error', 'message' => 'You cannot vote on your own contribution.']);
-                break;
-            }
-
-            if (!in_array($vote, ['approve', 'downvote'])) {
+            if (!in_array($vote, ['approve', 'downvote'], true)) {
                 echo json_encode(['status' => 'error', 'message' => 'Vote must be either "approve" or "downvote".']);
                 break;
             }
 
-            $checkStmt = $pdo->prepare("SELECT id FROM quran_research_contributions WHERE id = ? AND deleted_at IS NULL");
-            $checkStmt->execute([$contributionId]);
-            if (!$checkStmt->fetch()) {
-                echo json_encode(['status' => 'error', 'message' => 'Contribution not found.']);
+            // Reuse web controller rules (eligibility, sticky publish, vote lock).
+            $ctrl = app(\App\Http\Controllers\QuranResearchContributionController::class);
+            $req = \Illuminate\Http\Request::create('/api/research-contributions/'.$contributionId.'/review', 'POST', [
+                'vote' => $vote,
+                'feedback' => $feedback,
+            ]);
+            $req->setUserResolver(static fn () => $authUser);
+            \Illuminate\Support\Facades\Auth::guard('sanctum')->setUser($authUser);
+            $response = $ctrl->apiReview($req, $contributionId);
+            $payload = $response->getData(true);
+            if (($payload['status'] ?? '') !== 'success') {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $payload['message'] ?? 'Unable to record vote.',
+                ]);
                 break;
             }
-
-            $now = date('Y-m-d H:i:s');
-            // Insert or update review
-            $reviewCheck = $pdo->prepare("SELECT id FROM quran_research_reviews WHERE contribution_id = ? AND user_id = ?");
-            $reviewCheck->execute([$contributionId, $userId]);
-            $existingReview = $reviewCheck->fetch();
-
-            if ($existingReview) {
-                $updateReview = $pdo->prepare("UPDATE quran_research_reviews SET vote = ?, feedback = ?, updated_at = ? WHERE id = ?");
-                $updateReview->execute([$vote, $feedback ?: null, $now, $existingReview['id']]);
-            } else {
-                $insertReview = $pdo->prepare("INSERT INTO quran_research_reviews (contribution_id, user_id, vote, feedback, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)");
-                $insertReview->execute([$contributionId, $userId, $vote, $feedback ?: null, $now, $now]);
-            }
-
-            // Recalculate
-            $countApprove = (int)$pdo->query("SELECT COUNT(*) FROM quran_research_reviews WHERE contribution_id = {$contributionId} AND vote = 'approve'")->fetchColumn();
-            $countDownvote = (int)$pdo->query("SELECT COUNT(*) FROM quran_research_reviews WHERE contribution_id = {$contributionId} AND vote = 'downvote'")->fetchColumn();
-
-            $newStatus = 'pending';
-            $publishedAt = null;
-            if ($countApprove >= 5 && $countDownvote < $countApprove) {
-                $newStatus = 'published';
-                $publishedAt = $now;
-            }
-
-            if ($newStatus === 'published') {
-                $updateContrib = $pdo->prepare("UPDATE quran_research_contributions SET status = 'published', published_at = COALESCE(published_at, ?), approvals_count = ?, downvotes_count = ?, updated_at = ? WHERE id = ?");
-                $updateContrib->execute([$now, $countApprove, $countDownvote, $now, $contributionId]);
-            } else {
-                $updateContrib = $pdo->prepare("UPDATE quran_research_contributions SET status = 'pending', approvals_count = ?, downvotes_count = ?, updated_at = ? WHERE id = ?");
-                $updateContrib->execute([$countApprove, $countDownvote, $now, $contributionId]);
-            }
-
             echo json_encode([
                 'status' => 'success',
-                'message' => $newStatus === 'published' ? 'Review saved. Item has reached 5 approvals and is now PUBLISHED!' : "Review saved. Status: {$newStatus} (Approvals: {$countApprove}, Downvotes: {$countDownvote})",
-                'data' => [
-                    'id' => $contributionId,
-                    'status' => $newStatus,
-                    'approvals_count' => $countApprove,
-                    'downvotes_count' => $countDownvote
-                ]
+                'message' => $payload['message'] ?? 'Vote recorded.',
+                'data' => $payload['data'] ?? null,
             ]);
             break;
 

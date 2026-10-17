@@ -40,16 +40,17 @@ object ApiClient {
         val id: String,
         val name: String,
         val language: String,
-        val direction: String
+        val direction: String,
+        val resourceId: Int
     )
 
     private val translationEditions = listOf(
-        TranslationEdition("en.sahih", "Saheeh International", "en", "ltr"),
-        TranslationEdition("en.pickthall", "Pickthall", "en", "ltr"),
-        TranslationEdition("en.yusufali", "Yusuf Ali", "en", "ltr"),
-        TranslationEdition("en.hilali", "Hilali & Khan", "en", "ltr"),
-        TranslationEdition("ur.jalandhry", "Jalandhry (Urdu)", "ur", "rtl"),
-        TranslationEdition("ur.maududi", "Maududi (Urdu)", "ur", "rtl")
+        TranslationEdition("en.sahih", "Saheeh International", "en", "ltr", 20),
+        TranslationEdition("en.pickthall", "Pickthall", "en", "ltr", 19),
+        TranslationEdition("en.yusufali", "Yusuf Ali", "en", "ltr", 22),
+        TranslationEdition("en.hilali", "Hilali & Khan", "en", "ltr", 203),
+        TranslationEdition("ur.jalandhry", "Jalandhry (Urdu)", "ur", "rtl", 234),
+        TranslationEdition("ur.maududi", "Maududi (Urdu)", "ur", "rtl", 97)
     )
 
     private suspend fun makeGetRequest(
@@ -191,17 +192,17 @@ object ApiClient {
     }
 
     /**
-     * Published translations from AlQuran Cloud. The app's own API only returns
+     * Published translations from Quran.com. The app's own API only returns
      * Arabic and transliteration, so the reader loads these directly.
      */
     suspend fun fetchWebTranslations(surahNumber: Int): Map<Int, List<VerseTranslation>> {
         if (surahNumber !in 1..114) return emptyMap()
         webTranslationCache[surahNumber]?.let { return it }
 
-        val editionIds = translationEditions.joinToString(",") { it.id }
+        val resourceIds = translationEditions.joinToString(",") { it.resourceId.toString() }
         val jsonStr = try {
             makeGetRequest(
-                "https://api.alquran.cloud/v1/surah/$surahNumber/editions/$editionIds",
+                "https://api.quran.com/api/v4/verses/by_chapter/$surahNumber?translations=$resourceIds&per_page=286&fields=verse_number",
                 timeoutMs = 25000,
                 sendAuth = false
             )
@@ -215,21 +216,20 @@ object ApiClient {
         } catch (e: Exception) {
             return emptyMap()
         }
-        if (root.optInt("code") != 200) return emptyMap()
 
-        val blocks = root.optJSONArray("data") ?: return emptyMap()
-        val catalog = translationEditions.associateBy { it.id }
+        val verses = root.optJSONArray("verses") ?: return emptyMap()
+        val catalog = translationEditions.associateBy { it.resourceId }
         val byVerse = mutableMapOf<Int, MutableList<VerseTranslation>>()
-        for (i in 0 until blocks.length()) {
-            val block = blocks.optJSONObject(i) ?: continue
-            val editionId = block.optJSONObject("edition")?.optString("identifier").orEmpty()
-            val meta = catalog[editionId] ?: continue
-            val ayahs = block.optJSONArray("ayahs") ?: continue
-            for (j in 0 until ayahs.length()) {
-                val ayah = ayahs.optJSONObject(j) ?: continue
-                val number = ayah.optInt("numberInSurah")
-                val text = cleanTranslationText(ayah.optString("text"))
-                if (number < 1 || text.isBlank()) continue
+        for (i in 0 until verses.length()) {
+            val verse = verses.optJSONObject(i) ?: continue
+            val number = verse.optInt("verse_number")
+            if (number < 1) continue
+            val translations = verse.optJSONArray("translations") ?: continue
+            for (j in 0 until translations.length()) {
+                val translation = translations.optJSONObject(j) ?: continue
+                val meta = catalog[translation.optInt("resource_id")] ?: continue
+                val text = cleanTranslationText(translation.optString("text"))
+                if (text.isBlank()) continue
                 byVerse.getOrPut(number) { mutableListOf() }.add(
                     VerseTranslation(
                         id = meta.id,
@@ -254,6 +254,7 @@ object ApiClient {
 
     private fun cleanTranslationText(raw: String): String {
         return raw
+            .replace(Regex("<sup\\b[^>]*>.*?</sup>", RegexOption.IGNORE_CASE), " ")
             .replace(Regex("<[^>]*>"), " ")
             .replace("&amp;", "&")
             .replace("&quot;", "\"")
@@ -511,6 +512,15 @@ object ApiClient {
         val jsonObj = JSONObject(jsonStr)
         val dataObj = jsonObj.getJSONObject("data")
 
+        fun parseOptions(item: JSONObject): List<String> {
+            val optionsArr = item.optJSONArray("options") ?: return emptyList()
+            val list = mutableListOf<String>()
+            for (j in 0 until optionsArr.length()) {
+                list.add(optionsArr.optString(j))
+            }
+            return list
+        }
+
         val seerahArr = dataObj.getJSONArray("seerah_events")
         val seerahList = mutableListOf<SeerahEvent>()
         for (i in 0 until seerahArr.length()) {
@@ -520,7 +530,13 @@ object ApiClient {
                     id = item.optInt("id"),
                     title = item.optString("title"),
                     description = item.optString("description"),
-                    category = item.optString("category")
+                    category = item.optString("category"),
+                    questionId = item.optString("question_id", ""),
+                    questionText = item.optString("question_text", ""),
+                    options = parseOptions(item),
+                    // Server must send -1; never trust a leaked key if present.
+                    correctAnswerIndex = -1,
+                    explanation = ""
                 )
             )
         }
@@ -534,7 +550,12 @@ object ApiClient {
                     id = item.optInt("id"),
                     title = item.optString("title"),
                     description = item.optString("description"),
-                    category = item.optString("category")
+                    category = item.optString("category"),
+                    questionId = item.optString("question_id", ""),
+                    questionText = item.optString("question_text", ""),
+                    options = parseOptions(item),
+                    correctAnswerIndex = -1,
+                    explanation = ""
                 )
             )
         }
@@ -586,13 +607,7 @@ object ApiClient {
         return themes
     }
 
-    suspend fun fetchThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): List<QuizQuestion> {
-        val jsonStr = makeGetRequest("$BASE_URL?action=theme_quiz&theme_id=$themeId&difficulty=$difficulty&quantity=$quantity")
-        val jsonObj = JSONObject(jsonStr)
-        if (jsonObj.optString("status") == "error") {
-            throw Exception(jsonObj.optString("message", "Failed to load Theme Quiz questions."))
-        }
-        val dataArr = jsonObj.optJSONArray("data") ?: return emptyList()
+    private fun parseQuizQuestions(dataArr: JSONArray): List<QuizQuestion> {
         val questions = mutableListOf<QuizQuestion>()
         for (i in 0 until dataArr.length()) {
             val item = dataArr.getJSONObject(i)
@@ -609,8 +624,8 @@ object ApiClient {
                     questionId = item.optString("question_id"),
                     text = item.optString("text"),
                     options = optionsList,
-                    correctAnswerIndex = item.optInt("correct_answer_index"),
-                    explanation = item.optString("explanation", ""),
+                    correctAnswerIndex = -1,
+                    explanation = "",
                     difficulty = item.optString("difficulty"),
                     reference = item.optString("reference", ""),
                     sourceInfo = item.optString("source_info", "")
@@ -620,38 +635,30 @@ object ApiClient {
         return questions
     }
 
-    suspend fun fetchGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): List<QuizQuestion> {
+    suspend fun fetchThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): QuizSession {
+        val jsonStr = makeGetRequest("$BASE_URL?action=theme_quiz&theme_id=$themeId&difficulty=$difficulty&quantity=$quantity")
+        val jsonObj = JSONObject(jsonStr)
+        if (jsonObj.optString("status") == "error") {
+            throw Exception(jsonObj.optString("message", "Failed to load Theme Quiz questions."))
+        }
+        val dataArr = jsonObj.optJSONArray("data") ?: return QuizSession(emptyList())
+        return QuizSession(
+            questions = parseQuizQuestions(dataArr),
+            attemptToken = jsonObj.optString("attempt_token", "")
+        )
+    }
+
+    suspend fun fetchGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): QuizSession {
         val jsonStr = makeGetRequest("$BASE_URL?action=grand_quiz&quiz_type=$quizType&difficulty=$difficulty&quantity=$quantity")
         val jsonObj = JSONObject(jsonStr)
         if (jsonObj.optString("status") == "error") {
             throw Exception(jsonObj.optString("message", "Failed to load Grand Quiz questions."))
         }
-        val dataArr = jsonObj.optJSONArray("data") ?: return emptyList()
-        val questions = mutableListOf<QuizQuestion>()
-        for (i in 0 until dataArr.length()) {
-            val item = dataArr.getJSONObject(i)
-            val optionsArr = item.optJSONArray("options")
-            val optionsList = mutableListOf<String>()
-            if (optionsArr != null) {
-                for (j in 0 until optionsArr.length()) {
-                    optionsList.add(optionsArr.getString(j))
-                }
-            }
-            questions.add(
-                QuizQuestion(
-                    id = item.optInt("id"),
-                    questionId = item.optString("question_id"),
-                    text = item.optString("text"),
-                    options = optionsList,
-                    correctAnswerIndex = item.optInt("correct_answer_index"),
-                    explanation = item.optString("explanation", ""),
-                    difficulty = item.optString("difficulty"),
-                    reference = item.optString("reference", ""),
-                    sourceInfo = item.optString("source_info", "")
-                )
-            )
-        }
-        return questions
+        val dataArr = jsonObj.optJSONArray("data") ?: return QuizSession(emptyList())
+        return QuizSession(
+            questions = parseQuizQuestions(dataArr),
+            attemptToken = jsonObj.optString("attempt_token", "")
+        )
     }
 
     fun parseDuaJson(item: JSONObject): Dua {
@@ -998,9 +1005,10 @@ object ApiClient {
         totalQuestions: Int,
         difficulty: String,
         questionsJson: String,
-        userAnswersJson: String
+        userAnswersJson: String,
+        attemptToken: String = ""
     ): Boolean {
-        val params = mapOf(
+        val params = mutableMapOf(
             "user_id" to userId.toString(),
             "type" to type,
             "title" to title,
@@ -1010,6 +1018,9 @@ object ApiClient {
             "questions" to questionsJson,
             "user_answers" to userAnswersJson
         )
+        if (attemptToken.isNotBlank()) {
+            params["attempt_token"] = attemptToken
+        }
         return try {
             val jsonStr = makePostRequest("$BASE_URL?action=submit_quiz", params)
             val jsonObj = JSONObject(jsonStr)

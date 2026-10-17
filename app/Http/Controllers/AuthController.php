@@ -6,9 +6,9 @@ use App\Models\User;
 use App\Services\GeminiService;
 use App\Services\OtpRateLimiter;
 use App\Services\OtpService;
+use App\Services\QuranHttp;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
@@ -148,14 +148,18 @@ class AuthController extends Controller
         }
 
         $authUrl = rtrim((string) config('services.quran.auth_url'), '/');
-        $response = Http::asForm()->post("{$authUrl}/oauth2/token", [
-            'grant_type' => 'authorization_code',
-            'client_id' => config('services.quran.client_id'),
-            'client_secret' => config('services.quran.client_secret'),
-            'code' => $request->code,
-            'redirect_uri' => config('services.quran.redirect_uri'),
-            'code_verifier' => $codeVerifier,
-        ]);
+        $response = QuranHttp::pending()
+            ->withBasicAuth(
+                (string) config('services.quran.client_id'),
+                (string) config('services.quran.client_secret')
+            )
+            ->asForm()
+            ->post("{$authUrl}/oauth2/token", [
+                'grant_type' => 'authorization_code',
+                'code' => $request->code,
+                'redirect_uri' => config('services.quran.redirect_uri'),
+                'code_verifier' => $codeVerifier,
+            ]);
 
         if ($response->failed()) {
             Log::error('Quran.com token exchange failed', ['error' => $response->body()]);
@@ -169,8 +173,8 @@ class AuthController extends Controller
         }
 
         // Prefer OIDC userinfo (server-validated) over decoding the id_token locally.
-        $userInfoResponse = Http::withToken($accessToken)
-            ->acceptJson()
+        $userInfoResponse = QuranHttp::pending()
+            ->withToken($accessToken)
             ->get("{$authUrl}/userinfo");
 
         if ($userInfoResponse->failed()) {

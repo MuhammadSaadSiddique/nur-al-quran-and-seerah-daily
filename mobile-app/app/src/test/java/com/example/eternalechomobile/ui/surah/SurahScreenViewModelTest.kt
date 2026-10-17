@@ -1,5 +1,6 @@
 package com.asloobulhayat.eternalecho.ui.surah
 
+import com.asloobulhayat.eternalecho.data.QuizSession
 import com.asloobulhayat.eternalecho.data.*
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertTrue
@@ -104,8 +105,8 @@ class SurahScreenViewModelTest {
         override suspend fun getInsights(seerahPage: Int, historyPage: Int, seerahCategory: String, historyCategory: String): InsightsData =
             InsightsData(emptyList(), emptyList(), 1, 1, 1, 1, emptyList(), emptyList())
         override suspend fun getThemes(): List<Theme> = emptyList()
-        override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
-        override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
+        override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
+        override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
         override suspend fun login(email: String, password: String): UserSession = UserSession(0, "", "", 0)
         override suspend fun register(name: String, email: String, password: String): UserSession = UserSession(0, "", "", 0)
         override suspend fun requestOtp(email: String): Boolean = true

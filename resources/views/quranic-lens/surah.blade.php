@@ -120,7 +120,7 @@
         <div class="bg-white border border-slate-100 rounded-3xl shadow-sm p-4 md:p-5 space-y-3">
             <div class="flex items-center justify-between gap-3">
                 <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Translation</p>
-                <p class="text-[10px] font-bold text-slate-400">AlQuran Cloud</p>
+                <p class="text-[10px] font-bold text-slate-400">Quran.com</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <template x-for="edition in editions" :key="edition.id">

@@ -194,7 +194,7 @@
                         this.markAsRead();
                     }
                     try {
-                        await fetch('{{ route("insight.answer") }}', {
+                        const res = await fetch('{{ route("insight.answer") }}', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
@@ -203,18 +203,23 @@
                             },
                             body: JSON.stringify({ questionId: this.question.id, selectedIndex: idx }),
                         });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.question.correctAnswerIndex = data.correctAnswerIndex;
+                            this.question.explanation = data.explanation || '';
+                        }
                     } catch (e) { }
                 },
 
                 getOptionClass(idx) {
                     if (!this.answered) return 'border-slate-200 bg-white hover:border-emerald-500 hover:bg-emerald-50 text-slate-700';
-                    if (idx === this.question.correctAnswerIndex) return 'border-emerald-600 bg-emerald-100 text-emerald-900 ring-4 ring-emerald-50 scale-[1.02]';
+                    if (this.question.correctAnswerIndex >= 0 && idx === this.question.correctAnswerIndex) return 'border-emerald-600 bg-emerald-100 text-emerald-900 ring-4 ring-emerald-50 scale-[1.02]';
                     if (idx === this.selectedAnswer) return 'border-rose-600 bg-rose-100 text-rose-900';
                     return 'border-slate-100 bg-slate-50 text-slate-400 opacity-60 cursor-not-allowed';
                 },
                 getLetterClass(idx) {
                     if (!this.answered) return 'bg-slate-100 text-slate-500';
-                    if (idx === this.question.correctAnswerIndex) return 'bg-emerald-600 text-white';
+                    if (this.question.correctAnswerIndex >= 0 && idx === this.question.correctAnswerIndex) return 'bg-emerald-600 text-white';
                     if (idx === this.selectedAnswer) return 'bg-rose-600 text-white';
                     return 'bg-slate-200 text-slate-400';
                 },

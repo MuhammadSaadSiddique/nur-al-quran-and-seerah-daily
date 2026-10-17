@@ -90,5 +90,38 @@ class InsightPaginationTest extends TestCase
         $viewData = $response->viewData('insight');
         $this->assertEquals('Saved Seerah Title', $viewData['title']);
         $this->assertEquals('Saved Seerah Content', $viewData['content']);
+        // Answer keys must not be embedded in the page payload.
+        $this->assertSame(-1, $viewData['question']['correctAnswerIndex']);
+        $this->assertNull($viewData['question']['explanation']);
+    }
+
+    /** @test */
+    public function insight_answer_reveals_key_only_after_selection(): void
+    {
+        $user = User::factory()->create();
+
+        GeneratedQuestion::create([
+            'question_id' => 'q-seerah-reveal-1',
+            'type' => 'SEERAH_INSIGHT',
+            'source_info' => 'Seerah Insight',
+            'difficulty' => 'Medium',
+            'insight_title' => 'Reveal Title',
+            'insight_content' => 'Reveal Content',
+            'text' => 'Reveal question?',
+            'options' => ['A', 'B', 'C', 'D'],
+            'correct_answer_index' => 2,
+            'explanation' => 'Because C',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('insight.answer'), [
+            'questionId' => 'q-seerah-reveal-1',
+            'selectedIndex' => 1,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('correct', false)
+            ->assertJsonPath('correctAnswerIndex', 2)
+            ->assertJsonPath('explanation', 'Because C');
     }
 }

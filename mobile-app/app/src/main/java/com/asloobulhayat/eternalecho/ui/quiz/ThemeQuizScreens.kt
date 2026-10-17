@@ -104,6 +104,7 @@ class PlayThemeQuizViewModel(
     var isScoreSubmitted by mutableStateOf(false)
     var isSubmittingScore by mutableStateOf(false)
     var submissionError by mutableStateOf<String?>(null)
+    var attemptToken by mutableStateOf("")
 
     init {
         loadQuiz()
@@ -114,14 +115,15 @@ class PlayThemeQuizViewModel(
             _state.value = PlayQuizUiState.Loading
             try {
                 val isGrand = quizType.startsWith("GRAND")
-                val rawQuestions = if (isGrand) {
+                val session = if (isGrand) {
                     val grandType = if (quizType.contains("SEERAH", ignoreCase = true)) "SEERAH" else "QURAN"
                     repository.getGrandQuiz(grandType, difficulty, quantity)
                 } else {
                     repository.getThemeQuiz(themeId, difficulty, quantity)
                 }
+                attemptToken = session.attemptToken
                 // Shuffle display order; keep originalOptions for server scoring (answers are not in fetch).
-                val shuffledQuestions = rawQuestions.map { q ->
+                val shuffledQuestions = session.questions.map { q ->
                     val originals = q.options
                     val shuffled = originals.shuffled()
                     q.copy(
@@ -258,7 +260,8 @@ class PlayThemeQuizViewModel(
                     totalQuestions = questions.size,
                     difficulty = difficulty,
                     questionsJson = questionsArray.toString(),
-                    userAnswersJson = answersArray.toString()
+                    userAnswersJson = answersArray.toString(),
+                    attemptToken = attemptToken
                 )
                 if (success) {
                     isScoreSubmitted = true
@@ -903,7 +906,8 @@ fun PlayThemeQuizScreen(
                                     totalQuestions = questions.size,
                                     difficulty = difficulty,
                                     questions = questions,
-                                    userAnswers = viewModel.userAnswers
+                                    userAnswers = viewModel.userAnswers,
+                                    attemptToken = viewModel.attemptToken
                                 )
                             } else {
                                 if (!viewModel.isScoreSubmitted && !viewModel.isSubmittingScore) {

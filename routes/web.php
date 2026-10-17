@@ -53,7 +53,7 @@ Route::get('/quran-research', [QuranicLensController::class, 'index'])->name('we
 Route::get('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'index'])->name('research.contributions.index');
 Route::get('/quran-research/contributions/create', [\App\Http\Controllers\QuranResearchContributionController::class, 'create'])->name('research.contributions.create');
 Route::post('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'store'])->name('research.contributions.store')->middleware('auth');
-Route::post('/quran-research/contributions/{id}/review', [\App\Http\Controllers\QuranResearchContributionController::class, 'review'])->name('research.contributions.review')->middleware('auth');
+Route::post('/quran-research/contributions/{id}/review', [\App\Http\Controllers\QuranResearchContributionController::class, 'review'])->name('research.contributions.review')->middleware(['auth', 'throttle:30,1']);
 
 // Add Dua or Quran Research Category (Users & Admins)
 Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->name('categories.store')->middleware('auth');

@@ -154,9 +154,10 @@ data class SeerahEvent(
     val title: String,
     val description: String,
     val category: String,
+    val questionId: String = "",
     val questionText: String = "",
     val options: List<String> = emptyList(),
-    val correctAnswerIndex: Int = 0,
+    val correctAnswerIndex: Int = -1,
     val explanation: String = ""
 )
 
@@ -166,9 +167,10 @@ data class HistoryEvent(
     val title: String,
     val description: String,
     val category: String = "",
+    val questionId: String = "",
     val questionText: String = "",
     val options: List<String> = emptyList(),
-    val correctAnswerIndex: Int = 0,
+    val correctAnswerIndex: Int = -1,
     val explanation: String = ""
 )
 
@@ -193,6 +195,12 @@ data class Theme(
     val name: String,
     val type: String,
     val description: String? = null
+)
+
+@Serializable
+data class QuizSession(
+    val questions: List<QuizQuestion>,
+    val attemptToken: String = ""
 )
 
 @Serializable

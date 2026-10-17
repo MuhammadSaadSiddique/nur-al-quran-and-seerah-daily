@@ -11,35 +11,20 @@ class QuranTranslationServiceTest extends TestCase
     public function test_surah_translations_are_grouped_by_verse_and_cached(): void
     {
         Http::fake([
-            'api.alquran.cloud/*' => Http::response([
-                'code' => 200,
-                'data' => [
+            'api.quran.com/*' => Http::response([
+                'verses' => [
                     [
-                        'edition' => [
-                            'identifier' => 'en.sahih',
-                            'language' => 'en',
-                            'englishName' => 'Saheeh International',
-                        ],
-                        'ayahs' => [
-                            ['numberInSurah' => 1, 'text' => 'In the name of Allah, the Entirely Merciful.'],
-                            ['numberInSurah' => 2, 'text' => '<b>All praise</b> is due to Allah.'],
+                        'verse_number' => 1,
+                        'translations' => [
+                            ['resource_id' => 20, 'text' => 'In the name of Allah, the Entirely Merciful.'],
+                            ['resource_id' => 234, 'text' => 'شروع الله کا نام لے کر'],
+                            ['resource_id' => 999, 'text' => 'Should be ignored'],
                         ],
                     ],
                     [
-                        'edition' => [
-                            'identifier' => 'ur.jalandhry',
-                            'language' => 'ur',
-                        ],
-                        'ayahs' => [
-                            ['numberInSurah' => 1, 'text' => 'شروع الله کا نام لے کر'],
-                        ],
-                    ],
-                    [
-                        'edition' => [
-                            'identifier' => 'unknown.edition',
-                        ],
-                        'ayahs' => [
-                            ['numberInSurah' => 1, 'text' => 'Should be ignored'],
+                        'verse_number' => 2,
+                        'translations' => [
+                            ['resource_id' => 20, 'text' => '<sup foot_note="1">1</sup><b>All praise</b> is due to Allah.'],
                         ],
                     ],
                 ],
@@ -66,7 +51,7 @@ class QuranTranslationServiceTest extends TestCase
     public function test_failed_request_returns_empty_list(): void
     {
         Http::fake([
-            'api.alquran.cloud/*' => Http::response(['code' => 500], 500),
+            'api.quran.com/*' => Http::response(['message' => 'error'], 500),
         ]);
 
         $service = app(QuranTranslationService::class);

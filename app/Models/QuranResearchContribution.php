@@ -136,8 +136,8 @@ class QuranResearchContribution extends Model
 
     /**
      * Recalculate approvals and downvotes counts and update publication status.
-     * Rule: 5 approvals will publish it (status = 'published').
-     * If downvotes outnumber approvals or net approvals < 5, reverts back to 'pending'.
+     * Rule: 5 approvals publish (status = 'published'). Published items stay published
+     * (vote flips cannot unpublish — moderators handle takedowns).
      */
     public function recalculateStatus(): void
     {
@@ -147,14 +147,18 @@ class QuranResearchContribution extends Model
         $this->approvals_count = $approvals;
         $this->downvotes_count = $downvotes;
 
-        // If >= 5 approvals and downvotes do not exceed approvals
-        if ($approvals >= 5 && $downvotes < $approvals) {
-            if ($this->status !== 'published') {
-                $this->status = 'published';
+        $wasPublished = $this->status === 'published' || !empty($this->published_at);
+
+        if ($wasPublished) {
+            // Sticky publish — downvotes update counts only.
+            $this->status = 'published';
+            if (empty($this->published_at)) {
                 $this->published_at = now();
             }
+        } elseif ($approvals >= 5 && $downvotes < $approvals) {
+            $this->status = 'published';
+            $this->published_at = now();
         } else {
-            // Revert to pending if downvotes bring it below threshold or downvotes >= approvals
             $this->status = 'pending';
         }
 

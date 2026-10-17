@@ -5,15 +5,17 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\UserDailyEngagement;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Str;
 
 class QuizCompletionService
 {
     /**
-     * Soft anti-replay: reject the same user submitting the same question-id set within 24h.
+     * Normalize question ids from a quiz payload for attempt binding.
      *
      * @param  array<int, mixed>  $questions
+     * @return array<int, string>
      */
-    public static function claimAttempt(int $userId, array $questions): bool
+    public static function normalizeQuestionIds(array $questions): array
     {
         $ids = [];
         foreach ($questions as $question) {
@@ -29,6 +31,67 @@ class QuizCompletionService
 
         $ids = array_values(array_unique($ids));
         sort($ids);
+
+        return $ids;
+    }
+
+    /**
+     * Issue a one-time attempt token bound to a user + question-id set.
+     *
+     * @param  array<int, mixed>  $questions  Client question payloads (or ['id' => ...] rows)
+     */
+    public static function issueAttempt(int $userId, array $questions): ?string
+    {
+        $ids = self::normalizeQuestionIds($questions);
+        if ($ids === [] || $userId <= 0) {
+            return null;
+        }
+
+        $token = Str::random(40);
+        Cache::put('quiz_token:'.$token, [
+            'user_id' => $userId,
+            'question_ids' => $ids,
+        ], now()->addHours(3));
+
+        return $token;
+    }
+
+    /**
+     * Consume a one-time attempt token. Returns false if missing, expired, wrong user, or id mismatch.
+     *
+     * @param  array<int, mixed>  $questions
+     */
+    public static function consumeAttempt(int $userId, ?string $token, array $questions): bool
+    {
+        $token = is_string($token) ? trim($token) : '';
+        if ($token === '' || $userId <= 0) {
+            return false;
+        }
+
+        $payload = Cache::pull('quiz_token:'.$token);
+        if (!is_array($payload)) {
+            return false;
+        }
+
+        if ((int) ($payload['user_id'] ?? 0) !== $userId) {
+            return false;
+        }
+
+        $expected = array_values(array_map('strval', $payload['question_ids'] ?? []));
+        sort($expected);
+        $submitted = self::normalizeQuestionIds($questions);
+
+        return $expected !== [] && $expected === $submitted;
+    }
+
+    /**
+     * Soft anti-replay: reject the same user submitting the same question-id set within 24h.
+     *
+     * @param  array<int, mixed>  $questions
+     */
+    public static function claimAttempt(int $userId, array $questions): bool
+    {
+        $ids = self::normalizeQuestionIds($questions);
 
         if ($ids === []) {
             return false;

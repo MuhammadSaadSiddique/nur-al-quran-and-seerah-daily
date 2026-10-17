@@ -1,5 +1,6 @@
 package com.asloobulhayat.eternalecho
 
+import com.asloobulhayat.eternalecho.data.QuizSession
 import com.asloobulhayat.eternalecho.data.*
 import junit.framework.TestCase.*
 import kotlinx.coroutines.test.runTest
@@ -22,8 +23,8 @@ class AppFeedbackTest {
         override suspend fun getInsights(seerahPage: Int, historyPage: Int, seerahCategory: String, historyCategory: String): InsightsData =
             InsightsData(emptyList(), emptyList(), 1, 1, 1, 1, emptyList(), emptyList())
         override suspend fun getThemes(): List<Theme> = emptyList()
-        override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
-        override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
+        override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
+        override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
         override suspend fun login(email: String, password: String): UserSession = UserSession(0, "", "", 0)
         override suspend fun register(name: String, email: String, password: String): UserSession = UserSession(0, "", "", 0)
         override suspend fun requestOtp(email: String): Boolean = true
@@ -33,7 +34,7 @@ class AppFeedbackTest {
         override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean = true
         override suspend fun logout(): Boolean = true
         override suspend fun deleteAccount(userId: Int, currentPassword: String, confirmDeletion: Boolean): Boolean = true
-        override suspend fun submitQuiz(userId: Int, type: String, title: String, score: Int, totalQuestions: Int, difficulty: String, questionsJson: String, userAnswersJson: String): Boolean = true
+        override suspend fun submitQuiz(userId: Int, type: String, title: String, score: Int, totalQuestions: Int, difficulty: String, questionsJson: String, userAnswersJson: String, attemptToken: String = ""): Boolean = true
         override suspend fun getDuas(category: String, search: String, sourceType: String): List<Dua> = emptyList()
 
         override suspend fun submitAppFeedback(

@@ -108,7 +108,7 @@ class QuranResearchContributionFeatureTest extends TestCase
     }
 
     /** @test */
-    public function five_approvals_publish_the_contribution_and_downvotes_can_revert_to_pending()
+    public function five_approvals_publish_and_downvotes_cannot_unpublish()
     {
         $contribution = QuranResearchContribution::create([
             'title' => 'Community Contribution',
@@ -121,7 +121,10 @@ class QuranResearchContributionFeatureTest extends TestCase
             'downvotes_count' => 0,
         ]);
 
-        $reviewers = User::factory()->count(6)->create();
+        $reviewers = User::factory()->count(6)->create([
+            'password' => bcrypt('password'),
+            'created_at' => now()->subDays(2),
+        ]);
 
         // 4 users approve -> still pending
         for ($i = 0; $i < 4; $i++) {
@@ -146,9 +149,11 @@ class QuranResearchContributionFeatureTest extends TestCase
         $this->assertEquals('published', $contribution->status);
         $this->assertNotNull($contribution->published_at);
 
-        // A user downvotes -> downvotes >= approvals or net drops -> reverts to pending
-        // Suppose reviewer[0] changes vote to downvote and 4 other people downvote
-        $downvoters = User::factory()->count(5)->create();
+        // Downvotes update counts but cannot unpublish (sticky publish).
+        $downvoters = User::factory()->count(5)->create([
+            'password' => bcrypt('password'),
+            'created_at' => now()->subDays(2),
+        ]);
         foreach ($downvoters as $downvoter) {
             $this->actingAs($downvoter)->post(route('research.contributions.review', $contribution->id), [
                 'vote' => 'downvote',
@@ -159,8 +164,7 @@ class QuranResearchContributionFeatureTest extends TestCase
         $contribution->refresh();
         $this->assertEquals(5, $contribution->approvals_count);
         $this->assertEquals(5, $contribution->downvotes_count);
-        // Because downvotes (5) is not < approvals (5), it reverts to pending!
-        $this->assertEquals('pending', $contribution->status);
+        $this->assertEquals('published', $contribution->status);
     }
 
     /** @test */
@@ -183,7 +187,10 @@ class QuranResearchContributionFeatureTest extends TestCase
         $id = $response->json('data.id');
 
         // Review via API
-        $reviewer = User::factory()->create();
+        $reviewer = User::factory()->create([
+            'password' => bcrypt('password'),
+            'created_at' => now()->subDays(2),
+        ]);
         $reviewRes = $this->actingAs($reviewer, 'sanctum')->postJson("/api/research-contributions/{$id}/review", [
             'vote' => 'approve',
             'feedback' => 'Verified through API',

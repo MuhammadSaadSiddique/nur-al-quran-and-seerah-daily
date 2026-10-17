@@ -31,7 +31,7 @@ return [
     ],
 
     'quran_translations' => [
-        'base_url' => env('QURAN_TRANSLATIONS_URL', 'https://api.alquran.cloud/v1'),
+        'base_url' => env('QURAN_TRANSLATIONS_URL', 'https://api.quran.com/api/v4'),
         'ca_bundle' => env('QURAN_TRANSLATIONS_CA_BUNDLE'),
     ],
 

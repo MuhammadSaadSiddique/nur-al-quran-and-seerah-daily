@@ -1457,7 +1457,10 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                 }
 
                 var selectedOptionIndex by remember { mutableStateOf<Int?>(null) }
+                var revealedCorrectIndex by remember { mutableIntStateOf(-1) }
+                var revealedExplanation by remember { mutableStateOf("") }
                 val hasAnswered = selectedOptionIndex != null
+                val repository = remember { DefaultDataRepository() }
 
                 Text(
                     text = "Knowledge Check",
@@ -1477,27 +1480,30 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (index in event.options.indices) {
                         val option = event.options[index]
-                        val isCorrectOption = index == event.correctAnswerIndex
+                        val isCorrectOption = revealedCorrectIndex >= 0 && index == revealedCorrectIndex
                         val isSelectedOption = index == selectedOptionIndex
 
                         val containerColor = when {
                             !hasAnswered -> MaterialTheme.colorScheme.surface
                             isCorrectOption -> MaterialTheme.colorScheme.primaryContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.errorContainer
+                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.errorContainer
+                            isSelectedOption -> MaterialTheme.colorScheme.secondaryContainer
                             else -> MaterialTheme.colorScheme.surface
                         }
 
                         val contentColor = when {
                             !hasAnswered -> MaterialTheme.colorScheme.onSurface
                             isCorrectOption -> MaterialTheme.colorScheme.onPrimaryContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.onErrorContainer
+                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.onErrorContainer
+                            isSelectedOption -> MaterialTheme.colorScheme.onSecondaryContainer
                             else -> MaterialTheme.colorScheme.onSurface
                         }
 
                         val borderColor = when {
                             !hasAnswered -> MaterialTheme.colorScheme.outline
                             isCorrectOption -> MaterialTheme.colorScheme.primary
-                            isSelectedOption -> MaterialTheme.colorScheme.error
+                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.error
+                            isSelectedOption -> MaterialTheme.colorScheme.secondary
                             else -> MaterialTheme.colorScheme.outlineVariant
                         }
 
@@ -1505,7 +1511,8 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                             onClick = {
                                 if (!hasAnswered) {
                                     val userId = prefs.getInt("user_id", -1)
-                                    val currentIsLoggedIn = userId != -1
+                                    val token = prefs.getString("api_token", null).orEmpty()
+                                    val currentIsLoggedIn = userId > 0 && token.isNotBlank()
                                     val currentCompleted = prefs.getInt("completed_quizzes", 0)
                                     if (!currentIsLoggedIn && currentCompleted >= 1) {
                                         showLimitDialog = true
@@ -1517,13 +1524,20 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                                         } else {
                                             scope.launch {
                                                 try {
-                                                    DefaultDataRepository().markInsight(
-                                                        userId,
-                                                        "SEERAH",
-                                                        event.id.toString()
-                                                    )
+                                                    val qid = event.questionId.ifBlank { event.id.toString() }
+                                                    if (event.questionId.isNotBlank()) {
+                                                        repository.checkAnswer(
+                                                            event.questionId,
+                                                            index,
+                                                            event.options
+                                                        )?.let { reveal ->
+                                                            revealedCorrectIndex = reveal.correctAnswerIndex
+                                                            revealedExplanation = reveal.explanation
+                                                        }
+                                                    }
+                                                    repository.markInsight(userId, "SEERAH", qid)
                                                 } catch (e: Exception) {
-                                                    android.util.Log.e("SeerahItem", "Failed to mark insight", e)
+                                                    android.util.Log.e("SeerahItem", "Failed to reveal/mark insight", e)
                                                 }
                                             }
                                         }
@@ -1548,7 +1562,7 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSelectedOption) FontWeight.Bold else FontWeight.Normal
                                 )
-                                if (hasAnswered) {
+                                if (hasAnswered && revealedCorrectIndex >= 0) {
                                     if (isCorrectOption) {
                                         Text("✓", fontWeight = FontWeight.Bold)
                                     } else if (isSelectedOption) {
@@ -1560,7 +1574,7 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                     }
                 }
 
-                if (hasAnswered && event.explanation.isNotEmpty()) {
+                if (hasAnswered && revealedExplanation.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Surface(
                         color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -1577,7 +1591,7 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = event.explanation,
+                                text = revealedExplanation,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }
@@ -1691,7 +1705,10 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                 }
 
                 var selectedOptionIndex by remember { mutableStateOf<Int?>(null) }
+                var revealedCorrectIndex by remember { mutableIntStateOf(-1) }
+                var revealedExplanation by remember { mutableStateOf("") }
                 val hasAnswered = selectedOptionIndex != null
+                val repository = remember { DefaultDataRepository() }
 
                 Text(
                     text = "Knowledge Check",
@@ -1711,27 +1728,30 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     for (index in event.options.indices) {
                         val option = event.options[index]
-                        val isCorrectOption = index == event.correctAnswerIndex
+                        val isCorrectOption = revealedCorrectIndex >= 0 && index == revealedCorrectIndex
                         val isSelectedOption = index == selectedOptionIndex
 
                         val containerColor = when {
                             !hasAnswered -> MaterialTheme.colorScheme.surface
                             isCorrectOption -> MaterialTheme.colorScheme.primaryContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.errorContainer
+                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.errorContainer
+                            isSelectedOption -> MaterialTheme.colorScheme.secondaryContainer
                             else -> MaterialTheme.colorScheme.surface
                         }
 
                         val contentColor = when {
                             !hasAnswered -> MaterialTheme.colorScheme.onSurface
                             isCorrectOption -> MaterialTheme.colorScheme.onPrimaryContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.onErrorContainer
+                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.onErrorContainer
+                            isSelectedOption -> MaterialTheme.colorScheme.onSecondaryContainer
                             else -> MaterialTheme.colorScheme.onSurface
                         }
 
                         val borderColor = when {
                             !hasAnswered -> MaterialTheme.colorScheme.outline
                             isCorrectOption -> MaterialTheme.colorScheme.primary
-                            isSelectedOption -> MaterialTheme.colorScheme.error
+                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.error
+                            isSelectedOption -> MaterialTheme.colorScheme.secondary
                             else -> MaterialTheme.colorScheme.outlineVariant
                         }
 
@@ -1739,7 +1759,8 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                             onClick = {
                                 if (!hasAnswered) {
                                     val userId = prefs.getInt("user_id", -1)
-                                    val currentIsLoggedIn = userId != -1
+                                    val token = prefs.getString("api_token", null).orEmpty()
+                                    val currentIsLoggedIn = userId > 0 && token.isNotBlank()
                                     val currentCompleted = prefs.getInt("completed_quizzes", 0)
                                     if (!currentIsLoggedIn && currentCompleted >= 1) {
                                         showLimitDialog = true
@@ -1751,13 +1772,20 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                                         } else {
                                             scope.launch {
                                                 try {
-                                                    DefaultDataRepository().markInsight(
-                                                        userId,
-                                                        "QURAN_HISTORY",
-                                                        event.id.toString()
-                                                    )
+                                                    val qid = event.questionId.ifBlank { event.id.toString() }
+                                                    if (event.questionId.isNotBlank()) {
+                                                        repository.checkAnswer(
+                                                            event.questionId,
+                                                            index,
+                                                            event.options
+                                                        )?.let { reveal ->
+                                                            revealedCorrectIndex = reveal.correctAnswerIndex
+                                                            revealedExplanation = reveal.explanation
+                                                        }
+                                                    }
+                                                    repository.markInsight(userId, "QURAN_HISTORY", qid)
                                                 } catch (e: Exception) {
-                                                    android.util.Log.e("HistoryItem", "Failed to mark insight", e)
+                                                    android.util.Log.e("HistoryItem", "Failed to reveal/mark insight", e)
                                                 }
                                             }
                                         }
@@ -1782,7 +1810,7 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = if (isSelectedOption) FontWeight.Bold else FontWeight.Normal
                                 )
-                                if (hasAnswered) {
+                                if (hasAnswered && revealedCorrectIndex >= 0) {
                                     if (isCorrectOption) {
                                         Text("✓", fontWeight = FontWeight.Bold)
                                     } else if (isSelectedOption) {
@@ -1794,7 +1822,7 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                     }
                 }
 
-                if (hasAnswered && event.explanation.isNotEmpty()) {
+                if (hasAnswered && revealedExplanation.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(12.dp))
                     Surface(
                         color = MaterialTheme.colorScheme.tertiaryContainer,
@@ -1811,7 +1839,7 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                             )
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = event.explanation,
+                                text = revealedExplanation,
                                 style = MaterialTheme.typography.bodySmall
                             )
                         }

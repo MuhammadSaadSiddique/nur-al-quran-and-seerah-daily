@@ -114,14 +114,7 @@ class QuizController extends Controller
             return back()->with('error', 'Failed to generate quiz. Please try again.');
         }
 
-        return view('quiz', [
-            'questions' => $questions,
-            'type' => 'PARA',
-            'title' => "Para {$request->para}",
-            'paraNumber' => $request->para,
-            'difficulty' => $request->difficulty,
-            'theme' => 'General Study',
-        ]);
+        return $this->quizView($questions, 'PARA', "Para {$request->para}", $request->difficulty, 'General Study', $request->para);
     }
 
     public function startSeerahQuiz(Request $request, GeminiService $gemini)
@@ -158,14 +151,7 @@ class QuizController extends Controller
             return back()->with('error', 'Failed to generate Seerah quiz. Please try again.');
         }
 
-        return view('quiz', [
-            'questions' => $questions,
-            'type' => 'SEERAH',
-            'title' => 'Seerah Knowledge Journey',
-            'paraNumber' => null,
-            'difficulty' => $request->difficulty,
-            'theme' => 'General Study',
-        ]);
+        return $this->quizView($questions, 'SEERAH', 'Seerah Knowledge Journey', $request->difficulty, 'General Study');
     }
 
     public function startThemeQuiz(Request $request, GeminiService $gemini)
@@ -208,14 +194,7 @@ class QuizController extends Controller
             return back()->with('error', 'Failed to load theme quiz. Please try again.');
         }
 
-        return view('quiz', [
-            'questions' => $questions,
-            'type' => $theme->type,
-            'title' => $theme->name,
-            'paraNumber' => null,
-            'difficulty' => $request->difficulty,
-            'theme' => $theme->name,
-        ]);
+        return $this->quizView($questions, $theme->type, $theme->name, $request->difficulty, $theme->name);
     }
 
     public function finishQuiz(Request $request)
@@ -229,6 +208,7 @@ class QuizController extends Controller
             'questions' => 'required',
             'userAnswers' => 'required',
             'paraNumber' => 'nullable|integer',
+            'attemptToken' => 'required|string|min:20|max:80',
         ]);
 
         $user = Auth::user();
@@ -244,6 +224,13 @@ class QuizController extends Controller
             return response()->json([
                 'success' => false,
                 'error' => 'No valid quiz questions found to score.',
+            ], 422);
+        }
+
+        if (!QuizCompletionService::consumeAttempt((int) $user->id, $request->attemptToken, $questions)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid or expired quiz attempt. Please start a new quiz.',
             ], 422);
         }
 
@@ -364,13 +351,30 @@ class QuizController extends Controller
 
         $title = $request->quiz_type === 'QURAN' ? 'Grand Quran Quiz' : 'Grand Seerah Quiz';
 
+        return $this->quizView($questions, $type, $title, $request->difficulty, 'Grand Quiz');
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $questions
+     */
+    protected function quizView(
+        array $questions,
+        string $type,
+        string $title,
+        string $difficulty,
+        string $theme,
+        $paraNumber = null
+    ) {
+        $attemptToken = QuizCompletionService::issueAttempt((int) Auth::id(), $questions);
+
         return view('quiz', [
             'questions' => $questions,
             'type' => $type,
             'title' => $title,
-            'paraNumber' => null,
-            'difficulty' => $request->difficulty,
-            'theme' => 'Grand Quiz',
+            'paraNumber' => $paraNumber,
+            'difficulty' => $difficulty,
+            'theme' => $theme,
+            'attemptToken' => $attemptToken,
         ]);
     }
 

@@ -6,7 +6,7 @@
 @push('schema')
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "Article",
     "headline": "{{ addslashes($insight['title'] ?? 'Seerah Insight') }}",
     "description": "{{ addslashes(\Illuminate\Support\Str::limit(strip_tags($insight['text'] ?? ''), 155)) }}",
@@ -22,6 +22,8 @@
 }
 </script>
 @endpush
+
+@section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"
         x-data="insightQuiz({{ json_encode($insight['question']) }}, {{ $isRead ? 'true' : 'false' }})">
         {{-- Toast Feedback --}}
@@ -192,15 +194,15 @@
                     if (!this.isRead) {
                         this.markAsRead();
                     }
-                    const correct = idx === this.question.correctAnswerIndex;
                     try {
                         await fetch('{{ route("insight.answer") }}', {
                             method: 'POST',
                             headers: {
                                 'Content-Type': 'application/json',
                                 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                                'Accept': 'application/json',
                             },
-                            body: JSON.stringify({ correct, questionId: this.question.id }),
+                            body: JSON.stringify({ questionId: this.question.id, selectedIndex: idx }),
                         });
                     } catch (e) { }
                 },

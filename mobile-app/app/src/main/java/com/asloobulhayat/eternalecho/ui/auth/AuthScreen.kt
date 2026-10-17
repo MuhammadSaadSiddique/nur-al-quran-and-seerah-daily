@@ -178,31 +178,21 @@ fun AuthScreen(
     val scope = rememberCoroutineScope()
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = when {
-                            method == "otp" && phase == "otp" -> "Verify Code"
-                            method == "otp" && phase == "set_password" -> "Set Password"
-                            method == "otp" -> "OTP Sign Up / In"
-                            else -> "Password Sign In"
-                        },
-                        fontWeight = FontWeight.Bold
-                    )
+            com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
+                title = when {
+                    method == "otp" && phase == "otp" -> "Verify code"
+                    method == "otp" && phase == "set_password" -> "Set password"
+                    method == "otp" -> "Sign in"
+                    else -> "Sign in"
                 },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                onBackClick = onBackClick,
+                navigationIcon = Icons.Default.ArrowBack
             )
         }
     ) { paddingValues ->
+        com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -217,7 +207,7 @@ fun AuthScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "Welcome to Eternal Echo",
+                    text = "The Eternal Echo",
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary,
@@ -225,14 +215,13 @@ fun AuthScreen(
                 )
 
                 Text(
-                    text = "Unlock unlimited quizzes and contribute inn research by signing up or logging in.",
+                    text = "Sign in to save streaks, unlock quizzes, and contribute to Quranic research.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                // Method Selection Tab (only in email phase)
                 if (phase == "email") {
                     TabRow(selectedTabIndex = if (method == "otp") 0 else 1) {
                         Tab(
@@ -241,7 +230,7 @@ fun AuthScreen(
                                 method = "otp"
                                 viewModel.clearState()
                             },
-                            text = { Text("🔑 Sign UP") }
+                            text = { Text("Email code") }
                         )
                         Tab(
                             selected = method == "password",
@@ -249,7 +238,7 @@ fun AuthScreen(
                                 method = "password"
                                 viewModel.clearState()
                             },
-                            text = { Text("🔒 Password") }
+                            text = { Text("Password") }
                         )
                     }
                 }
@@ -335,10 +324,15 @@ fun AuthScreen(
                 // Submit Button
                 Button(
                     onClick = {
-                        val saveSessionToPrefs: (UserSession) -> Unit = { session ->
+                        val saveSessionToPrefs: (UserSession, Boolean) -> Unit = { session, hasPassword ->
                             prefs.putInt("user_id", session.userId)
                             prefs.putString("user_name", session.name)
                             prefs.putString("user_email", session.email)
+                            prefs.putBoolean("has_password", hasPassword)
+                            if (session.token.isNotBlank()) {
+                                prefs.putString("api_token", session.token)
+                                com.asloobulhayat.eternalecho.data.ApiClient.authToken = session.token
+                            }
                             scope.launch {
                                 com.asloobulhayat.eternalecho.data.QuizSubmissionHelper.submitPendingQuizIfAny(
                                     com.asloobulhayat.eternalecho.data.DefaultDataRepository(),
@@ -364,7 +358,7 @@ fun AuthScreen(
                                 val cleanOtp = otp.trim()
                                 if (cleanOtp.isNotEmpty()) {
                                     viewModel.verifyOtp(cleanEmail, cleanOtp) { response ->
-                                        saveSessionToPrefs(response.session)
+                                        saveSessionToPrefs(response.session, response.hasPassword)
                                         if (response.hasPassword) {
                                             onBackClick()
                                         } else {
@@ -380,6 +374,7 @@ fun AuthScreen(
                                 if (password.length >= 6) {
                                     val uId = sessionForSetPassword?.userId ?: -1
                                     viewModel.setPassword(uId, password) {
+                                        prefs.putBoolean("has_password", true)
                                         onBackClick()
                                     }
                                 } else {
@@ -394,7 +389,7 @@ fun AuthScreen(
                                     viewModel.setError("Please enter your password.")
                                 } else {
                                     viewModel.login(cleanEmail, password) { session ->
-                                        saveSessionToPrefs(session)
+                                        saveSessionToPrefs(session, true)
                                         onBackClick()
                                     }
                                 }
@@ -462,6 +457,7 @@ fun AuthScreen(
                     )
                 }
             }
+        }
         }
     }
 }

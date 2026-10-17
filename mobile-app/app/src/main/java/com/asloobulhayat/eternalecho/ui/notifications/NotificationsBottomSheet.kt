@@ -1,5 +1,6 @@
 package com.asloobulhayat.eternalecho.ui.notifications
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,16 +9,16 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.outlined.NotificationsNone
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -32,6 +33,8 @@ fun NotificationsBottomSheet(
     onMarkAllAsRead: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val unreadCount = notifications.count { !it.isRead }
+
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -42,56 +45,79 @@ fun NotificationsBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.82f)
+                .navigationBarsPadding()
                 .padding(horizontal = 20.dp)
         ) {
-            // Header
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(bottom = 16.dp),
+                    .padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Notifications,
-                        contentDescription = "Notifications",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Text(
-                        text = "Announcements",
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Notifications,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                    Column {
+                        Text(
+                            text = "Announcements",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = if (unreadCount > 0) {
+                                "$unreadCount unread"
+                            } else if (notifications.isEmpty()) {
+                                "Updates from The Eternal Echo"
+                            } else {
+                                "You're all caught up"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    if (notifications.any { !it.isRead }) {
+                Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                    if (unreadCount > 0) {
                         TextButton(
                             onClick = onMarkAllAsRead,
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = "Mark read",
+                                text = "Mark all read",
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.Bold
                             )
                         }
                     }
-
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.Default.Close, contentDescription = "Close")
                     }
                 }
             }
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
 
             if (notifications.isEmpty()) {
                 Box(
@@ -102,29 +128,35 @@ fun NotificationsBottomSheet(
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.padding(horizontal = 28.dp)
                     ) {
                         Surface(
                             shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
                             modifier = Modifier.size(72.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
-                                Text("📭", fontSize = 32.sp)
+                                Icon(
+                                    imageVector = Icons.Outlined.NotificationsNone,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(32.dp)
+                                )
                             }
                         }
                         Text(
-                            text = "No Announcements Yet",
+                            text = "No announcements yet",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "When new updates or reflections are published from the website, they'll appear here.",
+                            text = "New updates and reflections from the platform will show up here.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 32.dp),
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            lineHeight = 20.sp
                         )
                     }
                 }
@@ -133,7 +165,7 @@ fun NotificationsBottomSheet(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f),
-                    contentPadding = PaddingValues(vertical = 12.dp),
+                    contentPadding = PaddingValues(top = 14.dp, bottom = 24.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     items(notifications, key = { it.id }) { item ->
@@ -155,17 +187,23 @@ fun NotificationCard(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val typeLabel = item.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
 
     Surface(
         shape = RoundedCornerShape(16.dp),
         color = if (item.isRead) {
-            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
         } else {
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.28f)
         },
-        border = if (!item.isRead) {
-            androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
-        } else null,
+        border = BorderStroke(
+            1.dp,
+            if (!item.isRead) {
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+            }
+        ),
         modifier = modifier
             .fillMaxWidth()
             .clickable {
@@ -176,41 +214,63 @@ fun NotificationCard(
             }
     ) {
         Column(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(14.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (!item.isRead) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(Color(0xFF10B981))
-                        )
-                    }
+                if (!item.isRead) {
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 6.dp)
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                } else {
+                    Spacer(modifier = Modifier.size(8.dp))
+                }
 
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
                     Text(
                         text = item.title,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = if (!item.isRead) FontWeight.Bold else FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = if (expanded) 4 else 2,
+                        overflow = TextOverflow.Ellipsis
                     )
-                }
 
-                if (!item.createdAt.isNullOrBlank()) {
-                    Text(
-                        text = formatNotificationDate(item.createdAt),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            shape = RoundedCornerShape(6.dp),
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.7f)
+                        ) {
+                            Text(
+                                text = typeLabel,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
+                        if (!item.createdAt.isNullOrBlank()) {
+                            Text(
+                                text = formatNotificationDate(item.createdAt),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
 
@@ -225,7 +285,7 @@ fun NotificationCard(
 
             if (!expanded && item.message.length > 120) {
                 Text(
-                    text = "Tap to read more...",
+                    text = "Tap to read more",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Bold
@@ -241,7 +301,7 @@ private fun formatNotificationDate(rawIsoDate: String): String {
         if (parts.size >= 2) {
             val date = parts[0]
             val time = parts[1].substringBefore(".").substringBefore("Z").take(5)
-            "$date $time"
+            "$date · $time"
         } else {
             rawIsoDate.take(10)
         }

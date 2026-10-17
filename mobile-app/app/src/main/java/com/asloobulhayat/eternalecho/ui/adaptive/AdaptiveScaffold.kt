@@ -51,8 +51,8 @@ fun AdaptiveNavigationScaffold(
         // Landscape or Tablet / Expanded screen: Navigation Rail on the start side
         Row(modifier = modifier.fillMaxSize()) {
             NavigationRail(
-                containerColor = MaterialTheme.colorScheme.primaryContainer,
-                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                containerColor = MaterialTheme.colorScheme.surface,
+                contentColor = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.fillMaxHeight()
             ) {
                 Spacer(modifier = Modifier.height(8.dp))
@@ -83,7 +83,8 @@ fun AdaptiveNavigationScaffold(
             topBar = topBar,
             bottomBar = {
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp
                 ) {
                     for (dest in destinations) {
                         NavigationBarItem(

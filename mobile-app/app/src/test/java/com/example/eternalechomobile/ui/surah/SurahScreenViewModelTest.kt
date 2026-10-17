@@ -112,7 +112,8 @@ class SurahScreenViewModelTest {
         override suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse =
             UserSessionOtpResponse(UserSession(0, "", "", 0), true)
         override suspend fun setPassword(userId: Int, password: String): Boolean = true
-        override suspend fun changePassword(userId: Int, password: String): Boolean = true
+        override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean = true
+        override suspend fun logout(): Boolean = true
         override suspend fun submitQuiz(
             userId: Int,
             type: String,
@@ -137,6 +138,37 @@ class SurahScreenViewModelTest {
         assertEquals(1, verses.size)
         assertEquals(1, verses[0].verseNumber)
         assertEquals("96:1", verses[0].verseKey)
+    }
+
+    @Test
+    fun testWebTranslationsReplaceEmptyApiTranslations() = runTest(testDispatcher) {
+        val repo = object : DataRepository by fakeRepo {
+            override suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> {
+                return verses.map { verse ->
+                    verse.copy(
+                        translations = listOf(
+                            VerseTranslation(
+                                id = "en.sahih",
+                                name = "Saheeh International",
+                                language = "en",
+                                text = "Read in the name of your Lord who created",
+                                direction = "ltr"
+                            )
+                        )
+                    )
+                }
+            }
+        }
+
+        val viewModel = SurahScreenViewModel(96, repo)
+        advanceUntilIdle()
+
+        val state = viewModel.versesState.value
+        assertTrue(state is VersesUiState.Success)
+        val verse = (state as VersesUiState.Success).data.first()
+        assertEquals("en.sahih", verse.translationFor("en.sahih")?.id)
+        assertEquals("Read in the name of your Lord who created", verse.translationFor("en.sahih")?.text)
+        assertEquals(false, viewModel.translationsLoading.value)
     }
 
     @Test

@@ -80,7 +80,7 @@ class QuranicLensRoleTest extends TestCase
         $response->assertRedirect(route('login'));
     }
 
-    public function test_logged_in_user_can_join_researchers_team(): void
+    public function test_logged_in_user_cannot_self_grant_researcher_access(): void
     {
         $user = User::create([
             'name' => 'Regular User',
@@ -94,7 +94,7 @@ class QuranicLensRoleTest extends TestCase
         $response->assertRedirect(route('researchers.index'));
 
         $user->refresh();
-        $this->assertTrue($user->is_researcher);
+        $this->assertFalse((bool) $user->is_researcher);
     }
 
     public function test_researcher_expert_category_restriction_on_approvals_page(): void

@@ -12,7 +12,13 @@
             <p class="text-slate-600 font-medium italic">"Seeking knowledge is a duty upon every Muslim."</p>
 
             @php
-                $homeStreak = $user->getStreakStatus();
+                $homeStreak = $engagement['streak'] ?? $user->getStreakStatus();
+                $progressPercent = (int) ($engagement['progress_percent'] ?? 0);
+                $completedCount = (int) ($engagement['completed_count'] ?? 0);
+                $engagementTotal = (int) ($engagement['total'] ?? 4);
+                $ringRadius = 36;
+                $ringCircumference = 2 * M_PI * $ringRadius;
+                $ringOffset = $ringCircumference * (1 - ($progressPercent / 100));
             @endphp
             <div class="inline-flex flex-wrap items-center justify-center gap-3 bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-amber-500/10 border border-amber-300/60 px-6 py-3 rounded-2xl shadow-sm text-left">
                 <span class="text-2xl">🔥</span>
@@ -33,6 +39,45 @@
                         </button>
                     </form>
                 @endif
+            </div>
+        </div>
+
+        {{-- Today's Devotion Checklist --}}
+        <div class="max-w-2xl mx-auto bg-gradient-to-br from-emerald-50 via-white to-amber-50 rounded-[2.5rem] p-8 shadow-xl border border-emerald-100/80">
+            <div class="flex flex-col sm:flex-row items-center gap-6">
+                <div class="relative shrink-0" aria-hidden="true">
+                    <svg width="96" height="96" viewBox="0 0 96 96" class="-rotate-90">
+                        <circle cx="48" cy="48" r="{{ $ringRadius }}" fill="none" stroke="#e2e8f0" stroke-width="8" />
+                        <circle cx="48" cy="48" r="{{ $ringRadius }}" fill="none" stroke="#059669" stroke-width="8"
+                            stroke-linecap="round"
+                            stroke-dasharray="{{ $ringCircumference }}"
+                            stroke-dashoffset="{{ $ringOffset }}"
+                            class="transition-all duration-700" />
+                    </svg>
+                    <div class="absolute inset-0 flex flex-col items-center justify-center">
+                        <span class="text-xl font-black text-emerald-700">{{ $progressPercent }}%</span>
+                        <span class="text-[9px] font-black uppercase tracking-wider text-slate-400">{{ $completedCount }}/{{ $engagementTotal }}</span>
+                    </div>
+                </div>
+                <div class="flex-1 w-full space-y-3 text-left">
+                    <div>
+                        <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Today's Devotion</h3>
+                        <p class="text-xs font-medium text-slate-500">Complete any habit to keep your streak alive.</p>
+                    </div>
+                    <ul class="space-y-2">
+                        @foreach(($engagement['activities'] ?? []) as $key => $activity)
+                            <li>
+                                <a href="{{ $activity['href'] }}"
+                                    class="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all {{ $activity['done'] ? 'bg-emerald-100/70 text-emerald-900' : 'bg-white/80 hover:bg-white text-slate-700 border border-slate-100' }}">
+                                    <span class="flex h-6 w-6 items-center justify-center rounded-full text-xs font-black {{ $activity['done'] ? 'bg-emerald-600 text-white' : 'bg-slate-200 text-slate-500' }}">
+                                        {{ $activity['done'] ? '✓' : '○' }}
+                                    </span>
+                                    <span class="text-sm font-bold {{ $activity['done'] ? 'line-through opacity-80' : '' }}">{{ $activity['label'] }}</span>
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
+                </div>
             </div>
         </div>
 

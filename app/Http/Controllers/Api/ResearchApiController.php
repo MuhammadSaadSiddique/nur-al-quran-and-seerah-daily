@@ -41,8 +41,11 @@ class ResearchApiController extends Controller
             return response()->json(['error' => 'Invalid email or password.'], 401);
         }
 
-        $tokenName = $request->input('token_name', 'api-token');
-        $token = $user->createToken($tokenName)->plainTextToken;
+        $tokenName = (string) $request->input('token_name', 'api-token');
+        $user->tokens()->where('name', $tokenName)->delete();
+
+        $minutes = (int) (config('sanctum.expiration') ?: 60 * 24 * 30);
+        $token = $user->createToken($tokenName, ['*'], now()->addMinutes(max(60, $minutes)))->plainTextToken;
 
         return response()->json([
             'token' => $token,
@@ -61,11 +64,17 @@ class ResearchApiController extends Controller
      */
     public function index(Request $request)
     {
-        $query = QuranicLensAnalysis::with(['user:id,name,display_name,email', 'theme:id,title,slug', 'moderator:id,name,display_name,email']);
-
-        // Check if requester has researcher or admin access
         $user = Auth::guard('sanctum')->user();
         $isModerator = $user && ($user->is_researcher || $user->is_admin);
+
+        $userFields = $isModerator
+            ? 'user:id,name,display_name,email'
+            : 'user:id,name,display_name';
+        $moderatorFields = $isModerator
+            ? 'moderator:id,name,display_name,email'
+            : 'moderator:id,name,display_name';
+
+        $query = QuranicLensAnalysis::with([$userFields, 'theme:id,title,slug', $moderatorFields]);
 
         // Status filter: defaults to approved unless moderator specifies otherwise
         if ($isModerator && $request->has('status')) {
@@ -155,7 +164,7 @@ class ResearchApiController extends Controller
             'message' => $status === 'approved' 
                 ? 'Your research analysis has been published successfully.' 
                 : 'Your research analysis has been submitted and is currently pending review by a researcher.',
-            'data' => $analysis->load(['user:id,name,display_name,email', 'theme:id,title,slug'])
+            'data' => $analysis->load(['user:id,name,display_name', 'theme:id,title,slug'])
         ], 201);
     }
 }

@@ -126,6 +126,11 @@ class DuaFeatureTest extends TestCase
 
     public function test_user_can_submit_dua_which_defaults_to_pending(): void
     {
+        $user = \App\Models\User::factory()->create([
+            'name' => 'Bilal',
+            'email' => 'bilal@example.com',
+        ]);
+
         $payload = [
             'title' => 'Dua for Knowledge and Understanding',
             'category' => 'Guidance & Faith',
@@ -140,7 +145,7 @@ class DuaFeatureTest extends TestCase
             'submitter_email' => 'bilal@example.com',
         ];
 
-        $response = $this->post(route('duas.store'), $payload);
+        $response = $this->actingAs($user)->post(route('duas.store'), $payload);
 
         $response->assertRedirect(route('duas.index'));
         $response->assertSessionHas('success');
@@ -244,6 +249,8 @@ class DuaFeatureTest extends TestCase
 
     public function test_api_client_can_submit_dua_with_pending_status(): void
     {
+        $user = \App\Models\User::factory()->create();
+
         $payload = [
             'title' => 'Mobile App User Dua Contribution',
             'category' => 'Forgiveness & Mercy',
@@ -256,7 +263,7 @@ class DuaFeatureTest extends TestCase
             'submitter_name' => 'Mobile App User',
         ];
 
-        $response = $this->postJson('/api/duas', $payload);
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/duas', $payload);
 
         $response->assertStatus(201);
         $response->assertJson([

@@ -13,6 +13,9 @@ import javax.net.ssl.HttpsURLConnection
 import com.asloobulhayat.eternalecho.security.AppSecurity
 
 object ApiClient {
+    @Volatile
+    var authToken: String? = null
+
     private val OBFUSCATED_BASE_URL = byteArrayOf(
         50.toByte(), 46.toByte(), 46.toByte(), 42.toByte(), 41.toByte(), 96.toByte(), 117.toByte(), 117.toByte(),
         46.toByte(), 50.toByte(), 63.toByte(), 63.toByte(), 46.toByte(), 63.toByte(), 40.toByte(), 52.toByte(),
@@ -31,7 +34,29 @@ object ApiClient {
     const val ACCOUNT_DELETE_URL: String = "https://theeternalecho.asloobulhayat.com/delete-account"
     const val DONATION_URL: String = "https://theeternalecho.asloobulhayat.com/donate"
 
-    private suspend fun makeGetRequest(urlStr: String): String = withContext(Dispatchers.IO) {
+    private val webTranslationCache = java.util.concurrent.ConcurrentHashMap<Int, Map<Int, List<VerseTranslation>>>()
+
+    private data class TranslationEdition(
+        val id: String,
+        val name: String,
+        val language: String,
+        val direction: String
+    )
+
+    private val translationEditions = listOf(
+        TranslationEdition("en.sahih", "Saheeh International", "en", "ltr"),
+        TranslationEdition("en.pickthall", "Pickthall", "en", "ltr"),
+        TranslationEdition("en.yusufali", "Yusuf Ali", "en", "ltr"),
+        TranslationEdition("en.hilali", "Hilali & Khan", "en", "ltr"),
+        TranslationEdition("ur.jalandhry", "Jalandhry (Urdu)", "ur", "rtl"),
+        TranslationEdition("ur.maududi", "Maududi (Urdu)", "ur", "rtl")
+    )
+
+    private suspend fun makeGetRequest(
+        urlStr: String,
+        timeoutMs: Int = 10000,
+        sendAuth: Boolean = true
+    ): String = withContext(Dispatchers.IO) {
         if (!urlStr.startsWith("https://", ignoreCase = true)) {
             throw SecurityException("Insecure HTTP connections are strictly prohibited.")
         }
@@ -39,9 +64,12 @@ object ApiClient {
         try {
             val conn = url.openConnection() as HttpURLConnection
             conn.requestMethod = "GET"
-            conn.connectTimeout = 10000
-            conn.readTimeout = 10000
+            conn.connectTimeout = timeoutMs
+            conn.readTimeout = timeoutMs
             conn.setRequestProperty("Accept", "application/json")
+            if (sendAuth) {
+                applyAuthHeader(conn)
+            }
 
             val responseCode = conn.responseCode
             val stream = if (responseCode in 200..299) {
@@ -91,6 +119,13 @@ object ApiClient {
         }
     }
 
+    private fun applyAuthHeader(conn: HttpURLConnection) {
+        val token = authToken?.trim().orEmpty()
+        if (token.isNotEmpty()) {
+            conn.setRequestProperty("Authorization", "Bearer $token")
+        }
+    }
+
     suspend fun fetchSurahs(): List<Surah> {
         val jsonStr = makeGetRequest("$BASE_URL?action=surahs")
         val jsonObj = JSONObject(jsonStr)
@@ -121,6 +156,25 @@ object ApiClient {
         val list = mutableListOf<Verse>()
         for (i in 0 until dataArray.length()) {
             val item = dataArray.getJSONObject(i)
+            val translations = mutableListOf<VerseTranslation>()
+            val translationArray = item.optJSONArray("translations")
+            if (translationArray != null) {
+                for (j in 0 until translationArray.length()) {
+                    val translation = translationArray.optJSONObject(j) ?: continue
+                    val text = translation.optString("text")
+                    val id = translation.optString("id")
+                    if (text.isBlank() || id.isBlank()) continue
+                    translations.add(
+                        VerseTranslation(
+                            id = id,
+                            name = translation.optString("name", id),
+                            language = translation.optString("language", "en"),
+                            text = text,
+                            direction = translation.optString("direction", "ltr").ifBlank { "ltr" }
+                        )
+                    )
+                }
+            }
             list.add(
                 Verse(
                     id = item.optInt("id"),
@@ -128,11 +182,87 @@ object ApiClient {
                     verseKey = item.optString("verse_key"),
                     juzNumber = item.optInt("juz_number"),
                     textArabic = item.optString("text_arabic"),
-                    textTransliteration = item.optString("text_transliteration")
+                    textTransliteration = item.optString("text_transliteration"),
+                    translations = translations
                 )
             )
         }
         return list
+    }
+
+    /**
+     * Published translations from AlQuran Cloud. The app's own API only returns
+     * Arabic and transliteration, so the reader loads these directly.
+     */
+    suspend fun fetchWebTranslations(surahNumber: Int): Map<Int, List<VerseTranslation>> {
+        if (surahNumber !in 1..114) return emptyMap()
+        webTranslationCache[surahNumber]?.let { return it }
+
+        val editionIds = translationEditions.joinToString(",") { it.id }
+        val jsonStr = try {
+            makeGetRequest(
+                "https://api.alquran.cloud/v1/surah/$surahNumber/editions/$editionIds",
+                timeoutMs = 25000,
+                sendAuth = false
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Translation fetch failed: ${e.message}")
+            return emptyMap()
+        }
+
+        val root = try {
+            JSONObject(jsonStr)
+        } catch (e: Exception) {
+            return emptyMap()
+        }
+        if (root.optInt("code") != 200) return emptyMap()
+
+        val blocks = root.optJSONArray("data") ?: return emptyMap()
+        val catalog = translationEditions.associateBy { it.id }
+        val byVerse = mutableMapOf<Int, MutableList<VerseTranslation>>()
+        for (i in 0 until blocks.length()) {
+            val block = blocks.optJSONObject(i) ?: continue
+            val editionId = block.optJSONObject("edition")?.optString("identifier").orEmpty()
+            val meta = catalog[editionId] ?: continue
+            val ayahs = block.optJSONArray("ayahs") ?: continue
+            for (j in 0 until ayahs.length()) {
+                val ayah = ayahs.optJSONObject(j) ?: continue
+                val number = ayah.optInt("numberInSurah")
+                val text = cleanTranslationText(ayah.optString("text"))
+                if (number < 1 || text.isBlank()) continue
+                byVerse.getOrPut(number) { mutableListOf() }.add(
+                    VerseTranslation(
+                        id = meta.id,
+                        name = meta.name,
+                        language = meta.language,
+                        text = text,
+                        direction = meta.direction
+                    )
+                )
+            }
+        }
+
+        val order = translationEditions.mapIndexed { index, edition -> edition.id to index }.toMap()
+        val sorted = byVerse.mapValues { (_, items) ->
+            items.sortedBy { order[it.id] ?: 99 }
+        }
+        if (sorted.isNotEmpty()) {
+            webTranslationCache[surahNumber] = sorted
+        }
+        return sorted
+    }
+
+    private fun cleanTranslationText(raw: String): String {
+        return raw
+            .replace(Regex("<[^>]*>"), " ")
+            .replace("&amp;", "&")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace("&apos;", "'")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace(Regex("\\s+"), " ")
+            .trim()
     }
 
     suspend fun fetchConnections(surahNumber: Int, verseNumber: Int): ConnectionsData {
@@ -617,6 +747,7 @@ object ApiClient {
             conn.readTimeout = 10000
             conn.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
             conn.setRequestProperty("Accept", "application/json")
+            applyAuthHeader(conn)
 
             val postData = params.map { (k, v) ->
                 java.net.URLEncoder.encode(k.trim(), "UTF-8") + "=" + java.net.URLEncoder.encode(v.trim(), "UTF-8")
@@ -689,12 +820,17 @@ object ApiClient {
             throw Exception(msg)
         }
         val data = jsonObj.getJSONObject("data")
-        return UserSession(
+        val session = UserSession(
             userId = data.getInt("user_id"),
             name = data.getString("name"),
             email = data.getString("email"),
-            totalScore = data.getInt("total_score")
+            totalScore = data.getInt("total_score"),
+            token = data.optString("token", "")
         )
+        if (session.token.isNotBlank()) {
+            authToken = session.token
+        }
+        return session
     }
 
     suspend fun register(name: String, email: String, password: String): UserSession {
@@ -708,12 +844,17 @@ object ApiClient {
             throw Exception(msg)
         }
         val data = jsonObj.getJSONObject("data")
-        return UserSession(
+        val session = UserSession(
             userId = data.getInt("user_id"),
             name = data.getString("name"),
             email = data.getString("email"),
-            totalScore = data.getInt("total_score")
+            totalScore = data.getInt("total_score"),
+            token = data.optString("token", "")
         )
+        if (session.token.isNotBlank()) {
+            authToken = session.token
+        }
+        return session
     }
 
     suspend fun requestOtp(email: String): Boolean {
@@ -746,8 +887,12 @@ object ApiClient {
             userId = data.getInt("user_id"),
             name = data.getString("name"),
             email = data.getString("email"),
-            totalScore = data.getInt("total_score")
+            totalScore = data.getInt("total_score"),
+            token = data.optString("token", "")
         )
+        if (session.token.isNotBlank()) {
+            authToken = session.token
+        }
         return UserSessionOtpResponse(
             session = session,
             hasPassword = data.optBoolean("has_password", false)
@@ -765,8 +910,14 @@ object ApiClient {
         return true
     }
 
-    suspend fun changePassword(userId: Int, password: String): Boolean {
-        val params = mapOf("user_id" to userId.toString(), "password" to password)
+    suspend fun changePassword(userId: Int, password: String, currentPassword: String = ""): Boolean {
+        val params = mutableMapOf(
+            "user_id" to userId.toString(),
+            "password" to password
+        )
+        if (currentPassword.isNotBlank()) {
+            params["current_password"] = currentPassword
+        }
         val jsonStr = makePostRequest("$BASE_URL?action=change_password&user_id=$userId", params)
         val jsonObj = JSONObject(jsonStr)
         if (jsonObj.optString("status") != "success") {
@@ -776,15 +927,67 @@ object ApiClient {
         return true
     }
 
-    suspend fun deleteAccount(userId: Int): Boolean {
-        val params = mapOf("user_id" to userId.toString())
+    suspend fun logout(): Boolean {
+        return try {
+            val jsonStr = makePostRequest("$BASE_URL?action=logout", emptyMap())
+            val jsonObj = JSONObject(jsonStr)
+            authToken = null
+            jsonObj.optString("status") == "success"
+        } catch (_: Exception) {
+            authToken = null
+            false
+        }
+    }
+
+    suspend fun deleteAccount(
+        userId: Int,
+        currentPassword: String = "",
+        confirmDeletion: Boolean = false
+    ): Boolean {
+        val params = mutableMapOf("user_id" to userId.toString())
+        if (currentPassword.isNotBlank()) {
+            params["current_password"] = currentPassword
+        }
+        if (confirmDeletion) {
+            params["confirm_deletion"] = "1"
+        }
         val jsonStr = makePostRequest("$BASE_URL?action=delete_account&user_id=$userId", params)
         val jsonObj = JSONObject(jsonStr)
         if (jsonObj.optString("status") != "success") {
             val msg = jsonObj.optString("message", "Failed to delete account.")
             throw Exception(msg)
         }
+        authToken = null
         return true
+    }
+
+    suspend fun checkAnswer(
+        questionId: String,
+        selectedIndex: Int,
+        options: List<String> = emptyList()
+    ): AnswerReveal? {
+        val params = mutableMapOf(
+            "question_id" to questionId,
+            "selected_index" to selectedIndex.toString()
+        )
+        if (options.isNotEmpty()) {
+            params["options"] = JSONArray(options).toString()
+        }
+        return try {
+            val jsonStr = makePostRequest("$BASE_URL?action=check_answer", params)
+            val jsonObj = JSONObject(jsonStr)
+            if (jsonObj.optString("status") != "success") return null
+            val data = jsonObj.getJSONObject("data")
+            AnswerReveal(
+                correct = data.optBoolean("correct", false),
+                correctAnswerIndex = data.optInt("correct_answer_index", -1),
+                explanation = data.optString("explanation", ""),
+                questionId = data.optString("question_id", questionId)
+            )
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to check answer", e)
+            null
+        }
     }
 
     suspend fun submitQuiz(
@@ -918,6 +1121,127 @@ object ApiClient {
         }
     }
 
+    private fun parseDailyEngagement(data: JSONObject): DailyEngagement {
+        val streakObj = data.optJSONObject("streak")
+        val streakHistoryArray = streakObj?.optJSONArray("streak_history")
+        val history = mutableListOf<String>()
+        if (streakHistoryArray != null) {
+            for (i in 0 until streakHistoryArray.length()) {
+                history.add(streakHistoryArray.getString(i))
+            }
+        }
+        val streak = StreakData(
+            currentStreak = streakObj?.optInt("current_streak", 0) ?: 0,
+            longestStreak = streakObj?.optInt("longest_streak", 0) ?: 0,
+            isActiveToday = streakObj?.optBoolean("is_active_today", false) ?: false,
+            lastStreakDate = streakObj?.optString("last_streak_date")?.takeIf { it.isNotBlank() },
+            streakHistory = history
+        )
+
+        val activitiesObj = data.optJSONObject("activities")
+        val activityList = mutableListOf<EngagementActivity>()
+        val keys = listOf("quiz", "read", "insight", "dua")
+        if (activitiesObj != null) {
+            for (key in keys) {
+                val act = activitiesObj.optJSONObject(key) ?: continue
+                activityList.add(
+                    EngagementActivity(
+                        key = key,
+                        done = act.optBoolean("done", false),
+                        label = act.optString("label", key.replaceFirstChar { it.uppercase() }),
+                        href = act.optString("href", "")
+                    )
+                )
+            }
+        }
+
+        return DailyEngagement(
+            date = data.optString("date", ""),
+            activities = activityList,
+            completedCount = data.optInt("completed_count", activityList.count { it.done }),
+            total = data.optInt("total", 4),
+            progressPercent = data.optInt("progress_percent", 0),
+            streak = streak
+        )
+    }
+
+    suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> = withContext(Dispatchers.IO) {
+        try {
+            val jsonStr = makeGetRequest("$BASE_URL?action=daily_engagement&user_id=$userId")
+            val jsonObj = JSONObject(jsonStr)
+            if (jsonObj.optString("status") == "success") {
+                Result.success(parseDailyEngagement(jsonObj.getJSONObject("data")))
+            } else {
+                Result.failure(Exception(jsonObj.optString("message", "Unable to load daily engagement.")))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to fetch daily engagement: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> = withContext(Dispatchers.IO) {
+        try {
+            val params = mapOf(
+                "user_id" to userId.toString(),
+                "activity" to activity
+            )
+            val jsonStr = makePostRequest("$BASE_URL?action=mark_engagement", params)
+            val jsonObj = JSONObject(jsonStr)
+            if (jsonObj.optString("status") == "success") {
+                Result.success(parseDailyEngagement(jsonObj.getJSONObject("data")))
+            } else {
+                Result.failure(Exception(jsonObj.optString("message", "Unable to record engagement.")))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to mark engagement: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> = withContext(Dispatchers.IO) {
+        try {
+            val params = mapOf(
+                "user_id" to userId.toString(),
+                "type" to type,
+                "insight_id" to insightId
+            )
+            val jsonStr = makePostRequest("$BASE_URL?action=mark_insight", params)
+            val jsonObj = JSONObject(jsonStr)
+            if (jsonObj.optString("status") == "success") {
+                val data = jsonObj.optJSONObject("data")
+                val engagementObj = data?.optJSONObject("engagement")
+                Result.success(engagementObj?.let { parseDailyEngagement(it) })
+            } else {
+                Result.failure(Exception(jsonObj.optString("message", "Unable to mark insight.")))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to mark insight: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun toggleSurahRead(userId: Int, surah: Int): Result<DailyEngagement?> = withContext(Dispatchers.IO) {
+        try {
+            val params = mapOf(
+                "user_id" to userId.toString(),
+                "surah" to surah.toString()
+            )
+            val jsonStr = makePostRequest("$BASE_URL?action=toggle_surah", params)
+            val jsonObj = JSONObject(jsonStr)
+            if (jsonObj.optString("status") == "success") {
+                val data = jsonObj.optJSONObject("data")
+                val engagementObj = data?.optJSONObject("engagement")
+                Result.success(engagementObj?.let { parseDailyEngagement(it) })
+            } else {
+                Result.failure(Exception(jsonObj.optString("message", "Unable to toggle surah.")))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to toggle surah: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     suspend fun getStreakStatus(userId: Int): Result<StreakData> = withContext(Dispatchers.IO) {
         try {
             val jsonStr = makeGetRequest("$BASE_URL?action=streak_status&user_id=$userId")
@@ -975,6 +1299,80 @@ object ApiClient {
             }
         } catch (e: Exception) {
             android.util.Log.e("ApiClient", "Failed to check in daily streak: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchUserStats(userId: Int): Result<UserProfileStats> = withContext(Dispatchers.IO) {
+        try {
+            val jsonStr = makeGetRequest("$BASE_URL?action=user_stats&user_id=$userId")
+            val jsonObj = JSONObject(jsonStr)
+            if (jsonObj.optString("status") == "success") {
+                val data = jsonObj.getJSONObject("data")
+                val streakObj = data.optJSONObject("streak")
+                val streakHistoryArray = streakObj?.optJSONArray("streak_history")
+                val history = mutableListOf<String>()
+                if (streakHistoryArray != null) {
+                    for (i in 0 until streakHistoryArray.length()) {
+                        history.add(streakHistoryArray.getString(i))
+                    }
+                }
+                val streak = StreakData(
+                    currentStreak = streakObj?.optInt("current_streak", 0) ?: 0,
+                    longestStreak = streakObj?.optInt("longest_streak", 0) ?: 0,
+                    isActiveToday = streakObj?.optBoolean("is_active_today", false) ?: false,
+                    lastStreakDate = streakObj?.optString("last_streak_date")?.takeIf { it.isNotBlank() },
+                    streakHistory = history
+                )
+
+                val diffObj = data.optJSONObject("difficulty")
+                val easyObj = diffObj?.optJSONObject("easy")
+                val medObj = diffObj?.optJSONObject("medium")
+                val hardObj = diffObj?.optJSONObject("hard")
+
+                val difficultyGroup = DifficultyStatsGroup(
+                    easy = DifficultyStat(
+                        total = easyObj?.optInt("total", 0) ?: 0,
+                        correct = easyObj?.optInt("correct", 0) ?: 0,
+                        accuracy = easyObj?.optInt("accuracy", 0) ?: 0
+                    ),
+                    medium = DifficultyStat(
+                        total = medObj?.optInt("total", 0) ?: 0,
+                        correct = medObj?.optInt("correct", 0) ?: 0,
+                        accuracy = medObj?.optInt("accuracy", 0) ?: 0
+                    ),
+                    hard = DifficultyStat(
+                        total = hardObj?.optInt("total", 0) ?: 0,
+                        correct = hardObj?.optInt("correct", 0) ?: 0,
+                        accuracy = hardObj?.optInt("accuracy", 0) ?: 0
+                    )
+                )
+
+                val stats = UserProfileStats(
+                    userId = data.optInt("user_id", userId),
+                    name = data.optString("name", "User"),
+                    email = data.optString("email", ""),
+                    spiritualLevel = data.optString("spiritual_level", "Novice"),
+                    totalScore = data.optInt("total_score", 0),
+                    maxPossibleScore = data.optInt("max_possible_score", 0),
+                    totalQuestions = data.optInt("total_questions", 0),
+                    accuracy = data.optInt("accuracy", 0),
+                    surahsCompletedCount = data.optInt("surahs_completed_count", 0),
+                    parasCompletedCount = data.optInt("paras_completed_count", 0),
+                    seerahReadCount = data.optInt("seerah_read_count", 0),
+                    quranHistoryReadCount = data.optInt("quran_history_read_count", 0),
+                    bookmarksCount = data.optInt("bookmarks_count", 0),
+                    streak = streak,
+                    engagement = data.optJSONObject("engagement")?.let { parseDailyEngagement(it) },
+                    difficulty = difficultyGroup,
+                    hasPassword = data.optBoolean("has_password", false)
+                )
+                Result.success(stats)
+            } else {
+                Result.failure(Exception(jsonObj.optString("message", "Unable to load user profile statistics.")))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("ApiClient", "Failed to fetch user stats: ${e.message}", e)
             Result.failure(e)
         }
     }

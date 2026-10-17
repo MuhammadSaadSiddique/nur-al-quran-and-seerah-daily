@@ -56,13 +56,14 @@ class NotificationApiController extends Controller
             'app_version' => 'nullable|string|max:50',
         ]);
 
-        $userId = auth('sanctum')->id() ?? $request->input('user_id');
+        // Only bind a user from a verified Sanctum session — never trust client-supplied user_id.
+        $userId = auth('sanctum')->id();
 
         $deviceToken = PushNotificationService::registerToken(
             $validated['token'],
             $validated['platform'] ?? 'android',
             $validated['device_name'] ?? null,
-            $userId ? (int)$userId : null,
+            $userId ? (int) $userId : null,
             $validated['app_version'] ?? null
         );
 

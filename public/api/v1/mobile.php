@@ -1,13 +1,28 @@
 <?php
 
 @header('Content-Type: application/json; charset=utf-8');
-@header('Access-Control-Allow-Origin: *');
-@header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
 
 require __DIR__ . '/../../../vendor/autoload.php';
 $app = require __DIR__ . '/../../../bootstrap/app.php';
 $kernel = $app->make(\Illuminate\Contracts\Console\Kernel::class);
 $kernel->bootstrap();
+
+// CORS: native clients typically omit Origin. Browser callers must match MOBILE_CORS_ORIGINS.
+$corsOrigins = array_values(array_filter(array_map('trim', explode(',', (string) env('MOBILE_CORS_ORIGINS', '')))));
+$requestOrigin = isset($_SERVER['HTTP_ORIGIN']) ? (string) $_SERVER['HTTP_ORIGIN'] : '';
+if ($requestOrigin !== '') {
+    if (in_array('*', $corsOrigins, true) || in_array($requestOrigin, $corsOrigins, true)) {
+        $allowOrigin = in_array('*', $corsOrigins, true) ? '*' : $requestOrigin;
+        @header('Access-Control-Allow-Origin: ' . $allowOrigin);
+        @header('Access-Control-Allow-Methods: GET, POST, OPTIONS');
+        @header('Access-Control-Allow-Headers: Authorization, Content-Type, Accept');
+        @header('Vary: Origin');
+    }
+}
+if (isset($_SERVER['REQUEST_METHOD']) && strtoupper((string) $_SERVER['REQUEST_METHOD']) === 'OPTIONS') {
+    http_response_code(204);
+    exit;
+}
 
 if (!function_exists('check_rate_limit')) {
     function check_rate_limit()
@@ -325,7 +340,56 @@ try {
         }
     }
 
+    // Daily engagement helpers (Laravel Eloquent service — source of truth)
+    if (!function_exists('mobile_engagement_status')) {
+        function mobile_engagement_status(int $userId): ?array
+        {
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                return null;
+            }
+            return app(\App\Services\DailyEngagementService::class)->todayStatus($user);
+        }
+    }
+
+    if (!function_exists('mobile_engagement_record')) {
+        function mobile_engagement_record(int $userId, string $activity): ?array
+        {
+            $user = \App\Models\User::find($userId);
+            if (!$user) {
+                return null;
+            }
+            return app(\App\Services\DailyEngagementService::class)->record($user, $activity);
+        }
+    }
+
     $action = isset($requestData['action']) ? trim((string)$requestData['action']) : '';
+
+    $authRequiredActions = [
+        'set_password',
+        'change_password',
+        'delete_account',
+        'submit_quiz',
+        'check_answer',
+        'daily_engagement',
+        'mark_engagement',
+        'toggle_surah',
+        'toggle_para',
+        'mark_insight',
+        'daily_streak',
+        'streak_check_in',
+        'streak_status',
+        'user_stats',
+        'submit_dua',
+        'submit_research_contribution',
+        'add_category',
+        'review_research_contribution',
+        'logout',
+    ];
+    $authUser = null;
+    if (in_array($action, $authRequiredActions, true)) {
+        $authUser = \App\Services\MobileApiAuthService::requireUser();
+    }
 
     switch ($action) {
         case 'surahs':
@@ -347,11 +411,34 @@ try {
                                    ORDER BY v.verse_number ASC");
             $stmt->execute([$surahNumber]);
             $verses = $stmt->fetchAll();
+
+            $editions = [];
+            try {
+                $translationService = app(\App\Services\QuranTranslationService::class);
+                $byVerse = $translationService->forSurah($surahNumber);
+                $editions = $translationService->editionsPresent($byVerse);
+                foreach ($verses as &$verse) {
+                    $verseNumber = (int) ($verse['verse_number'] ?? 0);
+                    $verse['translations'] = $byVerse[$verseNumber] ?? [];
+                }
+                unset($verse);
+            } catch (\Throwable $e) {
+                \Illuminate\Support\Facades\Log::warning('Unable to attach web translations to mobile verses', [
+                    'surah' => $surahNumber,
+                    'message' => $e->getMessage(),
+                ]);
+                foreach ($verses as &$verse) {
+                    $verse['translations'] = [];
+                }
+                unset($verse);
+            }
+
             echo json_encode([
                 'status' => 'success',
                 'surah_number' => $surahNumber,
+                'editions' => $editions,
                 'data' => $verses
-            ]);
+            ], JSON_UNESCAPED_UNICODE);
             break;
 
         case 'connections':
@@ -892,11 +979,16 @@ try {
         case 'theme_quiz':
             $themeId = isset($_GET['theme_id']) ? (int) $_GET['theme_id'] : 0;
             $difficulty = isset($_GET['difficulty']) ? trim((string)$_GET['difficulty']) : 'Medium';
+            if (!in_array($difficulty, ['Easy', 'Medium', 'Hard'], true)) {
+                $difficulty = 'Medium';
+            }
             $limit = isset($_GET['quantity']) ? (int) $_GET['quantity'] : (isset($_GET['limit']) ? (int) $_GET['limit'] : 20);
             if ($limit <= 0) $limit = 20;
+            $limit = min($limit, 50);
 
             $randFunc = $isSqlite ? 'RANDOM()' : 'RAND()';
-            $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
+            // Do not leak answer keys before the client submits.
+            $stmt = $pdo->prepare("SELECT id, question_id, text, options, difficulty, reference, source_info 
                                    FROM generated_questions 
                                    WHERE theme_id = :theme_id AND difficulty = :difficulty 
                                    ORDER BY $randFunc LIMIT :limit");
@@ -910,7 +1002,7 @@ try {
                 $existingIds = array_column($questionsRaw, 'id');
                 $needed = $limit - count($questionsRaw);
                 $inClause = !empty($existingIds) ? 'AND id NOT IN (' . implode(',', array_map('intval', $existingIds)) . ')' : '';
-                $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
+                $stmt = $pdo->prepare("SELECT id, question_id, text, options, difficulty, reference, source_info 
                                        FROM generated_questions 
                                        WHERE theme_id = :theme_id $inClause 
                                        ORDER BY $randFunc LIMIT :limit");
@@ -924,6 +1016,9 @@ try {
             $questions = [];
             foreach ($questionsRaw as $row) {
                 $row['options'] = json_decode($row['options'], true) ?: [];
+                // Placeholder for older clients; never the real answer.
+                $row['correct_answer_index'] = -1;
+                $row['explanation'] = '';
                 $questions[] = $row;
             }
 
@@ -939,13 +1034,17 @@ try {
         case 'grand_quiz':
             $quizType = isset($_GET['quiz_type']) ? strtoupper(trim((string)$_GET['quiz_type'])) : 'QURAN';
             $difficulty = isset($_GET['difficulty']) ? ucfirst(strtolower(trim((string)$_GET['difficulty']))) : 'Medium';
+            if (!in_array($difficulty, ['Easy', 'Medium', 'Hard'], true)) {
+                $difficulty = 'Medium';
+            }
             $quantity = isset($_GET['quantity']) ? (int)$_GET['quantity'] : (isset($_GET['limit']) ? (int)$_GET['limit'] : 20);
             if ($quantity <= 0) $quantity = 20;
+            $quantity = min($quantity, 50);
 
             $type = ($quizType === 'SEERAH' || $quizType === 'GRAND_SEERAH') ? 'SEERAH' : 'PARA';
             $randFunc = $isSqlite ? 'RANDOM()' : 'RAND()';
 
-            $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
+            $stmt = $pdo->prepare("SELECT id, question_id, text, options, difficulty, reference, source_info 
                                    FROM generated_questions 
                                    WHERE type = :type AND difficulty = :difficulty 
                                    ORDER BY $randFunc LIMIT :limit");
@@ -959,7 +1058,7 @@ try {
                 $existingIds = array_column($questionsRaw, 'id');
                 $needed = $quantity - count($questionsRaw);
                 $inClause = !empty($existingIds) ? 'AND id NOT IN (' . implode(',', array_map('intval', $existingIds)) . ')' : '';
-                $stmt = $pdo->prepare("SELECT id, question_id, text, options, correct_answer_index, explanation, difficulty, reference, source_info 
+                $stmt = $pdo->prepare("SELECT id, question_id, text, options, difficulty, reference, source_info 
                                        FROM generated_questions 
                                        WHERE type = :type $inClause 
                                        ORDER BY $randFunc LIMIT :limit");
@@ -973,6 +1072,8 @@ try {
             $questions = [];
             foreach ($questionsRaw as $row) {
                 $row['options'] = json_decode($row['options'], true) ?: [];
+                $row['correct_answer_index'] = -1;
+                $row['explanation'] = '';
                 $questions[] = $row;
             }
 
@@ -986,7 +1087,7 @@ try {
             break;
 
         case 'login':
-            $email = isset($requestData['email']) ? trim((string)$requestData['email']) : '';
+            $email = isset($requestData['email']) ? strtolower(trim((string)$requestData['email'])) : '';
             $password = isset($requestData['password']) ? (string)$requestData['password'] : '';
 
             if (empty($email) || empty($password)) {
@@ -997,37 +1098,23 @@ try {
                 break;
             }
 
-            $stmt = $pdo->prepare("SELECT * FROM users WHERE email = :email");
-            $stmt->execute(['email' => $email]);
-            $user = $stmt->fetch();
+            $userModel = \App\Models\User::where('email', $email)->first();
 
-            if ($user) {
-                if (empty($user['password'])) {
-                    echo json_encode([
-                        'status' => 'error',
-                        'message' => 'You registered via OTP and do not have a password set yet. Please log in via OTP first.'
-                    ]);
-                    break;
-                }
-                
-                if (password_verify($password, $user['password'])) {
-                    $streak = calculate_user_streak($pdo, $user['id'], true);
-                    echo json_encode([
-                        'status' => 'success',
-                        'data' => [
-                            'user_id' => (int)$user['id'],
-                            'name' => $user['name'] ?: $user['display_name'] ?: 'User',
-                            'email' => $user['email'],
-                            'total_score' => (int)$user['total_score'],
-                            'streak' => $streak
-                        ]
-                    ]);
-                } else {
-                    echo json_encode([
-                        'status' => 'error',
-                        'message' => 'Invalid email or password.'
-                    ]);
-                }
+            if ($userModel && !empty($userModel->password)
+                && \Illuminate\Support\Facades\Hash::check($password, $userModel->password)) {
+                $streak = calculate_user_streak($pdo, $userModel->id, true);
+                $token = \App\Services\MobileApiAuthService::issueToken($userModel);
+                echo json_encode([
+                    'status' => 'success',
+                    'data' => [
+                        'user_id' => (int)$userModel->id,
+                        'name' => $userModel->name ?: $userModel->display_name ?: 'User',
+                        'email' => $userModel->email,
+                        'total_score' => (int)$userModel->total_score,
+                        'token' => $token,
+                        'streak' => $streak
+                    ]
+                ]);
             } else {
                 echo json_encode([
                     'status' => 'error',
@@ -1045,30 +1132,33 @@ try {
 
         case 'request_otp':
             $email = isset($requestData['email']) ? strtolower(trim((string)$requestData['email'])) : '';
-            if (empty($email)) {
+            if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'Email is required.'
+                    'message' => 'A valid email is required.'
                 ]);
                 break;
             }
 
-            // Generate OTP
-            $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            if (\App\Services\OtpRateLimiter::tooManyRequests($email, 'request')) {
+                http_response_code(429);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Too many verification requests. Please try again later.'
+                ]);
+                break;
+            }
 
-            // Delete old OTPs and create new
-            \App\Models\OtpCode::where('email', $email)->delete();
-            \App\Models\OtpCode::create([
-                'email' => $email,
-                'otp' => $otp,
-                'expires_at' => now()->addMinutes(5),
-            ]);
-
-            // Send OTP email
             try {
-                \Illuminate\Support\Facades\Mail::to($email)->send(new \App\Mail\OtpMail($otp));
-            } catch (\Exception $e) {
-                \Illuminate\Support\Facades\Log::error('Mobile: Failed to send OTP email', ['error' => $e->getMessage()]);
+                \App\Services\OtpService::issueAndSend($email, 5);
+                \App\Services\OtpRateLimiter::hit($email, 'request');
+            } catch (\RuntimeException $e) {
+                http_response_code(503);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $e->getMessage()
+                ]);
+                break;
             }
 
             echo json_encode([
@@ -1089,43 +1179,33 @@ try {
                 break;
             }
 
-            $record = \App\Models\OtpCode::where('email', $email)->latest()->first();
-
-            if (!$record) {
+            if (\App\Services\OtpRateLimiter::tooManyRequests($email, 'verify')) {
+                http_response_code(429);
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'Verification code not found. Please request a new one.'
+                    'message' => 'Too many verification attempts. Please try again later.'
                 ]);
                 break;
             }
 
-            if ($record->isExpired()) {
-                $record->delete();
+            if (!\App\Services\OtpService::verify($email, $otp)) {
+                \App\Services\OtpRateLimiter::hit($email, 'verify');
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'Verification code expired. Please request a new one.'
+                    'message' => 'Invalid or expired verification code.'
                 ]);
                 break;
             }
 
-            if ($record->otp !== $otp) {
-                echo json_encode([
-                    'status' => 'error',
-                    'message' => 'Invalid verification code.'
-                ]);
-                break;
-            }
+            \App\Services\OtpRateLimiter::clearVerifyAttempts($email);
 
-            // Valid - clean up
-            $record->delete();
-
-            // Find or create user
             $user = \App\Models\User::firstOrCreate(
                 ['email' => $email],
                 ['name' => explode('@', $email)[0]]
             );
 
             $streak = calculate_user_streak($pdo, $user->id, true);
+            $token = \App\Services\MobileApiAuthService::issueToken($user);
 
             echo json_encode([
                 'status' => 'success',
@@ -1135,34 +1215,34 @@ try {
                     'email' => $user->email,
                     'total_score' => (int)$user->total_score,
                     'has_password' => !empty($user->password),
+                    'token' => $token,
                     'streak' => $streak
                 ]
             ]);
             break;
 
         case 'set_password':
-            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
             $password = isset($requestData['password']) ? (string)$requestData['password'] : '';
 
-            if ($userId <= 0 || empty($password)) {
+            if (strlen($password) < 6) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'User ID and password are required.'
+                    'message' => 'Password must be at least 6 characters.'
                 ]);
                 break;
             }
 
-            $user = \App\Models\User::find($userId);
-            if (!$user) {
+            // First-time set only — if a password already exists, require change_password + current_password.
+            if (!empty($authUser->password)) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'User not found.'
+                    'message' => 'Password already set. Use change_password with your current password.'
                 ]);
                 break;
             }
 
-            $user->password = \Illuminate\Support\Facades\Hash::make($password);
-            $user->save();
+            $authUser->password = \Illuminate\Support\Facades\Hash::make($password);
+            $authUser->save();
 
             echo json_encode([
                 'status' => 'success',
@@ -1171,28 +1251,29 @@ try {
             break;
 
         case 'change_password':
-            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
             $password = isset($requestData['password']) ? (string)$requestData['password'] : '';
+            $currentPassword = isset($requestData['current_password']) ? (string)$requestData['current_password'] : '';
 
-            if ($userId <= 0 || empty($password)) {
+            if (strlen($password) < 6) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'User ID and password are required.'
+                    'message' => 'Password must be at least 6 characters.'
                 ]);
                 break;
             }
 
-            $user = \App\Models\User::find($userId);
-            if (!$user) {
-                echo json_encode([
-                    'status' => 'error',
-                    'message' => 'User not found.'
-                ]);
-                break;
+            if (!empty($authUser->password)) {
+                if ($currentPassword === '' || !\Illuminate\Support\Facades\Hash::check($currentPassword, $authUser->password)) {
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => 'Current password is incorrect.'
+                    ]);
+                    break;
+                }
             }
 
-            $user->password = \Illuminate\Support\Facades\Hash::make($password);
-            $user->save();
+            $authUser->password = \Illuminate\Support\Facades\Hash::make($password);
+            $authUser->save();
 
             echo json_encode([
                 'status' => 'success',
@@ -1201,26 +1282,26 @@ try {
             break;
 
         case 'delete_account':
-            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
+            $currentPassword = isset($requestData['current_password']) ? (string)$requestData['current_password'] : '';
+            $confirmDeletion = isset($requestData['confirm_deletion']) ? (string)$requestData['confirm_deletion'] : '';
 
-            if ($userId <= 0) {
+            if (!empty($authUser->password)) {
+                if ($currentPassword === '' || !\Illuminate\Support\Facades\Hash::check($currentPassword, $authUser->password)) {
+                    echo json_encode([
+                        'status' => 'error',
+                        'message' => 'Current password is required to delete your account.'
+                    ]);
+                    break;
+                }
+            } elseif (!in_array($confirmDeletion, ['1', 'true', 'on'], true)) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'User ID is required.'
+                    'message' => 'Please confirm account deletion.'
                 ]);
                 break;
             }
 
-            $user = \App\Models\User::find($userId);
-            if (!$user) {
-                echo json_encode([
-                    'status' => 'error',
-                    'message' => 'User not found.'
-                ]);
-                break;
-            }
-
-            \App\Http\Controllers\AccountDeletionController::performAccountDeletion($user);
+            \App\Http\Controllers\AccountDeletionController::performAccountDeletion($authUser);
 
             echo json_encode([
                 'status' => 'success',
@@ -1228,29 +1309,96 @@ try {
             ]);
             break;
 
-        case 'submit_quiz':
-            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0;
-            $type = isset($requestData['type']) ? (string)$requestData['type'] : 'THEME';
-            $title = isset($requestData['title']) ? (string)$requestData['title'] : '';
-            $score = isset($requestData['score']) ? (int)$requestData['score'] : 0;
-            $totalQuestions = isset($requestData['total_questions']) ? (int)$requestData['total_questions'] : 0;
-            $difficulty = isset($requestData['difficulty']) ? (string)$requestData['difficulty'] : 'Medium';
-            $questionsJson = isset($requestData['questions']) ? (string)$requestData['questions'] : '[]';
-            $userAnswersJson = isset($requestData['user_answers']) ? (string)$requestData['user_answers'] : '[]';
+        case 'check_answer':
+            $questionKey = isset($requestData['question_id'])
+                ? trim((string)$requestData['question_id'])
+                : (isset($requestData['id']) ? trim((string)$requestData['id']) : '');
+            $selected = isset($requestData['selected_index']) ? (int)$requestData['selected_index'] : -1;
 
-            if ($userId <= 0) {
+            if ($questionKey === '' || $selected < 0) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'User ID is required.'
+                    'message' => 'question_id and selected_index are required.'
                 ]);
                 break;
             }
 
-            // Verify user exists
-            $stmt = $pdo->prepare("SELECT id, total_score, total_questions FROM users WHERE id = :id");
-            $stmt->execute(['id' => $userId]);
-            $user = $stmt->fetch();
-            if (!$user) {
+            $dbQuestion = \App\Services\QuizScoringService::resolveQuestion([
+                'id' => $questionKey,
+                'options' => isset($requestData['options']) ? (is_array($requestData['options']) ? $requestData['options'] : json_decode((string)$requestData['options'], true)) : null,
+            ]);
+            if (!$dbQuestion) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Question not found.'
+                ]);
+                break;
+            }
+
+            $payload = [
+                'id' => $questionKey,
+                'options' => isset($requestData['options'])
+                    ? (is_array($requestData['options']) ? $requestData['options'] : (json_decode((string)$requestData['options'], true) ?: null))
+                    : null,
+            ];
+            $isCorrect = \App\Services\QuizScoringService::isCorrect($dbQuestion, $payload, $selected);
+
+            echo json_encode([
+                'status' => 'success',
+                'data' => [
+                    'correct' => $isCorrect,
+                    'correct_answer_index' => (int)$dbQuestion->correct_answer_index,
+                    'explanation' => (string)($dbQuestion->explanation ?? ''),
+                    'question_id' => (string)$dbQuestion->question_id,
+                ],
+            ]);
+            break;
+
+        case 'submit_quiz':
+            $userId = (int) $authUser->id;
+            $type = isset($requestData['type']) ? (string)$requestData['type'] : 'THEME';
+            $title = isset($requestData['title']) ? (string)$requestData['title'] : '';
+            $difficulty = isset($requestData['difficulty']) ? (string)$requestData['difficulty'] : 'Medium';
+            $questionsJson = isset($requestData['questions']) ? (string)$requestData['questions'] : '[]';
+            $userAnswersJson = isset($requestData['user_answers']) ? (string)$requestData['user_answers'] : '[]';
+
+            // Soft rate-limit quiz submissions to slow leaderboard farming.
+            $quizRateKey = 'mobile:quiz_submit:' . $userId . ':' . date('YmdH');
+            $quizSubmitCount = (int) \Illuminate\Support\Facades\Cache::get($quizRateKey, 0);
+            if ($quizSubmitCount >= 40) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Too many quiz submissions. Please try again later.'
+                ]);
+                break;
+            }
+
+            $questionsArr = json_decode($questionsJson, true) ?: [];
+            $answersArr = json_decode($userAnswersJson, true) ?: [];
+            $computed = \App\Services\QuizScoringService::recompute($questionsArr, $answersArr, $difficulty);
+            $score = (int) $computed['score'];
+            $totalQuestions = max(0, min((int) $computed['total_questions'], 100));
+
+            if ($totalQuestions === 0) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'No valid quiz questions found to score.'
+                ]);
+                break;
+            }
+
+            if (!\App\Services\QuizCompletionService::claimAttempt($userId, $questionsArr)) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'This quiz set was already submitted recently. Try a new quiz.'
+                ]);
+                break;
+            }
+
+            \Illuminate\Support\Facades\Cache::put($quizRateKey, $quizSubmitCount + 1, 3600);
+
+            $eloquentUser = $authUser;
+            if (!$eloquentUser) {
                 echo json_encode([
                     'status' => 'error',
                     'message' => 'User not found.'
@@ -1261,8 +1409,8 @@ try {
             // Insert into quizzes table
             $quizId = uniqid('quiz_');
             $details = json_encode([
-                'questions' => json_decode($questionsJson, true),
-                'userAnswers' => json_decode($userAnswersJson, true),
+                'questions' => $questionsArr,
+                'userAnswers' => $answersArr,
             ]);
 
             $now = date('Y-m-d H:i:s');
@@ -1281,18 +1429,26 @@ try {
                 'updated_at' => $now
             ]);
 
-            // Update user stats
-            $newScore = $user['total_score'] + $score;
-            $newTotalQuestions = $user['total_questions'] + $totalQuestions;
-            $stmt = $pdo->prepare("UPDATE users SET total_score = :total_score, total_questions = :total_questions, updated_at = :updated_at WHERE id = :id");
-            $stmt->execute([
-                'total_score' => $newScore,
-                'total_questions' => $newTotalQuestions,
-                'updated_at' => $now,
-                'id' => $userId
-            ]);
+            // Update user totals + shared side-effects (difficulty_stats, times_*, para/seerah, engagement)
+            $newScore = (int) $eloquentUser->total_score + $score;
+            $newTotalQuestions = (int) $eloquentUser->total_questions + $totalQuestions;
+            $eloquentUser->total_score = $newScore;
+            $eloquentUser->total_questions = $newTotalQuestions;
+            $eloquentUser->save();
 
-            $streakData = calculate_user_streak($pdo, $userId, true);
+            $paraNumber = isset($requestData['para_number']) ? (int) $requestData['para_number'] : null;
+            $typeUpper = strtoupper($type);
+            // Theme/Grand still update difficulty_stats + times_*; para/seerah counters only for PARA/SEERAH.
+            $progressType = in_array($typeUpper, ['PARA', 'SEERAH'], true) ? $typeUpper : 'THEME';
+            $engagement = \App\Services\QuizCompletionService::applyProgress(
+                $eloquentUser->fresh(),
+                $questionsArr,
+                $answersArr,
+                $progressType,
+                ($progressType === 'PARA' && $paraNumber) ? $paraNumber : null,
+                $difficulty
+            );
+            $streakData = $engagement['streak'] ?? calculate_user_streak($pdo, $userId, true);
 
             echo json_encode([
                 'status' => 'success',
@@ -1300,21 +1456,158 @@ try {
                 'data' => [
                     'quiz_id' => $quizId,
                     'new_total_score' => $newScore,
-                    'streak' => $streakData
+                    'streak' => $streakData,
+                    'engagement' => $engagement,
                 ]
+            ]);
+            break;
+
+        case 'daily_engagement':
+            $userId = (int) $authUser->id;
+            $engagement = mobile_engagement_status($userId);
+            if (!$engagement) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+            echo json_encode([
+                'status' => 'success',
+                'data' => $engagement
+            ]);
+            break;
+
+        case 'mark_engagement':
+            $userId = (int) $authUser->id;
+            $activity = isset($requestData['activity']) ? strtolower(trim((string)$requestData['activity'])) : '';
+            // Self-mark only for dua. Quiz/read/insight require real actions (submit_quiz, toggle_*, mark_insight).
+            if ($activity !== \App\Models\UserDailyEngagement::ACTIVITY_DUA) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Invalid activity. Only dua can be self-marked. Use quiz submit, reading toggles, or mark_insight for others.'
+                ]);
+                break;
+            }
+            $engagement = mobile_engagement_record($userId, $activity);
+            if (!$engagement) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Engagement recorded successfully.',
+                'data' => $engagement
+            ]);
+            break;
+
+        case 'toggle_surah':
+            $userId = (int) $authUser->id;
+            $surah = isset($requestData['surah']) ? (int)$requestData['surah'] : 0;
+            if ($surah < 1 || $surah > 114) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Valid surah (1-114) is required.'
+                ]);
+                break;
+            }
+            $eloquentUser = $authUser;
+            if (!$eloquentUser) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+            $result = $eloquentUser->toggleCompletedSurah($surah);
+            $eloquentUser->refresh();
+            $engagement = mobile_engagement_status($userId);
+            echo json_encode([
+                'status' => 'success',
+                'message' => $result['is_read'] ? "Masha'Allah! Surah marked as read." : 'Surah marked as unread.',
+                'data' => array_merge($result, [
+                    'streak' => $engagement['streak'] ?? null,
+                    'engagement' => $engagement,
+                ])
+            ]);
+            break;
+
+        case 'toggle_para':
+            $userId = (int) $authUser->id;
+            $para = isset($requestData['para']) ? (int)$requestData['para'] : 0;
+            if ($para < 1 || $para > 30) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Valid para (1-30) is required.'
+                ]);
+                break;
+            }
+            $eloquentUser = $authUser;
+            if (!$eloquentUser) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+            $result = $eloquentUser->toggleCompletedPara($para);
+            $eloquentUser->refresh();
+            $engagement = mobile_engagement_status($userId);
+            echo json_encode([
+                'status' => 'success',
+                'message' => $result['is_completed'] ? "Masha'Allah! Para marked as completed." : 'Para marked as incomplete.',
+                'data' => array_merge($result, [
+                    'streak' => $engagement['streak'] ?? null,
+                    'engagement' => $engagement,
+                ])
+            ]);
+            break;
+
+        case 'mark_insight':
+            $userId = (int) $authUser->id;
+            $type = isset($requestData['type']) ? strtoupper(trim((string)$requestData['type'])) : '';
+            $insightId = isset($requestData['insight_id']) ? trim((string)$requestData['insight_id']) : '';
+            if (!in_array($type, ['SEERAH', 'QURAN_HISTORY'], true)) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Valid type (SEERAH or QURAN_HISTORY) is required.'
+                ]);
+                break;
+            }
+            if ($insightId === '') {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'insight_id is required.'
+                ]);
+                break;
+            }
+            $eloquentUser = $authUser;
+            $result = $eloquentUser->markInsightRead($type, $insightId);
+            if (!($result['success'] ?? false)) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $result['error'] ?? 'Unable to mark insight as read.'
+                ]);
+                break;
+            }
+            $eloquentUser->refresh();
+            $engagement = mobile_engagement_status($userId);
+            echo json_encode([
+                'status' => 'success',
+                'message' => $result['already_read'] ? 'Already marked as read.' : "Masha'Allah! Insight completed.",
+                'data' => array_merge($result, [
+                    'streak' => $engagement['streak'] ?? null,
+                    'engagement' => $engagement,
+                ])
             ]);
             break;
 
         case 'daily_streak':
         case 'streak_check_in':
-            $userId = isset($requestData['user_id']) ? (int)$requestData['user_id'] : (isset($_GET['user_id']) ? (int)$_GET['user_id'] : 0);
-            if ($userId <= 0) {
-                echo json_encode([
-                    'status' => 'error',
-                    'message' => 'User ID is required.'
-                ]);
-                break;
-            }
+            $userId = (int) $authUser->id;
             $streak = calculate_user_streak($pdo, $userId, true);
             if (!$streak) {
                 echo json_encode([
@@ -1331,14 +1624,7 @@ try {
             break;
 
         case 'streak_status':
-            $userId = isset($_GET['user_id']) ? (int)$_GET['user_id'] : (isset($requestData['user_id']) ? (int)$requestData['user_id'] : 0);
-            if ($userId <= 0) {
-                echo json_encode([
-                    'status' => 'error',
-                    'message' => 'User ID is required.'
-                ]);
-                break;
-            }
+            $userId = (int) $authUser->id;
             $streak = calculate_user_streak($pdo, $userId, false);
             if (!$streak) {
                 echo json_encode([
@@ -1353,8 +1639,99 @@ try {
             ]);
             break;
 
+        case 'user_stats':
+            $userId = (int) $authUser->id;
+
+            try {
+                $stmt = $pdo->prepare("SELECT id, name, display_name, email, password, total_score, total_questions, seerah_read_count, quran_history_read_count, completed_paras, para_mastery, difficulty_stats, bookmarked_questions FROM users WHERE id = :id");
+                $stmt->execute(['id' => $userId]);
+                $user = $stmt->fetch();
+            } catch (Exception $e) {
+                $user = null;
+            }
+
+            if (!$user) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'User not found.'
+                ]);
+                break;
+            }
+
+            $streak = calculate_user_streak($pdo, $userId, false);
+
+            $completedParas = json_decode($user['completed_paras'] ?? '[]', true) ?: [];
+            $paraMastery = json_decode($user['para_mastery'] ?? '{}', true) ?: [];
+            $completedSurahs = $paraMastery['completed_surahs'] ?? [];
+            $difficultyStats = json_decode($user['difficulty_stats'] ?? '{}', true) ?: [];
+            $bookmarkedQuestions = json_decode($user['bookmarked_questions'] ?? '[]', true) ?: [];
+
+            $totalScore = (int)($user['total_score'] ?? 0);
+            $totalQuestions = (int)($user['total_questions'] ?? 0);
+
+            // Compute max possible score & accuracy exactly like the User model
+            $easyTotal = (int)($difficultyStats['total']['Easy'] ?? 0);
+            $mediumTotal = (int)($difficultyStats['total']['Medium'] ?? 0);
+            $hardTotal = (int)($difficultyStats['total']['Hard'] ?? 0);
+            $insightTotal = max(0, $totalQuestions - ($easyTotal + $mediumTotal + $hardTotal));
+            $maxPossible = ($easyTotal * 5) + ($mediumTotal * 10) + ($hardTotal * 15) + $insightTotal;
+            if ($maxPossible <= 0 && $totalQuestions > 0) {
+                $maxPossible = $totalQuestions * 5;
+            }
+
+            $accuracy = $maxPossible > 0 ? min(100, max(0, (int)round(($totalScore / $maxPossible) * 100))) : 0;
+            $spiritualLevel = $totalQuestions > 50 ? 'Knowledge Seeker' : ($totalQuestions > 10 ? 'Aspirant' : 'Novice');
+
+            $diffSummary = [
+                'easy' => [
+                    'total' => $easyTotal,
+                    'correct' => (int)($difficultyStats['correct']['Easy'] ?? 0),
+                    'accuracy' => $easyTotal > 0 ? (int)round((( (int)($difficultyStats['correct']['Easy'] ?? 0) ) / $easyTotal) * 100) : 0,
+                ],
+                'medium' => [
+                    'total' => $mediumTotal,
+                    'correct' => (int)($difficultyStats['correct']['Medium'] ?? 0),
+                    'accuracy' => $mediumTotal > 0 ? (int)round((( (int)($difficultyStats['correct']['Medium'] ?? 0) ) / $mediumTotal) * 100) : 0,
+                ],
+                'hard' => [
+                    'total' => $hardTotal,
+                    'correct' => (int)($difficultyStats['correct']['Hard'] ?? 0),
+                    'accuracy' => $hardTotal > 0 ? (int)round((( (int)($difficultyStats['correct']['Hard'] ?? 0) ) / $hardTotal) * 100) : 0,
+                ],
+            ];
+
+            echo json_encode([
+                'status' => 'success',
+                'data' => [
+                    'user_id' => (int)$user['id'],
+                    'name' => $user['display_name'] ?: $user['name'] ?: 'User',
+                    'email' => $user['email'] ?? '',
+                    'spiritual_level' => $spiritualLevel,
+                    'total_score' => $totalScore,
+                    'max_possible_score' => $maxPossible,
+                    'total_questions' => $totalQuestions,
+                    'accuracy' => $accuracy,
+                    'surahs_completed_count' => count($completedSurahs),
+                    'paras_completed_count' => count($completedParas),
+                    'seerah_read_count' => (int)($user['seerah_read_count'] ?? 0),
+                    'quran_history_read_count' => (int)($user['quran_history_read_count'] ?? 0),
+                    'bookmarks_count' => count($bookmarkedQuestions),
+                    'streak' => $streak ?: [
+                        'current_streak' => 0,
+                        'longest_streak' => 0,
+                        'is_active_today' => false,
+                        'last_streak_date' => null,
+                        'streak_history' => []
+                    ],
+                    'engagement' => mobile_engagement_status($userId),
+                    'difficulty' => $diffSummary,
+                    'has_password' => !empty($user['password']),
+                ]
+            ]);
+            break;
+
         case 'leaderboard':
-            $stmt = $pdo->query("SELECT id, name, display_name, email, total_score, total_questions, seerah_read_count 
+            $stmt = $pdo->query("SELECT id, name, display_name, total_score, total_questions, seerah_read_count 
                                  FROM users 
                                  ORDER BY total_score DESC, total_questions DESC 
                                  LIMIT 50");
@@ -1397,7 +1774,9 @@ try {
             $token = $requestData['token'] ?? '';
             $platform = $requestData['platform'] ?? 'android';
             $deviceName = $requestData['device_name'] ?? null;
-            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            // Optional auth: allow anonymous push registration; bind user_id only from Bearer token.
+            $authForDevice = \App\Services\MobileApiAuthService::userFromRequest();
+            $userId = $authForDevice ? (int) $authForDevice->id : null;
             $appVersion = $requestData['app_version'] ?? null;
 
             if (empty($token)) {
@@ -1429,6 +1808,12 @@ try {
                 ':created_at' => $now,
                 ':updated_at' => $now
             ]);
+
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Device token registered successfully.',
+            ]);
+            break;
 
         case 'duas':
             $category = isset($requestData['category']) ? trim((string)$requestData['category']) : '';
@@ -1584,9 +1969,9 @@ try {
             $whenToRecite = trim($requestData['when_to_recite'] ?? '');
             $repeatCount = isset($requestData['repeat_count']) && is_numeric($requestData['repeat_count']) ? (int)$requestData['repeat_count'] : 1;
 
-            $submitterName = trim($requestData['submitter_name'] ?? 'Mobile Contributor');
-            $submitterEmail = trim($requestData['submitter_email'] ?? '');
-            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $userId = (int) $authUser->id;
+            $submitterName = $authUser->name ?: trim($requestData['submitter_name'] ?? 'Mobile Contributor');
+            $submitterEmail = $authUser->email ?: trim($requestData['submitter_email'] ?? '');
 
             $wordByWord = null;
             if (!empty($requestData['word_by_word'])) {
@@ -1663,7 +2048,7 @@ try {
             ]);
 
             $newId = (int)$pdo->lastInsertId();
-            \App\Models\Category::ensureCategory($category, \App\Models\Category::TYPE_DUA, $userId, $submitterName);
+            \App\Models\Category::ensureCategory($category, \App\Models\Category::TYPE_DUA, null, null, $userId, $submitterName);
 
             echo json_encode([
                 'status' => 'success',
@@ -1685,7 +2070,8 @@ try {
             $page = isset($_GET['page']) && is_numeric($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
             $limit = isset($_GET['limit']) && is_numeric($_GET['limit']) ? min(max(1, (int)$_GET['limit']), 50) : 20;
             $offset = ($page - 1) * $limit;
-            $userId = isset($_GET['user_id']) && is_numeric($_GET['user_id']) ? (int)$_GET['user_id'] : null;
+            $authForResearch = \App\Services\MobileApiAuthService::userFromRequest();
+            $userId = $authForResearch ? (int) $authForResearch->id : null;
 
             if ($tab === 'pending' && empty($userId)) {
                 echo json_encode([
@@ -1735,7 +2121,7 @@ try {
             // Fetch items with user's vote if logged in
             $userVoteSelect = $userId ? ", (SELECT vote FROM quran_research_reviews r WHERE r.contribution_id = c.id AND r.user_id = {$userId} LIMIT 1) as my_vote, (SELECT feedback FROM quran_research_reviews r WHERE r.contribution_id = c.id AND r.user_id = {$userId} LIMIT 1) as my_feedback" : ", NULL as my_vote, NULL as my_feedback";
 
-            $sql = "SELECT c.id, c.user_id, c.submitter_name, c.submitter_email, c.surah_number, c.end_surah_number,
+            $sql = "SELECT c.id, c.user_id, c.submitter_name, c.surah_number, c.end_surah_number,
                            c.surah_numbers, c.verse_number, c.end_verse_number, c.is_full_surah,
                            c.category, c.title, c.description, c.video_url, c.video_platform, c.video_id, 
                            c.status, c.approvals_count, c.downvotes_count, c.published_at, c.created_at,
@@ -1796,13 +2182,15 @@ try {
             $surahNumbersRaw = $requestData['surah_numbers'] ?? null;
             $videoUrl = trim($requestData['video_url'] ?? '');
             $description = trim($requestData['description'] ?? '');
-            $submitterName = trim($requestData['submitter_name'] ?? 'Mobile Contributor');
-            $submitterEmail = trim($requestData['submitter_email'] ?? '');
-            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $userId = (int) $authUser->id;
+            $submitterName = $authUser->name ?: trim($requestData['submitter_name'] ?? 'Mobile Contributor');
+            $submitterEmail = $authUser->email ?: trim($requestData['submitter_email'] ?? '');
 
             $catRecord = \App\Models\Category::ensureCategory(
                 $categoryInput ?: 'other',
                 \App\Models\Category::TYPE_QURAN_RESEARCH,
+                null,
+                null,
                 $userId,
                 $submitterName
             );
@@ -1928,8 +2316,8 @@ try {
             $catType = strtolower(trim($requestData['type'] ?? 'dua'));
             $catEmoji = trim($requestData['emoji'] ?? '');
             $catDesc = trim($requestData['description'] ?? '');
-            $submitterName = trim($requestData['submitter_name'] ?? 'Mobile Contributor');
-            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $userId = (int) $authUser->id;
+            $submitterName = $authUser->name ?: trim($requestData['submitter_name'] ?? 'Mobile Contributor');
 
             if (empty($catName)) {
                 echo json_encode(['status' => 'error', 'message' => 'Category name is required.']);
@@ -1943,27 +2331,39 @@ try {
             $createdCat = \App\Models\Category::ensureCategory(
                 $catName,
                 $catType,
-                $userId,
-                $submitterName,
                 $catEmoji ?: null,
-                $catDesc ?: null
+                $catDesc ?: null,
+                $userId,
+                $submitterName
             );
+
+            // Non-admins cannot self-approve categories (ensureCategory defaults to pending).
+            if ($createdCat && $authUser->is_admin) {
+                $createdCat->is_active = true;
+                $createdCat->status = 'approved';
+                $createdCat->save();
+            }
 
             echo json_encode([
                 'status' => 'success',
-                'message' => 'Category added successfully.',
+                'message' => $authUser->is_admin
+                    ? 'Category added successfully.'
+                    : 'Category submitted for admin approval.',
                 'data' => $createdCat,
             ]);
             break;
 
         case 'review_research_contribution':
             $contributionId = isset($requestData['contribution_id']) && is_numeric($requestData['contribution_id']) ? (int)$requestData['contribution_id'] : 0;
-            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $userId = (int) $authUser->id;
             $vote = trim($requestData['vote'] ?? '');
             $feedback = trim($requestData['feedback'] ?? '');
 
-            if (!$userId) {
-                echo json_encode(['status' => 'error', 'message' => 'You must be logged in to verify or vote on contributions.']);
+            $ownerCheck = $pdo->prepare("SELECT user_id FROM quran_research_contributions WHERE id = ? AND deleted_at IS NULL");
+            $ownerCheck->execute([$contributionId]);
+            $ownerRow = $ownerCheck->fetch();
+            if ($ownerRow && (int) ($ownerRow['user_id'] ?? 0) === $userId) {
+                echo json_encode(['status' => 'error', 'message' => 'You cannot vote on your own contribution.']);
                 break;
             }
 
@@ -2069,9 +2469,14 @@ try {
             $category = trim($requestData['category'] ?? 'app_experience');
             $message = trim($requestData['message'] ?? '');
             $platform = trim($requestData['platform'] ?? 'android');
-            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
-            $userName = trim($requestData['user_name'] ?? '');
-            $userEmail = trim($requestData['user_email'] ?? '');
+            $authForFeedback = \App\Services\MobileApiAuthService::userFromRequest();
+            $userId = $authForFeedback ? (int) $authForFeedback->id : null;
+            $userName = $authForFeedback
+                ? ($authForFeedback->name ?: trim($requestData['user_name'] ?? ''))
+                : trim($requestData['user_name'] ?? '');
+            $userEmail = $authForFeedback
+                ? ($authForFeedback->email ?: trim($requestData['user_email'] ?? ''))
+                : trim($requestData['user_email'] ?? '');
             $deviceInfo = trim($requestData['device_info'] ?? '');
             $now = date('Y-m-d H:i:s');
 
@@ -2149,10 +2554,15 @@ try {
                 // Ignore if already created
             }
 
-            $userId = isset($requestData['user_id']) && is_numeric($requestData['user_id']) ? (int)$requestData['user_id'] : null;
+            $authForDonation = \App\Services\MobileApiAuthService::userFromRequest();
+            $userId = $authForDonation ? (int) $authForDonation->id : null;
             $donorName = trim($requestData['donor_name'] ?? '');
             $isAnonymous = !empty($requestData['is_anonymous']) && ($requestData['is_anonymous'] === true || $requestData['is_anonymous'] === '1' || $requestData['is_anonymous'] === 1) ? 1 : 0;
             $donorEmail = trim($requestData['donor_email'] ?? '');
+            if ($authForDonation) {
+                $donorName = $donorName !== '' ? $donorName : ($authForDonation->name ?: '');
+                $donorEmail = $donorEmail !== '' ? $donorEmail : ($authForDonation->email ?: '');
+            }
             $amount = isset($requestData['amount']) && is_numeric($requestData['amount']) ? (float)$requestData['amount'] : null;
             $currency = strtoupper(trim($requestData['currency'] ?? 'USD'));
             $paymentMethod = trim($requestData['payment_method'] ?? 'Manual Transfer');
@@ -2193,6 +2603,14 @@ try {
                     'amount' => $amount,
                     'currency' => $currency
                 ]
+            ]);
+            break;
+
+        case 'logout':
+            $authUser->tokens()->where('name', \App\Services\MobileApiAuthService::TOKEN_NAME)->delete();
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Logged out successfully.',
             ]);
             break;
 

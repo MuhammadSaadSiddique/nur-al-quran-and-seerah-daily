@@ -2,14 +2,14 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\OtpMail;
-use App\Models\OtpCode;
 use App\Models\User;
 use App\Services\GeminiService;
+use App\Services\OtpRateLimiter;
+use App\Services\OtpService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Mail;
 
 class AuthController extends Controller
 {
@@ -26,28 +26,23 @@ class AuthController extends Controller
         $request->validate(['email' => 'required|email']);
         $email = strtolower(trim($request->email));
 
-        // Delete any existing OTPs for this email
-        OtpCode::where('email', $email)->delete();
-
-        // Generate 6-digit OTP
-        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-
-        OtpCode::create([
-            'email' => $email,
-            'otp' => $otp,
-            'expires_at' => now()->addMinutes(5),
-        ]);
-
-        // Send OTP via mail
-        try {
-            Mail::to($email)->send(new OtpMail($otp));
-        } catch (\Exception $e) {
-            Log::error('Failed to send OTP email', ['error' => $e->getMessage()]);
+        if (OtpRateLimiter::tooManyRequests($email, 'request')) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Too many verification requests. Please try again later.',
+            ], 429);
         }
 
-        Log::info("OTP for {$email}: {$otp}");
+        try {
+            OtpService::issueAndSend($email, 5);
+            OtpRateLimiter::hit($email, 'request');
+        } catch (\RuntimeException $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+            ], 503);
+        }
 
-        // Generate spiritual welcome (with fallback)
         try {
             $gemini = app(GeminiService::class);
             $welcome = $gemini->generateSpiritualWelcome($email);
@@ -75,25 +70,18 @@ class AuthController extends Controller
         ]);
 
         $email = strtolower(trim($request->email));
-        $record = OtpCode::where('email', $email)->latest()->first();
 
-        if (!$record) {
-            return response()->json(['error' => 'OTP not found. Please request a new one.'], 400);
+        if (OtpRateLimiter::tooManyRequests($email, 'verify')) {
+            return response()->json(['error' => 'Too many verification attempts. Please try again later.'], 429);
         }
 
-        if ($record->isExpired()) {
-            $record->delete();
-            return response()->json(['error' => 'OTP expired. Please request a new one.'], 400);
+        if (!OtpService::verify($email, $request->otp)) {
+            OtpRateLimiter::hit($email, 'verify');
+            return response()->json(['error' => 'Invalid or expired OTP. Please request a new one.'], 400);
         }
 
-        if ($record->otp !== $request->otp) {
-            return response()->json(['error' => 'Invalid OTP. Please try again.'], 400);
-        }
+        OtpRateLimiter::clearVerifyAttempts($email);
 
-        // OTP valid — clean up
-        $record->delete();
-
-        // Find or create user
         $user = User::firstOrCreate(
             ['email' => $email],
             ['name' => explode('@', $email)[0]]
@@ -107,7 +95,7 @@ class AuthController extends Controller
             'success' => true,
             'redirect' => route('home'),
             'has_password' => !empty($user->password),
-            'csrf_token' => csrf_token()
+            'csrf_token' => csrf_token(),
         ]);
     }
 
@@ -118,6 +106,7 @@ class AuthController extends Controller
         $request->session()->regenerateToken();
         return redirect()->route('login');
     }
+
     public function redirectToQuran(Request $request)
     {
         $state = \Illuminate\Support\Str::random(40);
@@ -126,8 +115,9 @@ class AuthController extends Controller
         $codeChallenge = strtr(rtrim(base64_encode(hash('sha256', $codeVerifier, true)), '='), '+/', '-_');
 
         $request->session()->put('quran_oauth_state', $state);
+        $request->session()->put('quran_oauth_nonce', $nonce);
         $request->session()->put('quran_oauth_code_verifier', $codeVerifier);
-        
+
         $query = http_build_query([
             'client_id' => config('services.quran.client_id'),
             'redirect_uri' => config('services.quran.redirect_uri'),
@@ -139,7 +129,7 @@ class AuthController extends Controller
             'code_challenge_method' => 'S256',
         ]);
 
-        $authUrl = config('services.quran.auth_url');
+        $authUrl = rtrim((string) config('services.quran.auth_url'), '/');
         return redirect("{$authUrl}/oauth2/auth?" . $query);
     }
 
@@ -147,13 +137,18 @@ class AuthController extends Controller
     {
         $state = $request->session()->pull('quran_oauth_state');
         $codeVerifier = $request->session()->pull('quran_oauth_code_verifier');
+        $request->session()->forget('quran_oauth_nonce');
 
-        if (strlen((string) $state) > 0 && $state !== $request->state) {
+        if (empty($state) || !hash_equals((string) $state, (string) $request->state)) {
             return redirect()->route('login')->withErrors(['email' => 'Invalid state in OAuth callback']);
         }
 
-        $authUrl = config('services.quran.auth_url');
-        $response = \Illuminate\Support\Facades\Http::asForm()->post("{$authUrl}/oauth2/token", [
+        if (empty($request->code) || empty($codeVerifier)) {
+            return redirect()->route('login')->withErrors(['email' => 'Authentication failed with Quran.com']);
+        }
+
+        $authUrl = rtrim((string) config('services.quran.auth_url'), '/');
+        $response = Http::asForm()->post("{$authUrl}/oauth2/token", [
             'grant_type' => 'authorization_code',
             'client_id' => config('services.quran.client_id'),
             'client_secret' => config('services.quran.client_secret'),
@@ -168,47 +163,74 @@ class AuthController extends Controller
         }
 
         $tokens = $response->json();
-        $idTokenParts = explode('.', $tokens['id_token']);
-        // The id_token is a JWT: header.payload.signature
-        $jwtPayload = $idTokenParts[1] ?? '';
-        // Add padding if necessary
-        $pad = strlen($jwtPayload) % 4;
-        if ($pad) $jwtPayload .= str_repeat('=', 4 - $pad);
-        $payload = json_decode(base64_decode(strtr($jwtPayload, '-_', '+/')), true);
-        
+        $accessToken = $tokens['access_token'] ?? null;
+        if (empty($accessToken)) {
+            return redirect()->route('login')->withErrors(['email' => 'Authentication failed with Quran.com']);
+        }
+
+        // Prefer OIDC userinfo (server-validated) over decoding the id_token locally.
+        $userInfoResponse = Http::withToken($accessToken)
+            ->acceptJson()
+            ->get("{$authUrl}/userinfo");
+
+        if ($userInfoResponse->failed()) {
+            Log::error('Quran.com userinfo failed', ['error' => $userInfoResponse->body()]);
+            return redirect()->route('login')->withErrors(['email' => 'Could not determine user identity from Quran.com']);
+        }
+
+        $payload = $userInfoResponse->json() ?: [];
         $quranUserId = $payload['sub'] ?? null;
-        $email = $payload['email'] ?? null;
-        $name = $payload['name'] ?? null;
-        
+        $email = isset($payload['email']) ? strtolower(trim((string) $payload['email'])) : null;
+        $name = trim(($payload['name'] ?? '') ?: trim(($payload['first_name'] ?? '') . ' ' . ($payload['last_name'] ?? '')));
+
         if (!$quranUserId) {
             return redirect()->route('login')->withErrors(['email' => 'Could not determine user identity from Quran.com']);
         }
 
         $user = User::where('quran_user_id', $quranUserId)->first();
-        
-        if (!$user && $email) {
-            $user = User::where('email', $email)->first();
-        }
-        
-        if (!$user) {
-            $user = User::create([
-                'email' => $email ?? "quran_{$quranUserId}@example.com",
-                'name' => $name ?? explode('@', $email)[0] ?? 'Quran User',
-                'quran_user_id' => $quranUserId,
-            ]);
-        } else {
-            // Ensure if logging in effectively links account if not already linked
+
+        // Only auto-link by email when the signed-in session already owns that account
+        // (prevents email-based account takeover via OAuth).
+        if (!$user && $email && Auth::check() && strcasecmp((string) Auth::user()->email, $email) === 0) {
+            $user = Auth::user();
             if (!$user->quran_user_id) {
                 $user->quran_user_id = $quranUserId;
             }
         }
-        
-        $user->quran_access_token = $tokens['access_token'] ?? null;
-        $user->quran_refresh_token = $tokens['refresh_token'] ?? $user->quran_refresh_token; // keep old if null
+
+        if (!$user && $email) {
+            $existingByEmail = User::where('email', $email)->first();
+            if ($existingByEmail && empty($existingByEmail->quran_user_id)) {
+                // Require explicit login first before linking an existing local account.
+                return redirect()->route('login')->withErrors([
+                    'email' => 'An account with this email already exists. Please log in first, then connect Quran.com from your profile.',
+                ]);
+            }
+        }
+
+        if (!$user) {
+            $user = new User();
+            $user->email = $email ?: "quran_{$quranUserId}@example.com";
+            $user->name = $name !== '' ? $name : (explode('@', (string) $email)[0] ?: 'Quran User');
+            $user->quran_user_id = $quranUserId;
+        } else {
+            if (!$user->quran_user_id) {
+                $user->quran_user_id = $quranUserId;
+            }
+            if ($name !== '' && empty($user->name)) {
+                $user->name = $name;
+            }
+        }
+
+        $user->quran_access_token = $accessToken;
+        if (!empty($tokens['refresh_token'])) {
+            $user->quran_refresh_token = $tokens['refresh_token'];
+        }
         $user->save();
 
         Auth::login($user, true);
         $user->checkInStreak();
+        $request->session()->regenerate();
 
         return redirect()->route('home');
     }
@@ -221,38 +243,24 @@ class AuthController extends Controller
         ]);
 
         $email = strtolower(trim($request->email));
-
-        // Find user
         $user = User::where('email', $email)->first();
 
-        if ($user) {
-            // Check if they have a password set
-            if (empty($user->password)) {
-                return response()->json([
-                    'success' => false,
-                    'error' => 'You registered via OTP and do not have a password set yet. Please log in via OTP first, then set a password in your Profile.'
-                ], 400);
-            }
-
-            if (\Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
-                Auth::login($user, true);
-                $user->checkInStreak();
-                return response()->json([
-                    'success' => true,
-                    'redirect' => route('home')
-                ]);
-            }
+        if ($user && !empty($user->password)
+            && \Illuminate\Support\Facades\Hash::check($request->password, $user->password)) {
+            Auth::login($user, true);
+            $user->checkInStreak();
+            $request->session()->regenerate();
 
             return response()->json([
-                'success' => false,
-                'error' => 'Invalid email or password.'
-            ], 400);
+                'success' => true,
+                'redirect' => route('home'),
+            ]);
         }
 
-        // Return error for non-existent users, registration must be via OTP
+        // Uniform error — do not reveal OTP-only vs missing accounts.
         return response()->json([
             'success' => false,
-            'error' => 'Account not found. Please register/sign up using OTP first.'
+            'error' => 'Invalid email or password.',
         ], 400);
     }
 }

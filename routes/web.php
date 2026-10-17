@@ -20,6 +20,7 @@ use App\Http\Controllers\AccountDeletionController;
 use App\Http\Controllers\DuaController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\DonationController;
+use App\Http\Controllers\EngagementController;
 use Illuminate\Support\Facades\Route;
 
 // Public routes
@@ -27,17 +28,17 @@ Route::get('/', [QuranicLensController::class, 'landing'])->name('lens.landing')
 
 // Sadaqah Jariyah & Support
 Route::get('/donate', [DonationController::class, 'index'])->name('donate');
-Route::post('/donate/notify', [DonationController::class, 'storeNotification'])->name('donate.notify');
+Route::post('/donate/notify', [DonationController::class, 'storeNotification'])->name('donate.notify')->middleware('throttle:10,1');
 
 // Authentic Duas & Meanings
 Route::get('/duas', [DuaController::class, 'index'])->name('duas.index');
 Route::get('/duas/create', [DuaController::class, 'create'])->name('duas.create');
-Route::post('/duas', [DuaController::class, 'store'])->name('duas.store');
+Route::post('/duas', [DuaController::class, 'store'])->name('duas.store')->middleware('auth');
 Route::get('/duas/{dua:slug}', [DuaController::class, 'show'])->name('duas.show');
 Route::get('/daily-dua', [DuaController::class, 'daily'])->name('daily.dua');
 
 // User & App Feedback Submission
-Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store'])->name('app-feedback.store');
+Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store'])->name('app-feedback.store')->middleware('throttle:10,1');
 
 Route::get('/quiz-learning', function () {
     $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();
@@ -51,11 +52,11 @@ Route::get('/quran-research', [QuranicLensController::class, 'index'])->name('we
 // Community Quran Research Contributions (Videos, verification, pending items)
 Route::get('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'index'])->name('research.contributions.index');
 Route::get('/quran-research/contributions/create', [\App\Http\Controllers\QuranResearchContributionController::class, 'create'])->name('research.contributions.create');
-Route::post('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'store'])->name('research.contributions.store');
+Route::post('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'store'])->name('research.contributions.store')->middleware('auth');
 Route::post('/quran-research/contributions/{id}/review', [\App\Http\Controllers\QuranResearchContributionController::class, 'review'])->name('research.contributions.review')->middleware('auth');
 
 // Add Dua or Quran Research Category (Users & Admins)
-Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->name('categories.store');
+Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->name('categories.store')->middleware('auth');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/otp/request', [AuthController::class, 'requestOtp'])->middleware('throttle:5,1');
@@ -102,7 +103,7 @@ Route::prefix('lens')->name('lens.')->group(function () {
 Route::get('/seerah', [InsightController::class, 'seerah'])->name('seerah');
 Route::get('/quran-history', [InsightController::class, 'quranHistory'])->name('quran.history');
 //Route::get('/daily-dua', [InsightController::class, 'dailyDua'])->name('daily.dua');
-Route::post('/insight/answer', [InsightController::class, 'submitInsightAnswer'])->name('insight.answer');
+Route::post('/insight/answer', [InsightController::class, 'submitInsightAnswer'])->name('insight.answer')->middleware(['auth', 'throttle:60,1']);
 
 // Authenticated routes
 Route::middleware('auth')->group(function () {
@@ -113,7 +114,8 @@ Route::middleware('auth')->group(function () {
     Route::post('/quiz/seerah', [QuizController::class, 'startSeerahQuiz'])->name('quiz.seerah');
     Route::post('/quiz/theme', [QuizController::class, 'startThemeQuiz'])->name('quiz.theme');
     Route::post('/quiz/grand', [QuizController::class, 'startGrandQuiz'])->name('quiz.grand');
-    Route::post('/quiz/finish', [QuizController::class, 'finishQuiz'])->name('quiz.finish');
+    Route::post('/quiz/finish', [QuizController::class, 'finishQuiz'])->name('quiz.finish')->middleware('throttle:30,1');
+    Route::post('/quiz/check-answer', [QuizController::class, 'checkAnswer'])->name('quiz.check-answer')->middleware('throttle:120,1');
     Route::get('/quiz/history', [QuizController::class, 'history'])->name('quiz.history');
 
     // Reading & Progress Tracking (Mark as Read)
@@ -130,6 +132,11 @@ Route::middleware('auth')->group(function () {
     Route::post('/testimonials/submit', [ProfileController::class, 'submitTestimonial'])->name('testimonials.submit');
     Route::post('/streak/check-in', [\App\Http\Controllers\StreakController::class, 'checkIn'])->name('streak.check-in');
     Route::get('/streak/status', [\App\Http\Controllers\StreakController::class, 'status'])->name('streak.status');
+
+    // Daily engagement checklist
+    Route::get('/engagement/today', [EngagementController::class, 'today'])->name('engagement.today');
+    Route::post('/engagement/dua', [EngagementController::class, 'markDua'])->name('engagement.dua');
+    Route::post('/engagement/mark', [EngagementController::class, 'mark'])->name('engagement.mark')->middleware('throttle:30,1');
 
     // Question Bank
     Route::get('/questions', [QuestionShowcaseController::class, 'index'])->name('questions.index');
@@ -209,7 +216,7 @@ Route::middleware('auth')->group(function () {
     // Quranic Lens authenticated routes
     Route::prefix('lens')->name('lens.')->group(function () {
         Route::post('/analysis', [QuranicLensController::class, 'storeAnalysis'])->name('analysis.store');
-        Route::post('/analysis/ai', [QuranicLensController::class, 'generateAiAnalysis'])->name('analysis.ai');
+        Route::post('/analysis/ai', [QuranicLensController::class, 'generateAiAnalysis'])->name('analysis.ai')->middleware('throttle:10,1');
         Route::post('/tag/word', [QuranicLensController::class, 'storeWordTag'])->name('tag.word.store');
         Route::post('/tag/verse', [QuranicLensController::class, 'storeVerseTag'])->name('tag.verse.store');
     });

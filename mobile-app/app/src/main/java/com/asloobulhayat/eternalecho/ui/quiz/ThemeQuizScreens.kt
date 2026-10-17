@@ -120,12 +120,16 @@ class PlayThemeQuizViewModel(
                 } else {
                     repository.getThemeQuiz(themeId, difficulty, quantity)
                 }
-                // Shuffle options for each question so that Option A isn't always the correct answer
+                // Shuffle display order; keep originalOptions for server scoring (answers are not in fetch).
                 val shuffledQuestions = rawQuestions.map { q ->
-                    val correctText = q.options.getOrNull(q.correctAnswerIndex) ?: ""
-                    val shuffled = q.options.shuffled()
-                    val newCorrectIndex = shuffled.indexOf(correctText).coerceAtLeast(0)
-                    q.copy(options = shuffled, correctAnswerIndex = newCorrectIndex)
+                    val originals = q.options
+                    val shuffled = originals.shuffled()
+                    q.copy(
+                        options = shuffled,
+                        originalOptions = originals,
+                        correctAnswerIndex = -1,
+                        explanation = ""
+                    )
                 }
                 _state.value = PlayQuizUiState.Success(shuffledQuestions)
             } catch (t: Throwable) {
@@ -140,16 +144,52 @@ class PlayThemeQuizViewModel(
         }
     }
 
-    fun confirmAnswer(correctAnswerIndex: Int) {
+    fun confirmAnswer(correctAnswerIndex: Int = -1) {
         if (isAnswerConfirmed) return
         isAnswerConfirmed = true
         userAnswers.add(selectedOptionIndex)
-        if (selectedOptionIndex == correctAnswerIndex) {
+        val state = _state.value
+        if (state is PlayQuizUiState.Success) {
+            val q = state.questions.getOrNull(currentQuestionIndex)
+            val selected = selectedOptionIndex
+            if (q != null && selected != null) {
+                viewModelScope.launch {
+                    try {
+                        val reveal = repository.checkAnswer(
+                            questionId = q.scoringId(),
+                            selectedIndex = selected,
+                            options = q.options
+                        )
+                        if (reveal != null) {
+                            val originals = q.originalOptions.ifEmpty { q.options }
+                            val revealedShuffledIndex = q.options.indexOf(
+                                originals.getOrNull(reveal.correctAnswerIndex) ?: ""
+                            ).coerceAtLeast(0)
+                            val updated = state.questions.toMutableList()
+                            updated[currentQuestionIndex] = q.copy(
+                                correctAnswerIndex = revealedShuffledIndex,
+                                explanation = reveal.explanation
+                            )
+                            _state.value = PlayQuizUiState.Success(updated)
+                            if (reveal.correct) {
+                                score++
+                            }
+                        } else if (correctAnswerIndex >= 0 && selected == correctAnswerIndex) {
+                            score++
+                        }
+                    } catch (_: Exception) {
+                        if (correctAnswerIndex >= 0 && selected == correctAnswerIndex) {
+                            score++
+                        }
+                    }
+                }
+            }
+        } else if (correctAnswerIndex >= 0 && selectedOptionIndex == correctAnswerIndex) {
             score++
         }
     }
 
-    fun submitAnswer(index: Int, correctAnswerIndex: Int) {
+    fun submitAnswer(index: Int, correctAnswerIndex: Int = -1) {
         selectOption(index)
         confirmAnswer(correctAnswerIndex)
     }
@@ -194,18 +234,20 @@ class PlayThemeQuizViewModel(
                 val questionsArray = org.json.JSONArray()
                 questions.forEach { q ->
                     val obj = org.json.JSONObject()
-                    obj.put("id", q.id)
+                    obj.put("id", q.scoringId())
                     obj.put("text", q.text)
-                    obj.put("correctAnswerIndex", q.correctAnswerIndex)
                     obj.put("difficulty", q.difficulty)
                     val opts = org.json.JSONArray()
-                    q.options.forEach { opts.put(it) }
+                    val originals = q.originalOptions.ifEmpty { q.options }
+                    originals.forEach { opts.put(it) }
                     obj.put("options", opts)
                     questionsArray.put(obj)
                 }
 
                 val answersArray = org.json.JSONArray()
-                userAnswers.forEach { answersArray.put(it ?: -1) }
+                questions.forEachIndexed { index, q ->
+                    answersArray.put(q.toOriginalAnswerIndex(userAnswers.getOrNull(index)))
+                }
 
                 val submissionType = if (quizType.startsWith("GRAND")) "GRAND" else "THEME"
                 val success = repository.submitQuiz(
@@ -295,86 +337,51 @@ fun ThemeSelectionScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Thematic & Grand Quizzes", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+            com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
+                title = "Quizzes",
+                onBackClick = onBackClick,
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
             )
         }
     ) { paddingValues ->
+        com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
         Column(
             modifier = modifier
                 .fillMaxSize()
-               // .padding(paddingValues)
+                .padding(paddingValues)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Quiz Quantity Selector (same as web: 20, 50, 100)
-            Text(
-                text = "Quiz Quantity",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
+            com.asloobulhayat.eternalecho.ui.components.EchoSectionLabel(text = "Questions")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(20, 50, 100).forEach { qty ->
                     val isSelected = selectedQuantity == qty
-                    Surface(
+                    com.asloobulhayat.eternalecho.ui.components.EchoChip(
+                        label = "$qty",
+                        selected = isSelected,
                         onClick = { selectedQuantity = qty },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "$qty Qs",
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    )
                 }
             }
 
-            // Difficulty Selector (Easy, Medium, Hard)
-            Text(
-                text = "Select Difficulty",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
+            com.asloobulhayat.eternalecho.ui.components.EchoSectionLabel(text = "Difficulty")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf("Easy", "Medium", "Hard").forEach { diff ->
                     val isSelected = selectedDifficulty == diff
-                    Surface(
+                    com.asloobulhayat.eternalecho.ui.components.EchoChip(
+                        label = diff,
+                        selected = isSelected,
                         onClick = { selectedDifficulty = diff },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = diff,
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    )
                 }
             }
 
@@ -688,6 +695,7 @@ fun ThemeSelectionScreen(
                     }
                 }
             }
+        }
         }
     }
 }

@@ -221,14 +221,15 @@ class Category extends Model
             }
         }
 
+        // Community-created categories stay pending until an admin approves.
         return static::create([
             'name' => $displayName,
             'slug' => $slug,
             'type' => $type,
             'emoji' => $emoji ?: ($type === self::TYPE_DUA ? '🤲' : '🔬'),
             'description' => $description,
-            'is_active' => true,
-            'status' => 'approved',
+            'is_active' => false,
+            'status' => 'pending',
             'created_by_user_id' => $userId,
             'submitter_name' => $submitterName ?: ($userId ? optional(User::find($userId))->name : 'Community Contributor'),
         ]);

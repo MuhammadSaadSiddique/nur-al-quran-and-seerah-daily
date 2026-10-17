@@ -2,12 +2,14 @@
 
 namespace Tests\Feature;
 
+use App\Mail\OtpMail;
 use App\Models\Feedback;
 use App\Models\OtpCode;
 use App\Models\Quiz;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AccountDeletionTest extends TestCase
@@ -34,22 +36,26 @@ class AccountDeletionTest extends TestCase
     }
 
     /** @test */
-    public function guest_cannot_request_otp_for_non_existent_email()
+    public function guest_request_otp_for_non_existent_email_does_not_enumerate()
     {
         $response = $this->postJson('/delete-account/request-otp', [
             'email' => 'unknown@example.com',
         ]);
 
-        $response->assertStatus(404);
+        $response->assertStatus(200);
         $response->assertJson([
-            'success' => false,
-            'error' => 'No active account found with this email address.',
+            'success' => true,
+        ]);
+        $this->assertDatabaseMissing('otp_codes', [
+            'email' => 'unknown@example.com',
         ]);
     }
 
     /** @test */
     public function guest_can_request_otp_and_verify_to_delete_account()
     {
+        Mail::fake();
+
         $user = User::factory()->create([
             'email' => 'user_to_delete@example.com',
             'name' => 'Delete Me',
@@ -76,6 +82,13 @@ class AccountDeletionTest extends TestCase
         $otpRecord = OtpCode::where('email', $user->email)->latest()->first();
         $this->assertNotNull($otpRecord);
 
+        $plainOtp = null;
+        Mail::assertSent(OtpMail::class, function (OtpMail $mail) use (&$plainOtp) {
+            $plainOtp = $mail->otp;
+            return true;
+        });
+        $this->assertNotEmpty($plainOtp);
+
         // Verify with invalid OTP fails
         $failResponse = $this->postJson('/delete-account/verify-otp', [
             'email' => $user->email,
@@ -86,7 +99,7 @@ class AccountDeletionTest extends TestCase
         // Verify with correct OTP succeeds and deletes account
         $successResponse = $this->postJson('/delete-account/verify-otp', [
             'email' => $user->email,
-            'otp' => $otpRecord->otp,
+            'otp' => $plainOtp,
         ]);
 
         $successResponse->assertStatus(200);

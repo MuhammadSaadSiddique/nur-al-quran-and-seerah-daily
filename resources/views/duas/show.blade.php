@@ -7,7 +7,7 @@
 @push('schema')
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
         {
@@ -33,7 +33,7 @@
 </script>
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "Article",
     "headline": "{{ addslashes($dua->title) }}",
     "description": "{{ addslashes($dua->translation_en ?: 'Detailed word-by-word breakdown and commentary.') }}",
@@ -49,6 +49,8 @@
 }
 </script>
 @endpush
+
+@section('content')
 <div class="max-w-5xl mx-auto space-y-10 pb-16 animate-fadeIn" x-data="{
     fontSize: 32,
     language: 'en',

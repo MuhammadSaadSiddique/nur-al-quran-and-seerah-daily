@@ -15,11 +15,13 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PlayArrow
@@ -27,6 +29,7 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
+import com.asloobulhayat.eternalecho.ui.profile.ProfileDrawerContent
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
@@ -112,16 +115,41 @@ fun MainScreen(
     }
 
 
-    val userId = remember(loginStateRefresh) { prefs.getInt("user_id", -1) }
-    val userName = remember(loginStateRefresh) { prefs.getString("user_name", "") ?: "" }
-    val userEmail = remember(loginStateRefresh) { prefs.getString("user_email", "") ?: "" }
-    val isLoggedIn = userId != -1
+    var authVersion by remember { mutableIntStateOf(0) }
+    val authKey = loginStateRefresh + authVersion
+    val userId = remember(authKey) { prefs.getInt("user_id", -1) }
+    val userName = remember(authKey) { prefs.getString("user_name", "") ?: "" }
+    val userEmail = remember(authKey) { prefs.getString("user_email", "") ?: "" }
+    val apiToken = remember(authKey) { prefs.getString("api_token", null).orEmpty() }
+    // Token is required for authenticated API calls after the mobile auth hardening.
+    val isLoggedIn = userId > 0 && apiToken.isNotBlank()
+    var userHasPassword by remember(authKey) { mutableStateOf(prefs.getBoolean("has_password", false)) }
+
+    fun clearLocalSession() {
+        prefs.remove("user_id")
+        prefs.remove("user_name")
+        prefs.remove("user_email")
+        prefs.remove("api_token")
+        prefs.remove("has_password")
+        ApiClient.authToken = null
+        userHasPassword = false
+    }
+
+    LaunchedEffect(loginStateRefresh) {
+        ApiClient.authToken = prefs.getString("api_token", null)
+        // Drop stale pre-token sessions that look logged-in but always 401.
+        if (prefs.getInt("user_id", -1) > 0 && prefs.getString("api_token", null).isNullOrBlank()) {
+            clearLocalSession()
+            authVersion++
+        }
+    }
 
     val repository = remember { DefaultDataRepository() }
 
     var streakDays by remember { mutableIntStateOf(prefs.getInt("current_streak", 0)) }
     var longestStreak by remember { mutableIntStateOf(prefs.getInt("longest_streak", 0)) }
     var isStreakActiveToday by remember { mutableStateOf(prefs.getBoolean("is_streak_active_today", false)) }
+    var dailyEngagement by remember { mutableStateOf<com.asloobulhayat.eternalecho.data.DailyEngagement?>(null) }
 
     LaunchedEffect(userId, loginStateRefresh) {
         if (userId > 0) {
@@ -130,15 +158,28 @@ fun MainScreen(
                 prefs,
                 userId
             )
-            val res = repository.getStreakStatus(userId)
-            res.getOrNull()?.let { streak ->
-                streakDays = streak.currentStreak
-                longestStreak = streak.longestStreak
-                isStreakActiveToday = streak.isActiveToday
-                prefs.putInt("current_streak", streak.currentStreak)
-                prefs.putInt("longest_streak", streak.longestStreak)
-                prefs.putBoolean("is_streak_active_today", streak.isActiveToday)
+            val engagementRes = repository.getDailyEngagement(userId)
+            engagementRes.getOrNull()?.let { engagement ->
+                dailyEngagement = engagement
+                streakDays = engagement.streak.currentStreak
+                longestStreak = engagement.streak.longestStreak
+                isStreakActiveToday = engagement.streak.isActiveToday
+                prefs.putInt("current_streak", engagement.streak.currentStreak)
+                prefs.putInt("longest_streak", engagement.streak.longestStreak)
+                prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
+            } ?: run {
+                val res = repository.getStreakStatus(userId)
+                res.getOrNull()?.let { streak ->
+                    streakDays = streak.currentStreak
+                    longestStreak = streak.longestStreak
+                    isStreakActiveToday = streak.isActiveToday
+                    prefs.putInt("current_streak", streak.currentStreak)
+                    prefs.putInt("longest_streak", streak.longestStreak)
+                    prefs.putBoolean("is_streak_active_today", streak.isActiveToday)
+                }
             }
+        } else {
+            dailyEngagement = null
         }
     }
 
@@ -151,32 +192,56 @@ fun MainScreen(
 
     var showPasswordDialog by remember { mutableStateOf(false) }
     var passwordText by remember { mutableStateOf("") }
+    var currentPasswordText by remember { mutableStateOf("") }
     var passwordSaving by remember { mutableStateOf(false) }
     var passwordMessage by remember { mutableStateOf("") }
 
     if (showPasswordDialog) {
+        val isSetFlow = !userHasPassword
         AlertDialog(
             onDismissRequest = {
                 if (!passwordSaving) {
                     showPasswordDialog = false
                     passwordText = ""
+                    currentPasswordText = ""
                     passwordMessage = ""
                 }
             },
-            title = { Text("Change Password", fontWeight = FontWeight.Bold) },
+            title = {
+                Text(
+                    if (isSetFlow) "Set Password" else "Change Password",
+                    fontWeight = FontWeight.Bold
+                )
+            },
             text = {
                 Column(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Enter your new password (minimum 6 characters):",
+                        text = if (isSetFlow) {
+                            "Choose a password (minimum 6 characters). You can use it next time you sign in."
+                        } else {
+                            "Enter your current password and a new password (minimum 6 characters):"
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
+                    if (!isSetFlow) {
+                        OutlinedTextField(
+                            value = currentPasswordText,
+                            onValueChange = { currentPasswordText = it },
+                            label = { Text("Current Password") },
+                            visualTransformation = PasswordVisualTransformation(),
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            enabled = !passwordSaving
+                        )
+                    }
                     OutlinedTextField(
                         value = passwordText,
                         onValueChange = { passwordText = it },
-                        label = { Text("New Password") },
+                        label = { Text(if (isSetFlow) "Password" else "New Password") },
                         visualTransformation = PasswordVisualTransformation(),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
                         modifier = Modifier.fillMaxWidth(),
@@ -203,24 +268,31 @@ fun MainScreen(
                         passwordMessage = ""
                         scope.launch {
                             try {
-                                val success = repository.changePassword(userId, passwordText)
+                                val success = if (isSetFlow) {
+                                    repository.setPassword(userId, passwordText)
+                                } else {
+                                    repository.changePassword(userId, passwordText, currentPasswordText)
+                                }
                                 if (success) {
-                                    passwordMessage = "Success! Password updated."
+                                    passwordMessage = if (isSetFlow) "Success! Password set." else "Success! Password updated."
+                                    userHasPassword = true
+                                    prefs.putBoolean("has_password", true)
                                     kotlinx.coroutines.delay(1000)
                                     showPasswordDialog = false
                                     passwordText = ""
+                                    currentPasswordText = ""
                                     passwordMessage = ""
                                 } else {
-                                    passwordMessage = "Failed to update password."
+                                    passwordMessage = if (isSetFlow) "Failed to set password." else "Failed to update password."
                                 }
                             } catch (t: Throwable) {
-                                passwordMessage = t.message ?: "Failed to update password."
+                                passwordMessage = t.message ?: if (isSetFlow) "Failed to set password." else "Failed to update password."
                             } finally {
                                 passwordSaving = false
                             }
                         }
                     },
-                    enabled = !passwordSaving && passwordText.isNotEmpty()
+                    enabled = !passwordSaving && passwordText.isNotEmpty() && (isSetFlow || currentPasswordText.isNotEmpty())
                 ) {
                     if (passwordSaving) {
                         CircularProgressIndicator(
@@ -228,7 +300,7 @@ fun MainScreen(
                             modifier = Modifier.size(16.dp)
                         )
                     } else {
-                        Text("Update")
+                        Text(if (isSetFlow) "Save" else "Update")
                     }
                 }
             },
@@ -237,6 +309,7 @@ fun MainScreen(
                     onClick = {
                         showPasswordDialog = false
                         passwordText = ""
+                        currentPasswordText = ""
                         passwordMessage = ""
                     },
                     enabled = !passwordSaving
@@ -456,10 +529,11 @@ fun MainScreen(
 
                     OutlinedButton(
                         onClick = {
-                            prefs.remove("user_id")
-                            prefs.remove("user_name")
-                            prefs.remove("user_email")
-                            loginStateRefresh++
+                            scope.launch {
+                                try { repository.logout() } catch (_: Throwable) {}
+                                clearLocalSession()
+                                loginStateRefresh++
+                            }
                         },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp)
@@ -557,8 +631,17 @@ fun MainScreen(
                 ) {
                     Text(
                         text = "Are you sure you want to permanently delete your account?\n\n" +
-                            "This action cannot be undone. All your quiz history, test submissions, bookmarks, and account data will be permanently wiped.",
+                            "This action cannot be undone. All your quiz history, test submissions, bookmarks, and account data will be permanently wiped.\n\n" +
+                            "If you set a password, enter it below to confirm.",
                         style = MaterialTheme.typography.bodyMedium
+                    )
+                    OutlinedTextField(
+                        value = currentPasswordText,
+                        onValueChange = { currentPasswordText = it },
+                        label = { Text("Current password (if set)") },
+                        singleLine = true,
+                        visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth()
                     )
                     if (deleteAccountError.isNotEmpty()) {
                         Text(
@@ -576,11 +659,13 @@ fun MainScreen(
                         deleteAccountError = ""
                         scope.launch {
                             try {
-                                val success = repository.deleteAccount(userId)
+                                val success = repository.deleteAccount(
+                                    userId = userId,
+                                    currentPassword = currentPasswordText,
+                                    confirmDeletion = currentPasswordText.isBlank()
+                                )
                                 if (success) {
-                                    prefs.remove("user_id")
-                                    prefs.remove("user_name")
-                                    prefs.remove("user_email")
+                                    clearLocalSession()
                                     prefs.remove("completed_quizzes")
                                     QuizSubmissionHelper.clearPendingQuiz(prefs)
                                     loginStateRefresh++
@@ -645,87 +730,119 @@ fun MainScreen(
         )
     }
 
-    AdaptiveNavigationScaffold(
-        adaptiveInfo = adaptiveInfo,
-        selectedTab = selectedTab,
-        onTabSelected = {
-            selectedTab = it
-            onTabSelected(it)
-        },
-        topBar = {
-            @OptIn(ExperimentalMaterial3Api::class)
-            TopAppBar(
-                title = { Text("Eternal Echo", fontWeight = FontWeight.Bold) },
-                actions = {
+    val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
 
-                    IconButton(onClick = { showNotificationsSheet = true }) {
-                        BadgedBox(
-                            badge = {
-                                if (unreadCount > 0) {
-                                    Badge(
-                                        containerColor = MaterialTheme.colorScheme.error,
-                                        contentColor = MaterialTheme.colorScheme.onError
-                                    ) {
-                                        Text(if (unreadCount > 9) "9+" else unreadCount.toString())
-                                    }
-                                }
-                            }
-                        ) {
-                            Icon(Icons.Default.Notifications, contentDescription = "Announcements")
-                        }
-                    }
-                    IconButton(onClick = { onItemClick(OnboardingRoute) }) {
-                        Icon(Icons.Default.Info, contentDescription = "App Guide")
-                    }
-//                    IconButton(onClick = { ShareHelper.shareApp(context) }) {
-//                        Icon(Icons.Default.Share, contentDescription = "Share App")
-//                    }
-                    if (isLoggedIn) {
-
-                        IconButton(onClick = { showAccountDialog = true },
-                            modifier = Modifier.padding(end = 8.dp)) {
-                            Icon(
-                                Icons.Default.Person,
-                                contentDescription = "User Profile",
-                                modifier = Modifier.padding(end = 4.dp)
-                            )
-
-                        }
-                        /*TextButton(
-                            onClick = { showPasswordDialog = true },
-                            modifier = Modifier.padding(end = 8.dp)
-                        ) {
-                            Text(
-                                text = userName,
-                                style = MaterialTheme.typography.bodyMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        }*/
-                       /* IconButton(onClick = {
-                            prefs.remove("user_id")
-                            prefs.remove("user_name")
-                            prefs.remove("user_email")
-                            loginStateRefresh++
-                        }) {
-                            Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Log Out")
-                        }*/
-                    } else {
-                        Button(
-                            onClick = { onItemClick(AuthRoute) },
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text("Sign In", fontSize = 12.sp)
-                        }
+    ModalNavigationDrawer(
+        drawerState = drawerState,
+        drawerContent = {
+            ProfileDrawerContent(
+                isLoggedIn = isLoggedIn,
+                userId = userId,
+                userName = userName,
+                userEmail = userEmail,
+                hasPassword = userHasPassword,
+                onHasPasswordLoaded = { hasPw ->
+                    userHasPassword = hasPw
+                    prefs.putBoolean("has_password", hasPw)
+                },
+                onClose = { scope.launch { drawerState.close() } },
+                onSignInClick = { onItemClick(AuthRoute) },
+                onChangeThemeClick = { showThemeSettingsDialog = true },
+                onChangePasswordClick = { showPasswordDialog = true },
+                onLogoutClick = {
+                    scope.launch {
+                        try { repository.logout() } catch (_: Throwable) {}
+                        clearLocalSession()
+                        loginStateRefresh++
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                onDeleteAccountClick = {
+                    deleteAccountError = ""
+                    showDeleteAccountConfirmDialog = true
+                },
+                onSendFeedbackClick = { showFeedbackSheet = true },
+                onSupportProjectClick = {
+                    try {
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ApiClient.DONATION_URL))
+                        context.startActivity(intent)
+                    } catch (_: Exception) {}
+                },
+                onStreakUpdated = { updatedStreak ->
+                    streakDays = updatedStreak.currentStreak
+                    longestStreak = updatedStreak.longestStreak
+                    isStreakActiveToday = updatedStreak.isActiveToday
+                    prefs.putInt("current_streak", updatedStreak.currentStreak)
+                    prefs.putInt("longest_streak", updatedStreak.longestStreak)
+                    prefs.putBoolean("is_streak_active_today", updatedStreak.isActiveToday)
+                }
             )
         }
-    ) { paddingValues ->
+    ) {
+        AdaptiveNavigationScaffold(
+            adaptiveInfo = adaptiveInfo,
+            selectedTab = selectedTab,
+            onTabSelected = {
+                selectedTab = it
+                onTabSelected(it)
+            },
+            topBar = {
+                @OptIn(ExperimentalMaterial3Api::class)
+                TopAppBar(
+                    title = { Text("Eternal Echo", fontWeight = FontWeight.Bold) },
+                    navigationIcon = {
+                        IconButton(onClick = { scope.launch { drawerState.open() } }) {
+                            Icon(Icons.Default.Menu, contentDescription = "Profile & Side Menu")
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showNotificationsSheet = true }) {
+                            BadgedBox(
+                                badge = {
+                                    if (unreadCount > 0) {
+                                        Badge(
+                                            containerColor = MaterialTheme.colorScheme.error,
+                                            contentColor = MaterialTheme.colorScheme.onError
+                                        ) {
+                                            Text(if (unreadCount > 9) "9+" else unreadCount.toString())
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(Icons.Default.Notifications, contentDescription = "Announcements")
+                            }
+                        }
+                        IconButton(onClick = { onItemClick(OnboardingRoute) }) {
+                            Icon(Icons.Default.Info, contentDescription = "App Guide")
+                        }
+                        if (isLoggedIn) {
+                            IconButton(
+                                onClick = { scope.launch { drawerState.open() } },
+                                modifier = Modifier.padding(end = 8.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Person,
+                                    contentDescription = "User Profile & Stats",
+                                    modifier = Modifier.padding(end = 4.dp)
+                                )
+                            }
+                        } else {
+                            Button(
+                                onClick = { onItemClick(AuthRoute) },
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Sign In", fontSize = 12.sp)
+                            }
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
+                        titleContentColor = MaterialTheme.colorScheme.onSurface,
+                        navigationIconContentColor = MaterialTheme.colorScheme.onSurface,
+                        actionIconContentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        ) { paddingValues ->
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -739,7 +856,8 @@ fun MainScreen(
                     isStreakActiveToday = isStreakActiveToday,
                     currentJuz = 2,
                     readPages = 5,
-                    readingProgressPercent = 70,
+                    readingProgressPercent = dailyEngagement?.progressPercent ?: 0,
+                    dailyEngagement = dailyEngagement,
                     onClaimStreakClick = {
                         if (userId > 0) {
                             scope.launch {
@@ -762,10 +880,45 @@ fun MainScreen(
                             prefs.putBoolean("is_streak_active_today", true)
                         }
                     },
+                    onEngagementActivityClick = { activityKey ->
+                        when (activityKey) {
+                            "quiz" -> onItemClick(ThemeQuizSelection)
+                            "read" -> selectedTab = 5
+                            "insight" -> selectedTab = 2
+                            "dua" -> {
+                                onItemClick(DuasRoute)
+                                if (userId > 0) {
+                                    scope.launch {
+                                        repository.markEngagement(userId, "dua").getOrNull()?.let { engagement ->
+                                            dailyEngagement = engagement
+                                            streakDays = engagement.streak.currentStreak
+                                            longestStreak = engagement.streak.longestStreak
+                                            isStreakActiveToday = engagement.streak.isActiveToday
+                                            prefs.putInt("current_streak", engagement.streak.currentStreak)
+                                            prefs.putInt("longest_streak", engagement.streak.longestStreak)
+                                            prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    },
                     onStartQuizClick = { onItemClick(ThemeQuizSelection) },
                     onExploreHistoryClick = { selectedTab = 2 },
                     onDeepDiveClick = { selectedTab = 5 },
-                    onReadDuasClick = { onItemClick(DuasRoute) },
+                    onReadDuasClick = {
+                        onItemClick(DuasRoute)
+                        if (userId > 0) {
+                            scope.launch {
+                                repository.markEngagement(userId, "dua").getOrNull()?.let { engagement ->
+                                    dailyEngagement = engagement
+                                    streakDays = engagement.streak.currentStreak
+                                    longestStreak = engagement.streak.longestStreak
+                                    isStreakActiveToday = engagement.streak.isActiveToday
+                                }
+                            }
+                        }
+                    },
                     onReflectClick = { onItemClick(SurahNavKey(2, 286)) },
                     onReadingProgressClick = { onItemClick(SurahNavKey(2, 142)) },
                     onThemeSettingsClick = { showThemeSettingsDialog = true },
@@ -785,7 +938,7 @@ fun MainScreen(
                             0 -> selectedTab = 0
                             1 -> selectedTab = 10
                             2 -> onItemClick(ThemeQuizSelection)
-                            3 -> if (isLoggedIn) showAccountDialog = true else onItemClick(AuthRoute)
+                            3 -> if (isLoggedIn) scope.launch { drawerState.open() } else onItemClick(AuthRoute)
                         }
                     },
                     showBottomBar = false
@@ -840,6 +993,7 @@ fun MainScreen(
             }
         }
     }
+}
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -1361,35 +1515,15 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                                             prefs.putInt("completed_quizzes", currentCompleted + 1)
                                             completedQuizzes = currentCompleted + 1
                                         } else {
-                                            val isCorrect = index == event.correctAnswerIndex
-                                            val scoreValue = if (isCorrect) 1 else 0
                                             scope.launch {
                                                 try {
-                                                    val questionsArray = org.json.JSONArray()
-                                                    val qObj = org.json.JSONObject()
-                                                    qObj.put("id", event.id)
-                                                    qObj.put("text", event.questionText)
-                                                    qObj.put("correctAnswerIndex", event.correctAnswerIndex)
-                                                    val opts = org.json.JSONArray()
-                                                    event.options.forEach { opts.put(it) }
-                                                    qObj.put("options", opts)
-                                                    questionsArray.put(qObj)
-
-                                                    val answersArray = org.json.JSONArray()
-                                                    answersArray.put(index)
-
-                                                    DefaultDataRepository().submitQuiz(
-                                                        userId = userId,
-                                                        type = "SEERAH",
-                                                        title = event.title,
-                                                        score = scoreValue,
-                                                        totalQuestions = 1,
-                                                        difficulty = "Medium",
-                                                        questionsJson = questionsArray.toString(),
-                                                        userAnswersJson = answersArray.toString()
+                                                    DefaultDataRepository().markInsight(
+                                                        userId,
+                                                        "SEERAH",
+                                                        event.id.toString()
                                                     )
                                                 } catch (e: Exception) {
-                                                    android.util.Log.e("SeerahItem", "Failed to submit quiz score", e)
+                                                    android.util.Log.e("SeerahItem", "Failed to mark insight", e)
                                                 }
                                             }
                                         }
@@ -1454,30 +1588,6 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(
                         onClick = {
-                            val isCorrect = selectedOptionIndex == event.correctAnswerIndex
-                            val scoreValue = if (isCorrect) 1 else 0
-                            val qArray = org.json.JSONArray()
-                            val qObj = org.json.JSONObject()
-                            qObj.put("id", event.id)
-                            qObj.put("text", event.questionText)
-                            qObj.put("correctAnswerIndex", event.correctAnswerIndex)
-                            val opts = org.json.JSONArray()
-                            event.options.forEach { opts.put(it) }
-                            qObj.put("options", opts)
-                            qArray.put(qObj)
-                            val aArray = org.json.JSONArray()
-                            aArray.put(selectedOptionIndex ?: -1)
-
-                            com.asloobulhayat.eternalecho.data.QuizSubmissionHelper.savePendingRawQuiz(
-                                prefs = prefs,
-                                type = "SEERAH",
-                                title = event.title,
-                                score = scoreValue,
-                                totalQuestions = 1,
-                                difficulty = "Medium",
-                                questionsJson = qArray.toString(),
-                                userAnswersJson = aArray.toString()
-                            )
                             onAuthClick()
                         },
                         modifier = Modifier.fillMaxWidth(),
@@ -1639,35 +1749,15 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                                             prefs.putInt("completed_quizzes", currentCompleted + 1)
                                             completedQuizzes = currentCompleted + 1
                                         } else {
-                                            val isCorrect = index == event.correctAnswerIndex
-                                            val scoreValue = if (isCorrect) 1 else 0
                                             scope.launch {
                                                 try {
-                                                    val questionsArray = org.json.JSONArray()
-                                                    val qObj = org.json.JSONObject()
-                                                    qObj.put("id", event.id)
-                                                    qObj.put("text", event.questionText)
-                                                    qObj.put("correctAnswerIndex", event.correctAnswerIndex)
-                                                    val opts = org.json.JSONArray()
-                                                    event.options.forEach { opts.put(it) }
-                                                    qObj.put("options", opts)
-                                                    questionsArray.put(qObj)
-
-                                                    val answersArray = org.json.JSONArray()
-                                                    answersArray.put(index)
-
-                                                    DefaultDataRepository().submitQuiz(
-                                                        userId = userId,
-                                                        type = "HISTORY",
-                                                        title = event.title,
-                                                        score = scoreValue,
-                                                        totalQuestions = 1,
-                                                        difficulty = "Medium",
-                                                        questionsJson = questionsArray.toString(),
-                                                        userAnswersJson = answersArray.toString()
+                                                    DefaultDataRepository().markInsight(
+                                                        userId,
+                                                        "QURAN_HISTORY",
+                                                        event.id.toString()
                                                     )
                                                 } catch (e: Exception) {
-                                                    android.util.Log.e("HistoryItem", "Failed to submit quiz score", e)
+                                                    android.util.Log.e("HistoryItem", "Failed to mark insight", e)
                                                 }
                                             }
                                         }
@@ -1731,33 +1821,7 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                 if (hasAnswered && prefs.getInt("user_id", -1) == -1) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Button(
-                        onClick = {
-                            val isCorrect = selectedOptionIndex == event.correctAnswerIndex
-                            val scoreValue = if (isCorrect) 1 else 0
-                            val qArray = org.json.JSONArray()
-                            val qObj = org.json.JSONObject()
-                            qObj.put("id", event.id)
-                            qObj.put("text", event.questionText)
-                            qObj.put("correctAnswerIndex", event.correctAnswerIndex)
-                            val opts = org.json.JSONArray()
-                            event.options.forEach { opts.put(it) }
-                            qObj.put("options", opts)
-                            qArray.put(qObj)
-                            val aArray = org.json.JSONArray()
-                            aArray.put(selectedOptionIndex ?: -1)
-
-                            com.asloobulhayat.eternalecho.data.QuizSubmissionHelper.savePendingRawQuiz(
-                                prefs = prefs,
-                                type = "HISTORY",
-                                title = event.title,
-                                score = scoreValue,
-                                totalQuestions = 1,
-                                difficulty = "Medium",
-                                questionsJson = qArray.toString(),
-                                userAnswersJson = aArray.toString()
-                            )
-                            onAuthClick()
-                        },
+                        onClick = { onAuthClick() },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(8.dp)
                     ) {
@@ -2290,62 +2354,33 @@ fun QuranicLensBannerCard(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 12.dp),
-//        colors = CardDefaults.cardColors(
-//            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-//        ),
-        shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            .padding(bottom = 12.dp)
+            .clickable { onExploreLensClick("all") },
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "🔬",
-                        fontSize = 20.sp,
-                        modifier = Modifier.padding(end = 6.dp)
-                    )
-                    Text(
-                        text = "Quranic Lens & Connections",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-                /*Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                ) {
-                    Text(
-                        text = "${stats?.totalCount ?: 6366}+ Links",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }*/
-            }
-
-            Spacer(modifier = Modifier.height(6.dp))
-
             Text(
-                text = "Explore profound cross-disciplinary linkages between the Quran and Modern Science, Seerah, Hadith, History, and Comparative Scripture.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
-                lineHeight = 16.sp
+                text = "Quranic Lens",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Stats row in multiple rows
+            Text(
+                text = "Cross-links between the Quran and science, Seerah, Hadith, history, and scripture.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 18.sp
+            )
             FlowRow(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -2355,51 +2390,13 @@ fun QuranicLensBannerCard(
                 StatsChip(count = "${stats?.scienceCount ?: 3954}", label = "Science")
                 StatsChip(count = "${stats?.seerahCount ?: 477}", label = "Seerah")
                 StatsChip(count = "${stats?.historyCount ?: 1916}", label = "History")
-                StatsChip(count = "${stats?.scriptureCount ?: 18}", label = "Scripture")
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Quick Category Filters in multiple rows
-            /*FlowRow(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                verticalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                val categories = listOf(
-                    "all" to "🌐 All",
-                    "science" to "🔬 Science",
-                    "seerah" to "🕌 Seerah",
-                    "hadith" to "📚 Hadith",
-                    "history" to "🏛️ History",
-                    "scripture" to "📖 Scripture"
-                )
-                for ((catKey, catLabel) in categories) {
-                    FilterChip(
-                        selected = false,
-                        onClick = { onExploreLensClick(catKey) },
-                        label = { Text(catLabel, fontSize = 11.sp) },
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Button(
-                onClick = { onExploreLensClick("all") },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary
-                )
-            ) {
-                Text(
-                    text = "Explore All Connections",
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp
-                )
-            }*/
+            Text(
+                text = "Open Lens",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }
@@ -2492,60 +2489,61 @@ fun QuranicLensTab(
     }
 
     val categories = listOf(
-        "all" to "🌐 All",
-        "video" to "🎬 Videos",
-        "science" to "🔬 Science",
-        "seerah" to "🕌 Seerah",
-        "hadith" to "📚 Hadith",
-        "history" to "🏛️ History",
-        "scripture" to "📖 Scripture",
-        "pending" to (if (isLoggedIn) "⏳ Pending" else "🔒 Pending")
+        "all" to "All",
+        "video" to "Videos",
+        "science" to "Science",
+        "seerah" to "Seerah",
+        "hadith" to "Hadith",
+        "history" to "History",
+        "scripture" to "Scripture",
+        "pending" to if (isLoggedIn) "Pending" else "Pending · Login"
     )
+
+    fun refreshSearch(query: String) {
+        if (selectedCategory == "video" || selectedCategory == "pending") {
+            loadInlineContributions()
+        } else {
+            viewModel.loadAllConnections(
+                category = selectedCategory,
+                search = query,
+                page = 1
+            )
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(12.dp)
+            .padding(horizontal = 14.dp, vertical = 10.dp)
     ) {
-        // Hero Header
+        // Compact mobile hero
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 10.dp),
+                .padding(bottom = 12.dp),
+            shape = RoundedCornerShape(18.dp),
             colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f)
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
             ),
-            shape = RoundedCornerShape(14.dp)
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
-            Column(modifier = Modifier.padding(12.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Quranic Lens & Research",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    FilledTonalButton(
-                        onClick = { showContributeSheet = true },
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("➕ Add Video / Research", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                    }
-                }
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text(
-                    text = "Explore connections, watch peer-verified videos, or contribute research (5 approvals publish).",
+                    text = "Quranic Lens",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = "Explore ayah connections, peer-reviewed videos, and community research.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.85f)
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
                 )
 
                 val stats = (allConnState as? AllConnectionsUiState.Success)?.response?.stats
                 if (stats != null) {
-                    Spacer(modifier = Modifier.height(8.dp))
                     FlowRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -2556,64 +2554,55 @@ fun QuranicLensTab(
                         StatsChip(count = "${stats.seerahCount}", label = "Seerah")
                         StatsChip(count = "${stats.hadithCount}", label = "Hadith")
                         StatsChip(count = "${stats.historyCount}", label = "History")
-                        StatsChip(count = "${stats.scriptureCount}", label = "Scripture")
                     }
+                }
+
+                Button(
+                    onClick = { showContributeSheet = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Contribute research", fontWeight = FontWeight.SemiBold)
                 }
             }
         }
 
-        // Search Bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = {
                 searchQuery = it
-                if (selectedCategory == "video" || selectedCategory == "pending") {
-                    loadInlineContributions()
-                } else {
-                    viewModel.loadAllConnections(
-                        category = selectedCategory,
-                        search = it,
-                        page = 1
-                    )
-                }
+                refreshSearch(it)
             },
-            placeholder = { Text("Search title, video, discipline, context...") },
+            placeholder = { Text("Search connections or videos") },
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 8.dp),
+                .padding(bottom = 10.dp),
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
                     IconButton(onClick = {
                         searchQuery = ""
-                        if (selectedCategory == "video" || selectedCategory == "pending") {
-                            loadInlineContributions()
-                        } else {
-                            viewModel.loadAllConnections(
-                                category = selectedCategory,
-                                search = "",
-                                page = 1
-                            )
-                        }
+                        refreshSearch("")
                     }) {
                         Icon(Icons.Default.Clear, contentDescription = "Clear")
                     }
                 }
             },
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(14.dp),
             singleLine = true
         )
 
-        // Category Filter Chips (Includes Videos and Pending inline)
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(bottom = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(bottom = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(categories) { (catKey, catLabel) ->
-                FilterChip(
-                    selected = selectedCategory == catKey,
+                val selected = selectedCategory == catKey
+                Surface(
                     onClick = {
                         if (catKey == "pending" && !isLoggedIn) {
                             onAuthClick()
@@ -2630,33 +2619,50 @@ fun QuranicLensTab(
                             }
                         }
                     },
-                    label = { Text(catLabel, fontSize = 12.sp) },
-                    shape = RoundedCornerShape(8.dp)
-                )
+                    shape = RoundedCornerShape(20.dp),
+                    color = if (selected) MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    border = BorderStroke(
+                        1.dp,
+                        if (selected) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+                    )
+                ) {
+                    Text(
+                        text = catLabel,
+                        fontSize = 12.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (selected) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                    )
+                }
             }
         }
 
-        // Inline Videos & Pending Verification Module
         if (selectedCategory == "video" || selectedCategory == "pending") {
             if (selectedCategory == "pending") {
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 8.dp),
+                        .padding(bottom = 10.dp),
+                    shape = RoundedCornerShape(14.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
-                    )
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Text("⚖️", fontSize = 18.sp)
+                    Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
-                            text = "5 community approvals will publish an item. Downvotes return contested items to pending.",
-                            style = MaterialTheme.typography.bodySmall,
+                            text = "Peer review",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                        Text(
+                            text = "5 approvals publish a contribution. Downvotes keep contested items pending.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.9f)
                         )
                     }
                 }
@@ -2671,16 +2677,19 @@ fun QuranicLensTab(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (contribError != null) {
                     Column(
-                        modifier = Modifier.align(Alignment.Center),
+                        modifier = Modifier
+                            .align(Alignment.Center)
+                            .padding(24.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Text(
-                            text = "Error: $contribError",
+                            text = contribError ?: "Something went wrong",
                             color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center
+                            textAlign = TextAlign.Center,
+                            style = MaterialTheme.typography.bodyMedium
                         )
-                        Button(onClick = { loadInlineContributions() }) {
+                        Button(onClick = { loadInlineContributions() }, shape = RoundedCornerShape(12.dp)) {
                             Text("Retry")
                         }
                     }
@@ -2688,25 +2697,39 @@ fun QuranicLensTab(
                     Column(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .padding(24.dp),
+                            .padding(28.dp),
                         horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text("🎬", fontSize = 40.sp)
                         Text(
-                            text = if (selectedCategory == "pending") "No pending contributions waiting for verification." else "No verified videos published yet.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = if (selectedCategory == "pending")
+                                "Nothing waiting for review"
+                            else
+                                "No videos published yet",
+                            style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             textAlign = TextAlign.Center
                         )
-                        Button(onClick = { showContributeSheet = true }) {
-                            Text("➕ Add Video / Research")
+                        Text(
+                            text = "Share a video or research note linked to an ayah or Surah.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = { showContributeSheet = true },
+                            shape = RoundedCornerShape(12.dp)
+                        ) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Contribute")
                         }
                     }
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        contentPadding = PaddingValues(bottom = 16.dp)
                     ) {
                         items(contributionsList, key = { it.id }) { item ->
                             ContributionCard(
@@ -2932,57 +2955,48 @@ fun GlobalConnectionCard(
         else -> MaterialTheme.colorScheme.primary
     }
 
-    val categoryIcon = when (item.category.lowercase()) {
-        "science" -> "🔬"
-        "seerah" -> "🕌"
-        "hadith" -> "📚"
-        "history" -> "🏛️"
-        "scripture" -> "📖"
-        else -> "🔗"
-    }
-
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f)
         ),
-        border = BorderStroke(1.dp, categoryColor.copy(alpha = 0.3f))
+        border = BorderStroke(1.dp, categoryColor.copy(alpha = 0.28f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp)
+                .padding(14.dp)
         ) {
-            // Header Row: Category Badge & Surah Coordinate Badge
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
-                    color = categoryColor.copy(alpha = 0.15f)
+                    shape = RoundedCornerShape(8.dp),
+                    color = categoryColor.copy(alpha = 0.14f)
                 ) {
                     Text(
-                        text = "$categoryIcon ${item.category.uppercase()}",
+                        text = item.category.replaceFirstChar { it.uppercase() },
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.Bold,
                         color = categoryColor,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
 
                 Surface(
-                    shape = RoundedCornerShape(6.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
                 ) {
                     Text(
-                        text = "Surah ${item.surahNumber}:${item.verseNumber}",
+                        text = "${item.surahNumber}:${item.verseNumber}",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
             }
@@ -3041,38 +3055,35 @@ fun GlobalConnectionCard(
                 maxLines = 4
             )
 
-            // Relevance context banner if present
             val contextText = item.relevanceDescription.ifBlank { item.extraInfo }
             if (contextText.isNotBlank()) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(10.dp),
                     color = categoryColor.copy(alpha = 0.08f),
                     border = BorderStroke(1.dp, categoryColor.copy(alpha = 0.2f)),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.padding(8.dp)) {
+                    Column(modifier = Modifier.padding(10.dp)) {
                         Text(
-                            text = "💡 RELEVANCE CONTEXT",
+                            text = "Relevance",
                             style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = categoryColor,
-                            fontSize = 10.sp
+                            fontWeight = FontWeight.Bold,
+                            color = categoryColor
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = contextText,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface,
-                            fontSize = 11.sp
+                            fontSize = 12.sp
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Action Buttons
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -3080,19 +3091,19 @@ fun GlobalConnectionCard(
                 OutlinedButton(
                     onClick = onShowDetails,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                 ) {
-                    Text("🔍 Details", fontSize = 12.sp)
+                    Text("Details", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
 
                 Button(
                     onClick = onSurahClick,
                     modifier = Modifier.weight(1f),
-                    shape = RoundedCornerShape(8.dp),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp)
+                    shape = RoundedCornerShape(12.dp),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
                 ) {
-                    Text("📖 Read Surah", fontSize = 12.sp)
+                    Text("Read ayah", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         }

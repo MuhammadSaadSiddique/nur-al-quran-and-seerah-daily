@@ -2,11 +2,17 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\DailyEngagementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 class ReadingController extends Controller
 {
+    public function __construct(
+        private DailyEngagementService $engagementService
+    ) {
+    }
+
     /**
      * Toggle read/completed status of a Surah (1 to 114).
      */
@@ -18,14 +24,16 @@ class ReadingController extends Controller
 
         $user = Auth::user();
         $result = $user->toggleCompletedSurah((int) $request->surah);
-        $streak = $user->getStreakStatus();
+        $user->refresh();
+        $engagement = $this->engagementService->todayStatus($user);
 
         return response()->json([
             'success' => true,
             'is_read' => $result['is_read'],
             'surah' => $result['surah_number'],
             'total_completed' => $result['total_completed'],
-            'streak' => $streak,
+            'streak' => $engagement['streak'],
+            'engagement' => $engagement,
             'message' => $result['is_read']
                 ? "Masha'Allah! Surah marked as read."
                 : "Surah marked as unread."
@@ -43,14 +51,16 @@ class ReadingController extends Controller
 
         $user = Auth::user();
         $result = $user->toggleCompletedPara((int) $request->para);
-        $streak = $user->getStreakStatus();
+        $user->refresh();
+        $engagement = $this->engagementService->todayStatus($user);
 
         return response()->json([
             'success' => true,
             'is_completed' => $result['is_completed'],
             'para' => $result['para_number'],
             'total_completed' => $result['total_completed'],
-            'streak' => $streak,
+            'streak' => $engagement['streak'],
+            'engagement' => $engagement,
             'message' => $result['is_completed']
                 ? "Masha'Allah! Para {$request->para} marked as completed."
                 : "Para {$request->para} marked as incomplete."
@@ -64,13 +74,20 @@ class ReadingController extends Controller
     {
         $request->validate([
             'type' => 'required|string|in:SEERAH,QURAN_HISTORY,seerah,quran_history',
-            'insight_id' => 'nullable|string',
+            'insight_id' => 'required|string|max:191',
         ]);
 
         $user = Auth::user();
         $type = strtoupper($request->type);
         $result = $user->markInsightRead($type, $request->insight_id);
-        $streak = $user->getStreakStatus();
+        if (!($result['success'] ?? false)) {
+            return response()->json([
+                'success' => false,
+                'error' => $result['error'] ?? 'Unable to mark insight as read.',
+            ], 422);
+        }
+        $user->refresh();
+        $engagement = $this->engagementService->todayStatus($user);
 
         $typeName = ($type === 'SEERAH') ? 'Seerah reflection' : 'Quran history reflection';
 
@@ -80,7 +97,8 @@ class ReadingController extends Controller
             'type' => $type,
             'seerah_read_count' => $result['seerah_read_count'],
             'quran_history_read_count' => $result['quran_history_read_count'],
-            'streak' => $streak,
+            'streak' => $engagement['streak'],
+            'engagement' => $engagement,
             'message' => $result['already_read']
                 ? "You have already completed this {$typeName}."
                 : "Masha'Allah! {$typeName} completed."

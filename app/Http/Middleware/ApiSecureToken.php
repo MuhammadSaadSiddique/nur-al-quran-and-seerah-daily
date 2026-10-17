@@ -16,7 +16,8 @@ class ApiSecureToken
     public function handle(Request $request, Closure $next): Response
     {
         $token = $request->header('X-Admin-Token');
-        if (!$token || $token !== env('BULK_API_TOKEN')) {
+        $expected = (string) config('services.bulk_api_token');
+        if (!$token || $expected === '' || !hash_equals($expected, $token)) {
             return response()->json(['error' => 'Unauthorized. Invalid or missing X-Admin-Token header.'], 401);
         }
 

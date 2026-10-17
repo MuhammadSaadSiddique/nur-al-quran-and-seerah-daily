@@ -131,8 +131,11 @@
                         <form action="{{ route('researchers.join') }}" method="POST" class="pt-2">
                             @csrf
                             <button type="submit" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-3.5 px-6 rounded-2xl text-xs font-black uppercase tracking-widest shadow-md hover:shadow-lg transition-all duration-300">
-                                Join as Researcher
+                                Request Researcher Access
                             </button>
+                            <p class="mt-2 text-[11px] text-slate-500 text-center leading-normal">
+                                Access is granted by an administrator after review.
+                            </p>
                         </form>
                     @endif
                 @else

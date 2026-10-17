@@ -27,18 +27,20 @@ object QuizSubmissionHelper {
         val questionsArray = JSONArray()
         questions.forEach { q ->
             val obj = JSONObject()
-            obj.put("id", q.id)
+            obj.put("id", q.scoringId())
             obj.put("text", q.text)
-            obj.put("correctAnswerIndex", q.correctAnswerIndex)
             obj.put("difficulty", q.difficulty)
             val opts = JSONArray()
-            q.options.forEach { opts.put(it) }
+            val originals = q.originalOptions.ifEmpty { q.options }
+            originals.forEach { opts.put(it) }
             obj.put("options", opts)
             questionsArray.put(obj)
         }
 
         val answersArray = JSONArray()
-        userAnswers.forEach { answersArray.put(it ?: -1) }
+        questions.forEachIndexed { index, q ->
+            answersArray.put(q.toOriginalAnswerIndex(userAnswers.getOrNull(index)))
+        }
 
         savePendingRawQuiz(
             prefs = prefs,

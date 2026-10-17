@@ -6,6 +6,7 @@ import kotlinx.coroutines.flow.flow
 interface DataRepository {
     suspend fun getSurahs(): List<Surah>
     suspend fun getVerses(surahNumber: Int): List<Verse>
+    suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> = verses
     suspend fun getConnections(surahNumber: Int, verseNumber: Int): ConnectionsData
     suspend fun getAllConnections(
         category: String = "all",
@@ -29,8 +30,14 @@ interface DataRepository {
     suspend fun requestOtp(email: String): Boolean
     suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse
     suspend fun setPassword(userId: Int, password: String): Boolean
-    suspend fun changePassword(userId: Int, password: String): Boolean
-    suspend fun deleteAccount(userId: Int): Boolean = true
+    suspend fun changePassword(userId: Int, password: String, currentPassword: String = ""): Boolean
+    suspend fun logout(): Boolean = true
+    suspend fun deleteAccount(userId: Int, currentPassword: String = "", confirmDeletion: Boolean = false): Boolean = true
+    suspend fun checkAnswer(
+        questionId: String,
+        selectedIndex: Int,
+        options: List<String> = emptyList()
+    ): AnswerReveal? = null
     suspend fun submitQuiz(
         userId: Int,
         type: String,
@@ -58,6 +65,9 @@ interface DataRepository {
     ): Result<String> = Result.success("Dua submitted successfully for review.")
     suspend fun getStreakStatus(userId: Int): Result<StreakData> = Result.success(StreakData())
     suspend fun checkInDailyStreak(userId: Int): Result<StreakData> = Result.success(StreakData())
+    suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> = Result.success(DailyEngagement())
+    suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> = Result.success(DailyEngagement())
+    suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> = Result.success(null)
     suspend fun getResearchContributions(
         tab: String = "published",
         category: String = "all",
@@ -105,6 +115,18 @@ class DefaultDataRepository : DataRepository {
 
     override suspend fun getVerses(surahNumber: Int): List<Verse> {
         return ApiClient.fetchVerses(surahNumber)
+    }
+
+    override suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> {
+        if (verses.isEmpty() || verses.any { it.translations.isNotEmpty() }) {
+            return verses
+        }
+        val byVerse = ApiClient.fetchWebTranslations(surahNumber)
+        if (byVerse.isEmpty()) return verses
+        return verses.map { verse ->
+            val translations = byVerse[verse.verseNumber].orEmpty()
+            if (translations.isEmpty()) verse else verse.copy(translations = translations)
+        }
     }
 
     override suspend fun getConnections(surahNumber: Int, verseNumber: Int): ConnectionsData {
@@ -166,12 +188,24 @@ class DefaultDataRepository : DataRepository {
         return ApiClient.setPassword(userId, password)
     }
 
-    override suspend fun changePassword(userId: Int, password: String): Boolean {
-        return ApiClient.changePassword(userId, password)
+    override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean {
+        return ApiClient.changePassword(userId, password, currentPassword)
     }
 
-    override suspend fun deleteAccount(userId: Int): Boolean {
-        return ApiClient.deleteAccount(userId)
+    override suspend fun logout(): Boolean {
+        return ApiClient.logout()
+    }
+
+    override suspend fun deleteAccount(userId: Int, currentPassword: String, confirmDeletion: Boolean): Boolean {
+        return ApiClient.deleteAccount(userId, currentPassword, confirmDeletion)
+    }
+
+    override suspend fun checkAnswer(
+        questionId: String,
+        selectedIndex: Int,
+        options: List<String>
+    ): AnswerReveal? {
+        return ApiClient.checkAnswer(questionId, selectedIndex, options)
     }
 
     override suspend fun submitQuiz(
@@ -213,6 +247,18 @@ class DefaultDataRepository : DataRepository {
 
     override suspend fun checkInDailyStreak(userId: Int): Result<StreakData> {
         return ApiClient.checkInDailyStreak(userId)
+    }
+
+    override suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> {
+        return ApiClient.getDailyEngagement(userId)
+    }
+
+    override suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> {
+        return ApiClient.markEngagement(userId, activity)
+    }
+
+    override suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> {
+        return ApiClient.markInsight(userId, type, insightId)
     }
 
     private fun getFallbackDuas(category: String, search: String, sourceType: String): List<Dua> {

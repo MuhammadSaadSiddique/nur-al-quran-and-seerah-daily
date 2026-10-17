@@ -11,21 +11,36 @@ class ProfileController extends Controller
     public function show()
     {
         $user = Auth::user();
-        return view('profile', compact('user'));
+        $engagement = app(\App\Services\DailyEngagementService::class)->todayStatus($user);
+        return view('profile', compact('user', 'engagement'));
     }
 
     public function update(Request $request)
     {
-        $request->validate([
+        $user = Auth::user();
+        $rules = [
             'display_name' => 'nullable|string|max:255',
             'password' => 'nullable|string|min:6|max:100',
-        ]);
+        ];
+        if ($request->filled('password') && !empty($user->password)) {
+            $rules['current_password'] = 'required|string';
+        }
+        $request->validate($rules);
 
-        $user = Auth::user();
         if ($request->filled('display_name')) {
             $user->display_name = $request->display_name;
         }
         if ($request->filled('password')) {
+            if (!empty($user->password)
+                && !\Illuminate\Support\Facades\Hash::check((string) $request->input('current_password'), $user->password)) {
+                if ($request->wantsJson()) {
+                    return response()->json([
+                        'success' => false,
+                        'error' => 'Current password is incorrect.',
+                    ], 422);
+                }
+                return back()->withErrors(['current_password' => 'Current password is incorrect.']);
+            }
             $user->password = \Illuminate\Support\Facades\Hash::make($request->password);
         }
         $user->save();

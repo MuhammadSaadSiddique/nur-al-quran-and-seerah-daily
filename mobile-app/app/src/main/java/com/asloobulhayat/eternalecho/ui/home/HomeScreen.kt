@@ -1,5 +1,7 @@
 package com.asloobulhayat.eternalecho.ui.home
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -20,7 +22,9 @@ import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
+import com.asloobulhayat.eternalecho.data.DailyEngagement
 import com.asloobulhayat.eternalecho.data.DefaultDataRepository
+import com.asloobulhayat.eternalecho.data.EngagementActivity
 import com.asloobulhayat.eternalecho.security.SecurePreferences
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -32,6 +36,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.luminance
@@ -40,9 +45,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.asloobulhayat.eternalecho.theme.ArabicVerseFont
 import com.asloobulhayat.eternalecho.theme.DarkGreenBackground
 import com.asloobulhayat.eternalecho.theme.ThemeManager
 import com.asloobulhayat.eternalecho.theme.ThemeSettingDialog
+import com.asloobulhayat.eternalecho.ui.components.FadeSlideIn
+import com.asloobulhayat.eternalecho.ui.components.PressableScale
 
 /**
  * Adaptive Home Screen color palette derived from the active [MaterialTheme.colorScheme].
@@ -185,7 +193,8 @@ fun HomeScreen(
     isStreakActiveToday: Boolean = false,
     currentJuz: Int = 2,
     readPages: Int = 5,
-    readingProgressPercent: Int = 70,
+    readingProgressPercent: Int = 0,
+    dailyEngagement: DailyEngagement? = null,
     onStartQuizClick: () -> Unit = {},
     onExploreHistoryClick: () -> Unit = {},
     onDeepDiveClick: () -> Unit = {},
@@ -193,6 +202,7 @@ fun HomeScreen(
     onReflectClick: () -> Unit = {},
     onReadingProgressClick: () -> Unit = {},
     onClaimStreakClick: () -> Unit = {},
+    onEngagementActivityClick: (String) -> Unit = {},
     onThemeSettingsClick: (() -> Unit)? = null,
     onSubmitFeedback: (suspend (rating: Int, category: String, message: String) -> Result<String>)? = null,
     selectedBottomNavIndex: Int = 0,
@@ -200,6 +210,7 @@ fun HomeScreen(
     showBottomBar: Boolean = true,
     modifier: Modifier = Modifier
 ) {
+    val progressPercent = dailyEngagement?.progressPercent ?: readingProgressPercent
     val context = LocalContext.current
     val prefs = remember { SecurePreferences.getInstance(context) }
     val scope = rememberCoroutineScope()
@@ -212,20 +223,6 @@ fun HomeScreen(
     var showFeedbackSheet by remember { mutableStateOf(false) }
 
     val scrollState = rememberScrollState()
-    var autoPromptTriggered by remember { mutableStateOf(false) }
-
-    // Automatically prompt for user feedback once the user scrolls down on the home front page
-    LaunchedEffect(scrollState.value) {
-        if (!autoPromptTriggered && scrollState.value > 250 && !showFeedbackSheet) {
-            val isSubmitted = prefs.getBoolean("feedback_submitted", false)
-            val dismissedTime = prefs.getLong("feedback_dismissed_timestamp", 0L)
-            val sevenDaysMs = 7L * 24 * 60 * 60 * 1000L
-            if (!isSubmitted && (System.currentTimeMillis() - dismissedTime > sevenDaysMs)) {
-                autoPromptTriggered = true
-                showFeedbackSheet = true
-            }
-        }
-    }
 
     if (showLocalThemeDialog) {
         ThemeSettingDialog(
@@ -327,56 +324,204 @@ fun HomeScreen(
                     .fillMaxSize()
                     .verticalScroll(scrollState)
                     .padding(horizontal = 16.dp, vertical = 12.dp)
+                    .padding(bottom = if (showBottomBar) 8.dp else 0.dp)
             ) {
-                // 1. Top Header (Greeting + Name + Streak + Theme Quick Switch)
-                HomeHeaderSection(
-                    userName = userName,
-                    streakDays = streakDays,
-                    currentJuz = currentJuz,
-                    readPages = readPages,
-                    readingProgressPercent = readingProgressPercent,
-                    palette = palette,
-                    onReadingProgressClick = onReadingProgressClick,
-                    onStreakClick = { showStreakDialog = true },
-                    onThemeClick = {
-                        if (onThemeSettingsClick != null) {
-                            onThemeSettingsClick()
-                        } else {
-                            showLocalThemeDialog = true
+                FadeSlideIn(delayMillis = 0) {
+                    HomeHeaderSection(
+                        userName = userName,
+                        streakDays = streakDays,
+                        currentJuz = currentJuz,
+                        readPages = readPages,
+                        readingProgressPercent = progressPercent,
+                        palette = palette,
+                        onReadingProgressClick = onReadingProgressClick,
+                        onStreakClick = { showStreakDialog = true },
+                        onThemeClick = {
+                            if (onThemeSettingsClick != null) {
+                                onThemeSettingsClick()
+                            } else {
+                                showLocalThemeDialog = true
+                            }
                         }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FadeSlideIn(delayMillis = 40) {
+                    DailyEngagementChecklistCard(
+                        engagement = dailyEngagement,
+                        palette = palette,
+                        onActivityClick = onEngagementActivityClick
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FadeSlideIn(delayMillis = 60) {
+                    ContinueReadingCard(
+                        currentJuz = currentJuz,
+                        readPages = readPages,
+                        readingProgressPercent = progressPercent,
+                        palette = palette,
+                        onContinueClick = onReadingProgressClick
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FadeSlideIn(delayMillis = 120) {
+                    DailyVerseCard(
+                        palette = palette,
+                        onReflectClick = { showReflectionSheet = true }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FadeSlideIn(delayMillis = 180) {
+                    FeatureCardsGrid(
+                        palette = palette,
+                        onStartQuizClick = onStartQuizClick,
+                        onExploreHistoryClick = onExploreHistoryClick,
+                        onDeepDiveClick = onDeepDiveClick,
+                        onReadDuasClick = onReadDuasClick
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FadeSlideIn(delayMillis = 240) {
+                    HomeFeedbackCard(
+                        palette = palette,
+                        onOpenFeedback = { showFeedbackSheet = true }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+/**
+ * Today's Devotion checklist with progress ring.
+ */
+@Composable
+fun DailyEngagementChecklistCard(
+    engagement: DailyEngagement?,
+    palette: HomeThemePalette,
+    onActivityClick: (String) -> Unit = {}
+) {
+    val activities = engagement?.activities ?: listOf(
+        EngagementActivity("quiz", false, "Complete a quiz"),
+        EngagementActivity("read", false, "Read a Surah or Para"),
+        EngagementActivity("insight", false, "Read a Seerah or Quran insight"),
+        EngagementActivity("dua", false, "Open today's dua")
+    )
+    val progress = (engagement?.progressPercent ?: 0).coerceIn(0, 100)
+    val completed = engagement?.completedCount ?: 0
+    val total = engagement?.total ?: 4
+    val animatedProgress by animateFloatAsState(
+        targetValue = progress / 100f,
+        animationSpec = tween(700),
+        label = "engagementProgress"
+    )
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("daily_engagement_card"),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.cardBg),
+        border = BorderStroke(1.dp, palette.cardBorder)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier.size(72.dp)
+            ) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val stroke = 8.dp.toPx()
+                    drawArc(
+                        color = palette.cardBorder,
+                        startAngle = -90f,
+                        sweepAngle = 360f,
+                        useCenter = false,
+                        style = Stroke(width = stroke, cap = StrokeCap.Round)
+                    )
+                    drawArc(
+                        color = palette.primaryAccent,
+                        startAngle = -90f,
+                        sweepAngle = 360f * animatedProgress,
+                        useCenter = false,
+                        style = Stroke(width = stroke, cap = StrokeCap.Round)
+                    )
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = "$progress%",
+                        color = palette.textPrimary,
+                        fontWeight = FontWeight.Black,
+                        fontSize = 14.sp
+                    )
+                    Text(
+                        text = "$completed/$total",
+                        color = palette.textMuted,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Today's Devotion",
+                    color = palette.textPrimary,
+                    fontWeight = FontWeight.Black,
+                    fontSize = 15.sp
+                )
+                Text(
+                    text = if (engagement == null) {
+                        "Sign in to track today's habits"
+                    } else {
+                        "Complete any habit to keep your streak"
+                    },
+                    color = palette.textSecondary,
+                    fontSize = 11.sp,
+                    modifier = Modifier.padding(bottom = 8.dp)
+                )
+                activities.forEach { activity ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { onActivityClick(activity.key) }
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = if (activity.done) "✓" else "○",
+                            color = if (activity.done) palette.primaryAccent else palette.textMuted,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            modifier = Modifier.width(18.dp)
+                        )
+                        Text(
+                            text = activity.label,
+                            color = if (activity.done) palette.textMuted else palette.textPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // 2. Daily Verse & Reflection Card
-                DailyVerseCard(
-                    palette = palette,
-                    onReflectClick = {
-                        showReflectionSheet = true
-                    }
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // 3. 2x2 Feature Cards Grid
-                FeatureCardsGrid(
-                    palette = palette,
-                    onStartQuizClick = onStartQuizClick,
-                    onExploreHistoryClick = onExploreHistoryClick,
-                    onDeepDiveClick = onDeepDiveClick,
-                    onReadDuasClick = onReadDuasClick
-                )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
-                // 4. In-Page Feedback Card
-                HomeFeedbackCard(
-                    palette = palette,
-                    onOpenFeedback = { showFeedbackSheet = true }
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
+                }
             }
         }
     }
@@ -404,74 +549,61 @@ fun HomeHeaderSection(
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // Left Column: Assalamu Alaikum, Name, Streak & Theme badges
         Column(modifier = Modifier.weight(1f)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "Assalamu Alaikum ",
-                    color = palette.textMuted,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = "السَّلَامُ عَلَيْكُمْ",
-                    color = palette.arabicGreeting,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
+            Text(
+                text = "السَّلَامُ عَلَيْكُمْ",
+                color = palette.arabicGreeting,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = ArabicVerseFont
+            )
 
             Spacer(modifier = Modifier.height(2.dp))
 
             Text(
                 text = userName.ifBlank { "Wisdom Seeker" },
                 color = palette.textPrimary,
-                fontSize = 24.sp,
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(20.dp),
                     color = palette.streakBadgeBg,
                     border = BorderStroke(1.dp, palette.streakBadgeBorder),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { onStreakClick() }
                         .testTag("daily_streak_badge")
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                    ) {
-                        Text(
-                            text = "🔥 $streakDays Day Streak",
-                            color = palette.streakAccent,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    Text(
+                        text = "$streakDays day streak",
+                        color = palette.streakAccent,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+                    )
                 }
 
-                // Quick Theme Switcher Badge on Home Screen
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
+                    shape = RoundedCornerShape(20.dp),
                     color = palette.cardBg,
                     border = BorderStroke(1.dp, palette.cardBorder),
                     modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .clickable { onThemeClick() }
                         .testTag("home_theme_badge")
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Settings,
@@ -493,6 +625,151 @@ fun HomeHeaderSection(
                 }
             }
         }
+
+        Spacer(modifier = Modifier.width(12.dp))
+
+        ReadingProgressRing(
+            percent = readingProgressPercent.coerceIn(0, 100),
+            currentJuz = currentJuz,
+            palette = palette,
+            onClick = onReadingProgressClick
+        )
+    }
+}
+
+/**
+ * Compact circular reading progress — one tap back into the Quran.
+ */
+@Composable
+fun ReadingProgressRing(
+    percent: Int,
+    currentJuz: Int,
+    palette: HomeThemePalette,
+    onClick: () -> Unit
+) {
+    val animatedProgress by animateFloatAsState(
+        targetValue = percent / 100f,
+        animationSpec = tween(900),
+        label = "reading_progress"
+    )
+
+    Box(
+        modifier = Modifier
+            .size(76.dp)
+            .clip(CircleShape)
+            .clickable(onClick = onClick)
+            .testTag("reading_progress_ring"),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize().padding(3.dp)) {
+            val stroke = 5.dp.toPx()
+            drawCircle(
+                color = palette.cardBorder,
+                style = Stroke(width = stroke)
+            )
+            drawArc(
+                color = palette.primaryAccent,
+                startAngle = -90f,
+                sweepAngle = 360f * animatedProgress,
+                useCenter = false,
+                style = Stroke(width = stroke, cap = StrokeCap.Round)
+            )
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(
+                text = "$percent%",
+                color = palette.textPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+            Text(
+                text = "Juz $currentJuz",
+                color = palette.textMuted,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+/**
+ * Primary “continue where you left off” action — reduces decision fatigue.
+ */
+@Composable
+fun ContinueReadingCard(
+    currentJuz: Int,
+    readPages: Int,
+    readingProgressPercent: Int,
+    palette: HomeThemePalette,
+    onContinueClick: () -> Unit
+) {
+    PressableScale(onClick = onContinueClick) {
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+            border = BorderStroke(1.dp, palette.primaryAccent.copy(alpha = 0.35f)),
+            modifier = Modifier
+                .fillMaxWidth()
+                .testTag("continue_reading_card")
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(
+                                palette.primaryAccent.copy(alpha = 0.22f),
+                                palette.cardBg
+                            )
+                        )
+                    )
+                    .padding(horizontal = 16.dp, vertical = 14.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Continue reading",
+                            color = palette.textPrimary,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Juz $currentJuz · $readPages pages · $readingProgressPercent% of journey",
+                            color = palette.textMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = palette.primaryButtonBg
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = "Open",
+                                color = palette.primaryButtonContent,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = null,
+                                tint = palette.primaryButtonContent,
+                                modifier = Modifier.size(14.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -505,76 +782,74 @@ fun DailyVerseCard(
     onReflectClick: () -> Unit
 ) {
     Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.cardBg),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.quoteCardBg),
         border = BorderStroke(1.dp, palette.cardBorder),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = "Daily Verse & Reflection",
-                style = MaterialTheme.typography.titleMedium,
+                text = "Today’s verse",
+                style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.Bold,
-                color = palette.textPrimary,
+                color = palette.arabicGreeting,
                 modifier = Modifier.fillMaxWidth()
             )
 
             Spacer(modifier = Modifier.height(14.dp))
 
-            // Arabic Ayah
             Text(
                 text = "رَبَّنَا لَا تُؤَاخِذْنَا إِن نَّسِينَا أَوْ أَخْطَأْنَا ۚ",
                 color = palette.textPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
+                fontSize = 22.sp,
+                fontWeight = FontWeight.Medium,
+                fontFamily = ArabicVerseFont,
                 textAlign = TextAlign.Center,
-                lineHeight = 36.sp,
+                lineHeight = 40.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 8.dp)
+                    .padding(horizontal = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // English Translation
             Text(
-                text = "Our Lord, do not take us to task if we forget or make mistakes.' (Quran 2:286)",
+                text = "Our Lord, do not take us to task if we forget or make mistakes. — Quran 2:286",
                 color = palette.textSecondary,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
-                lineHeight = 18.sp,
+                lineHeight = 19.sp,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 10.dp)
+                    .padding(horizontal = 6.dp)
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // Reflect Button
             Button(
                 onClick = onReflectClick,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = palette.primaryButtonBg,
                     contentColor = palette.primaryButtonContent
                 ),
-                shape = RoundedCornerShape(10.dp),
-                contentPadding = PaddingValues(horizontal = 28.dp, vertical = 7.dp),
-                modifier = Modifier.testTag("reflect_button")
+                shape = RoundedCornerShape(12.dp),
+                contentPadding = PaddingValues(horizontal = 28.dp, vertical = 10.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("reflect_button")
             ) {
                 Text(
-                    text = "Reflect",
+                    text = "Reflect on this ayah",
                     color = palette.primaryButtonContent,
                     fontWeight = FontWeight.SemiBold,
-                    fontSize = 13.sp
+                    fontSize = 14.sp
                 )
             }
-
-            Spacer(modifier = Modifier.height(6.dp))
         }
     }
 }
@@ -602,8 +877,8 @@ fun FeatureCardsGrid(
             Box(modifier = Modifier.weight(1f)) {
                 HomeFeatureCard(
                     title = "Para Quizzes",
-                    subtitle = "Juz 1-30",
-                    buttonText = "Start Quiz",
+                    subtitle = "Juz 1–30",
+                    buttonText = "Start",
                     palette = palette,
                     onButtonClick = onStartQuizClick,
                     illustration = { QuizIllustration(palette) }
@@ -611,9 +886,9 @@ fun FeatureCardsGrid(
             }
             Box(modifier = Modifier.weight(1f)) {
                 HomeFeatureCard(
-                    title = "Seerah\nTimeline",
-                    subtitle = "",
-                    buttonText = "Explore Seerah",
+                    title = "Seerah",
+                    subtitle = "Prophetic timeline",
+                    buttonText = "Explore",
                     palette = palette,
                     onButtonClick = onExploreHistoryClick,
                     illustration = { ScrollIllustration(palette) }
@@ -629,8 +904,8 @@ fun FeatureCardsGrid(
             Box(modifier = Modifier.weight(1f)) {
                 HomeFeatureCard(
                     title = "Quranic Lens",
-                    subtitle = "",
-                    buttonText = "Deep Dive",
+                    subtitle = "Ayah connections",
+                    buttonText = "Explore",
                     palette = palette,
                     onButtonClick = onDeepDiveClick,
                     illustration = { QuranLensIllustration(palette) }
@@ -639,8 +914,8 @@ fun FeatureCardsGrid(
             Box(modifier = Modifier.weight(1f)) {
                 HomeFeatureCard(
                     title = "Daily Duas",
-                    subtitle = "",
-                    buttonText = "Read Duas",
+                    subtitle = "Word by word",
+                    buttonText = "Read",
                     palette = palette,
                     onButtonClick = onReadDuasClick,
                     illustration = { DuasIllustration(palette) }
@@ -663,79 +938,74 @@ fun HomeFeatureCard(
     illustration: @Composable () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Card(
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = palette.cardBg),
-        border = BorderStroke(1.dp, palette.cardBorder),
-        modifier = modifier.fillMaxWidth()
-    ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            // Bookmark Ribbon on top-right
-            BookmarkRibbon(
-                color = palette.ribbonColor,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(end = 12.dp)
-            )
-
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 12.dp),
-                horizontalAlignment = Alignment.Start
-            ) {
-                // Title and Subtitle
-                Text(
-                    text = title,
-                    color = palette.textPrimary,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    lineHeight = 18.sp
+    PressableScale(onClick = onButtonClick, modifier = modifier.fillMaxWidth()) {
+        Card(
+            shape = RoundedCornerShape(18.dp),
+            colors = CardDefaults.cardColors(containerColor = palette.cardBg),
+            border = BorderStroke(1.dp, palette.cardBorder),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Box(modifier = Modifier.fillMaxWidth()) {
+                BookmarkRibbon(
+                    color = palette.ribbonColor,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(end = 12.dp)
                 )
-                if (subtitle.isNotEmpty()) {
-                    Text(
-                        text = subtitle,
-                        color = palette.textMuted,
-                        fontSize = 11.sp
-                    )
-                } else {
-                    Spacer(modifier = Modifier.height(14.dp))
-                }
 
-                Spacer(modifier = Modifier.height(4.dp))
-
-                // Center Illustration
-                Box(
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(60.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    illustration()
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Action Button
-                OutlinedButton(
-                    onClick = onButtonClick,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        containerColor = palette.actionButtonBg,
-                        contentColor = palette.actionButtonContent
-                    ),
-                    border = BorderStroke(1.dp, palette.actionButtonBorder),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(34.dp)
+                        .padding(horizontal = 12.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.Start
                 ) {
                     Text(
-                        text = buttonText,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = palette.actionButtonContent
+                        text = title,
+                        color = palette.textPrimary,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        lineHeight = 18.sp
                     )
+                    if (subtitle.isNotEmpty()) {
+                        Text(
+                            text = subtitle,
+                            color = palette.textMuted,
+                            fontSize = 11.sp
+                        )
+                    } else {
+                        Spacer(modifier = Modifier.height(14.dp))
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(60.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        illustration()
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = palette.actionButtonBg,
+                        border = BorderStroke(1.dp, palette.actionButtonBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = buttonText,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = palette.actionButtonContent,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp)
+                        )
+                    }
                 }
             }
         }
@@ -935,7 +1205,8 @@ fun HomeBottomNavigationBar(
     NavigationBar(
         containerColor = palette.navBarBg,
         contentColor = palette.textPrimary,
-        tonalElevation = 4.dp
+        tonalElevation = 0.dp,
+        modifier = Modifier
     ) {
         // 1. Home
         NavigationBarItem(
@@ -1408,18 +1679,23 @@ fun HomeFeedbackCard(
                     modifier = Modifier.size(40.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
-                        Text(text = "⭐", fontSize = 18.sp)
+                        Icon(
+                            imageVector = Icons.Outlined.Star,
+                            contentDescription = null,
+                            tint = palette.goldAccent,
+                            modifier = Modifier.size(20.dp)
+                        )
                     }
                 }
                 Column {
                     Text(
-                        text = "Share Your Experience",
+                        text = "How are we doing?",
                         color = palette.textPrimary,
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = "Help us improve with your valuable feedback",
+                        text = "A short note helps us improve the journey",
                         color = palette.textMuted,
                         fontSize = 11.sp
                     )
@@ -1431,7 +1707,7 @@ fun HomeFeedbackCard(
                 color = palette.primaryButtonBg
             ) {
                 Text(
-                    text = "Rate App",
+                    text = "Feedback",
                     color = palette.primaryButtonContent,
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,

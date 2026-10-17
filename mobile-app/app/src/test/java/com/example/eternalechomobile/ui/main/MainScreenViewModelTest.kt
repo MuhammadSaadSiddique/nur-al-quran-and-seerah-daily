@@ -58,7 +58,8 @@ private class FakeMyModelRepository : DataRepository {
   override suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse =
     UserSessionOtpResponse(UserSession(0, "", "", 0), true)
   override suspend fun setPassword(userId: Int, password: String): Boolean = true
-  override suspend fun changePassword(userId: Int, password: String): Boolean = true
+  override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean = true
+  override suspend fun logout(): Boolean = true
   override suspend fun submitQuiz(
       userId: Int,
       type: String,

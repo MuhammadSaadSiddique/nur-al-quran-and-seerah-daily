@@ -250,7 +250,11 @@ class QuranResearchContributionController extends Controller
 
         $contribution = QuranResearchContribution::findOrFail($id);
 
-        $review = QuranResearchReview::updateOrCreate(
+        if ((int) $contribution->user_id === (int) Auth::id()) {
+            return back()->withErrors(['vote' => 'You cannot vote on your own contribution.']);
+        }
+
+        QuranResearchReview::updateOrCreate(
             [
                 'contribution_id' => $contribution->id,
                 'user_id' => Auth::id(),
@@ -281,7 +285,7 @@ class QuranResearchContributionController extends Controller
         $surahNumber = $request->input('surah_number');
         $search = $request->input('search');
 
-        $query = QuranResearchContribution::with(['user:id,name,display_name,email', 'reviews.user:id,name,display_name'])
+        $query = QuranResearchContribution::with(['user:id,name,display_name', 'reviews.user:id,name,display_name'])
             ->withCount([
                 'reviews as approvals_count' => function ($q) {
                     $q->where('vote', 'approve');
@@ -323,9 +327,14 @@ class QuranResearchContributionController extends Controller
         $perPage = min((int) $request->input('per_page', 20), 50);
         $contributions = $query->latest()->paginate($perPage);
 
+        $items = collect($contributions->items())->map(function ($item) {
+            $item->makeHidden(['submitter_email']);
+            return $item;
+        })->values();
+
         return response()->json([
             'status' => 'success',
-            'data' => $contributions->items(),
+            'data' => $items,
             'current_page' => $contributions->currentPage(),
             'last_page' => $contributions->lastPage(),
             'total' => $contributions->total(),
@@ -338,6 +347,12 @@ class QuranResearchContributionController extends Controller
     public function apiStore(Request $request)
     {
         $user = Auth::guard('sanctum')->user() ?: Auth::user();
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized. Please log in to submit a contribution.',
+            ], 401);
+        }
 
         if ($request->filled('custom_category')) {
             $request->merge(['category' => trim($request->input('custom_category'))]);
@@ -362,13 +377,13 @@ class QuranResearchContributionController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
-        $submitterName = $user ? $user->name : ($request->submitter_name ?: 'Mobile Contributor');
+        $submitterName = $user->name;
         $catObj = \App\Models\Category::ensureCategory(
             $request->category,
             \App\Models\Category::TYPE_QURAN_RESEARCH,
             $request->input('category_emoji'),
             null,
-            $user ? $user->id : null,
+            $user->id,
             $submitterName
         );
         $resolvedCategory = $catObj ? $catObj->slug : \Illuminate\Support\Str::slug($request->category);
@@ -381,9 +396,9 @@ class QuranResearchContributionController extends Controller
         $parsed = QuranResearchContribution::parseVideoUrl($request->video_url);
 
         $contribution = QuranResearchContribution::create(array_merge($scopeData, [
-            'user_id' => $user ? $user->id : null,
+            'user_id' => $user->id,
             'submitter_name' => $submitterName,
-            'submitter_email' => $user ? $user->email : $request->submitter_email,
+            'submitter_email' => $user->email,
             'category' => $resolvedCategory,
             'title' => $request->title,
             'description' => $request->description,
@@ -423,6 +438,13 @@ class QuranResearchContributionController extends Controller
         }
 
         $contribution = QuranResearchContribution::findOrFail($id);
+
+        if ((int) $contribution->user_id === (int) $user->id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'You cannot vote on your own contribution.',
+            ], 422);
+        }
 
         QuranResearchReview::updateOrCreate(
             [

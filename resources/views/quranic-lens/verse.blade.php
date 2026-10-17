@@ -44,7 +44,7 @@
 @push('schema')
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
         {
@@ -76,7 +76,7 @@
 </script>
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "Article",
     "headline": "Surah {{ $surahInfo['name_simple'] }} Verse {{ $verse }} Analysis & Scientific Correlations",
     "description": "{{ addslashes($pageDescription) }}",
@@ -190,9 +190,13 @@
             </template>
             <div>
                 <p class="italic text-xs font-bold text-slate-400 uppercase tracking-widest mb-1.5">
-                    BY <span x-text="translations[selectedTranslationIndex].author_name"></span>
+                    BY <span x-text="translations[selectedTranslationIndex] ? translations[selectedTranslationIndex].author_name : ''"></span>
                 </p>
-                <p x-text="translations[selectedTranslationIndex].text" class="text-slate-800 text-lg leading-relaxed font-medium"></p>
+                <p
+                    :dir="translations[selectedTranslationIndex] && translations[selectedTranslationIndex].direction === 'rtl' ? 'rtl' : 'ltr'"
+                    :class="translations[selectedTranslationIndex] && translations[selectedTranslationIndex].direction === 'rtl' ? 'text-right' : ''"
+                    x-text="translations[selectedTranslationIndex] ? translations[selectedTranslationIndex].text : ''"
+                    class="text-slate-800 text-lg leading-relaxed font-medium"></p>
             </div>
         </div>
     </div>
@@ -926,7 +930,7 @@
 
             approvedAnalenses: @json($analyses),
             scienceCategoriesMap: @json($scienceCategories),
-            translations: @json($verseDetail['translations']),
+            translations: @json($verseDetail['translations'], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT),
             selectedTranslationIndex: 0,
 
             isScienceLens(type) {

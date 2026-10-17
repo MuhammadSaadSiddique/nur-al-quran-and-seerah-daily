@@ -46,14 +46,12 @@ fun DuasScreen(
     var showContributeSheet by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Sacred Duas", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
+                title = "Sacred Duas",
+                onBackClick = onBackClick,
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 actions = {
                     IconButton(onClick = { showContributeSheet = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Contribute Dua")
@@ -64,30 +62,29 @@ fun DuasScreen(
                     }) {
                         Icon(Icons.Default.Share, contentDescription = "Share Duas")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showContributeSheet = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Contribute Dua") },
+                text = { Text("Contribute") },
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp)
             )
         }
     ) { paddingValues ->
-        DuasContent(
-            repository = repository,
-            onDuaClick = onDuaClick,
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        )
+        com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
+            DuasContent(
+                repository = repository,
+                onDuaClick = onDuaClick,
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            )
+        }
 
         if (showContributeSheet) {
             ContributeDuaBottomSheet(
@@ -312,18 +309,32 @@ fun DuasContent(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .weight(1f),
+                        .weight(1f)
+                        .padding(24.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "No Duas found matching your filter.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = "No duas found",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            text = "Try another category, source, or search term.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
                 }
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    contentPadding = PaddingValues(bottom = 88.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
@@ -358,7 +369,7 @@ fun DuasFilterHeader(
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchQueryChange,
-            placeholder = { Text("Search by meaning, Arabic, or reference...", fontSize = 13.sp) },
+            placeholder = { Text("Search duas…", fontSize = 13.sp) },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             trailingIcon = {
                 if (searchQuery.isNotEmpty()) {
@@ -367,25 +378,30 @@ fun DuasFilterHeader(
                     }
                 }
             },
-            shape = RoundedCornerShape(16.dp),
+            shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth(),
             singleLine = true
         )
 
-        // Source Filters & Language Toggle
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 listOf("all" to "All", "quran" to "Quran", "hadith" to "Hadith").forEach { (type, label) ->
                     val isSelected = selectedSourceType == type
                     FilterChip(
                         selected = isSelected,
                         onClick = { onSourceTypeChange(type) },
-                        label = { Text(label, fontSize = 11.sp, fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal) },
-                        shape = RoundedCornerShape(12.dp)
+                        label = {
+                            Text(
+                                label,
+                                fontSize = 12.sp,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                            )
+                        },
+                        shape = RoundedCornerShape(20.dp)
                     )
                 }
             }
@@ -427,34 +443,23 @@ fun DuasFilterHeader(
             }
         }
 
-        // Category Multi-row Chips
-//        FlowRow(
         LazyRow(
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            //verticalArrangement = Arrangement.spacedBy(8.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-//            categories.forEach { (key, label) ->
             items(categories) { (key, label) ->
                 val isSelected = selectedCategory == key
-                SuggestionChip(
+                FilterChip(
+                    selected = isSelected,
                     onClick = { onCategoryChange(key) },
                     label = {
                         Text(
                             text = label,
                             fontSize = 12.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
                         )
                     },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = SuggestionChipDefaults.suggestionChipColors(
-                        containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                        labelColor = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                    ),
-                    border = BorderStroke(
-                        1.dp,
-                        if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                    )
+                    shape = RoundedCornerShape(20.dp)
                 )
             }
         }
@@ -463,50 +468,87 @@ fun DuasFilterHeader(
 
 
 @Composable
+fun DuaSourceBadge(sourceType: String) {
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        if (sourceType == "quran" || sourceType == "both") {
+            Surface(
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Quran",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+        if (sourceType == "hadith" || sourceType == "both") {
+            Surface(
+                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text(
+                    text = "Hadith",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Compact list card — opens detail for word-by-word, commentary, and tasbih.
+ */
+@Composable
 fun DuaCard(
     dua: Dua,
     language: String,
     onViewDetailClick: (() -> Unit)? = null
 ) {
-    var isWordByWordExpanded by remember { mutableStateOf(false) }
-    var isCommentaryExpanded by remember { mutableStateOf(false) }
-    var tasbihCount by remember { mutableStateOf(0) }
-    /*if (onViewDetailClick != null) {
-        OutlinedButton(
-            onClick = onViewDetailClick,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
-        ) {
-            Text("View Detailed Dua & Meanings →", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-        }
-    }*/
+    val context = LocalContext.current
+    val translation = if (language == "ur" && !dua.translationUr.isNullOrBlank()) {
+        dua.translationUr
+    } else {
+        dua.translationEn
+    }
+    val arabicPreview = if (dua.arabicText.length > 90) {
+        dua.arabicText.take(90).trimEnd() + "…"
+    } else {
+        dua.arabicText
+    }
+
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .then(
-                if (onViewDetailClick != null) Modifier.clickable { onViewDetailClick() } else Modifier
-            ),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        onClick = {
-            onViewDetailClick?.invoke()
-        }
+        onClick = { onViewDetailClick?.invoke() },
+        modifier = Modifier.fillMaxWidth(),
+        enabled = onViewDetailClick != null,
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f))
     ) {
         Column(
-            modifier = Modifier.padding(18.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Header: Category, Type & Grading
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.75f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
@@ -514,343 +556,85 @@ fun DuaCard(
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 1,
                             modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                         )
                     }
-
-                    if (dua.sourceType == "quran" || dua.sourceType == "both") {
-                        Surface(
-                            color = Color(0xFFE6F4EA),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Quran",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF137333),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-
-                    if (dua.sourceType == "hadith" || dua.sourceType == "both") {
-                        Surface(
-                            color = Color(0xFFFEF7E0),
-                            shape = RoundedCornerShape(8.dp)
-                        ) {
-                            Text(
-                                text = "Hadith",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFFB06000),
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
+                    DuaSourceBadge(sourceType = dua.sourceType)
                 }
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                IconButton(
+                    onClick = {
+                        ShareHelper.shareDua(
+                            context = context,
+                            title = dua.title,
+                            arabicText = dua.arabicText,
+                            translation = translation,
+                            reference = dua.quranReference ?: dua.hadithReference
+                        )
+                    },
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    if (dua.hadithGrading != null) {
-                        Text(
-                            text = dua.hadithGrading,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.outline,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    val context = LocalContext.current
-                    IconButton(
-                        onClick = {
-                            val trans = if (language == "ur" && !dua.translationUr.isNullOrBlank()) {
-                                dua.translationUr
-                            } else {
-                                dua.translationEn
-                            }
-                            val ref = dua.quranReference ?: dua.hadithReference
-                            ShareHelper.shareDua(
-                                context = context,
-                                title = dua.title,
-                                arabicText = dua.arabicText,
-                                translation = trans,
-                                reference = ref
-                            )
-                        },
-                        modifier = Modifier.size(28.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Share,
-                            contentDescription = "Share Dua",
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    Icon(
+                        imageVector = Icons.Default.Share,
+                        contentDescription = "Share Dua",
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
 
-            // Title & Description
             Text(
                 text = dua.title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 2
             )
 
-            if (!dua.description.isNullOrBlank()) {
+            Text(
+                text = arabicPreview,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Medium,
+                textAlign = TextAlign.End,
+                lineHeight = 34.sp,
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.onSurface,
+                fontFamily = androidx.compose.ui.text.font.FontFamily.Serif
+            )
+
+            Text(
+                text = translation,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 3,
+                textAlign = if (language == "ur") TextAlign.End else TextAlign.Start,
+                lineHeight = 20.sp
+            )
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val ref = dua.quranReference ?: dua.hadithReference
                 Text(
-                    text = dua.description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = ref?.takeIf { it.isNotBlank() } ?: if (dua.repeatCount > 1) "Repeat ${dua.repeatCount}×" else "Open details",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    modifier = Modifier.weight(1f)
                 )
-            }
-
-            // Arabic Text (Large & Legible)
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                if (onViewDetailClick != null) {
                     Text(
-                        text = dua.arabicText,
-                        fontSize = 24.sp,
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.End,
-                        lineHeight = 42.sp,
-                        modifier = Modifier.fillMaxWidth(),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    if (!dua.transliteration.isNullOrBlank()) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = dua.transliteration,
-                            style = MaterialTheme.typography.bodySmall,
-                            fontStyle = FontStyle.Italic,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                }
-            }
-
-            // Translation Box
-            Surface(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-            ) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Text(
-                        text = if (language == "ur" && !dua.translationUr.isNullOrBlank()) {
-                            dua.translationUr
-                        } else {
-                            dua.translationEn
-                        },
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        textAlign = if (language == "ur") TextAlign.End else TextAlign.Start,
-                        lineHeight = 22.sp,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            // Word-by-Word Toggle Button & Matrix
-            if (!dua.wordByWord.isNullOrEmpty()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "Word-by-Word Breakdown",
+                        text = "Open →",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
-                    TextButton(onClick = { isWordByWordExpanded = !isWordByWordExpanded }) {
-                        Text(
-                            text = if (isWordByWordExpanded) "Hide Words ▲" else "View Words ▼",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-
-                AnimatedVisibility(visible = isWordByWordExpanded) {
-                    Column(
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-                            .padding(10.dp)
-                    ) {
-                        dua.wordByWord.chunked(3).forEach { chunk ->
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                chunk.forEach { word ->
-                                    Card(
-                                        modifier = Modifier.weight(1f),
-                                        shape = RoundedCornerShape(10.dp),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                                    ) {
-                                        Column(
-                                            modifier = Modifier.padding(6.dp),
-                                            horizontalAlignment = Alignment.CenterHorizontally
-                                        ) {
-                                            Text(
-                                                text = word.arabic,
-                                                fontSize = 16.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                textAlign = TextAlign.Center
-                                            )
-                                            Text(
-                                                text = word.transliteration,
-                                                fontSize = 9.sp,
-                                                color = MaterialTheme.colorScheme.outline,
-                                                fontStyle = FontStyle.Italic
-                                            )
-                                            Spacer(modifier = Modifier.height(2.dp))
-                                            Text(
-                                                text = if (language == "ur" && word.meaningUr != null) word.meaningUr else word.meaningEn,
-                                                fontSize = 10.sp,
-                                                fontWeight = FontWeight.SemiBold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                textAlign = TextAlign.Center
-                                            )
-                                        }
-                                    }
-                                }
-                                // Fill missing slots if row has fewer than 3 words
-                                repeat(3 - chunk.size) {
-                                    Spacer(modifier = Modifier.weight(1f))
-                                }
-                            }
-                        }
-                    }
                 }
             }
-
-            // Expandable Spiritual Commentary
-            if (!dua.meaningExplanation.isNullOrBlank() || !dua.benefitsAndVirtues.isNullOrBlank()) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-                    modifier = Modifier.clickable { isCommentaryExpanded = !isCommentaryExpanded }
-                ) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "💡 Deep Meaning & Virtues",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Icon(
-                                imageVector = if (isCommentaryExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                                contentDescription = null,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-
-                        AnimatedVisibility(visible = isCommentaryExpanded) {
-                            Column(
-                                modifier = Modifier.padding(top = 8.dp),
-                                verticalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                if (!dua.meaningExplanation.isNullOrBlank()) {
-                                    Text(
-                                        text = dua.meaningExplanation,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                                if (!dua.benefitsAndVirtues.isNullOrBlank()) {
-                                    Text(
-                                        text = "Virtues: ${dua.benefitsAndVirtues}",
-                                        style = MaterialTheme.typography.bodySmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // References & Sunnah Tasbih Counter Bar
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Citation
-                Column {
-                    if (!dua.quranReference.isNullOrBlank()) {
-                        Text(
-                            text = "📖 ${dua.quranReference}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
-                    if (!dua.hadithReference.isNullOrBlank()) {
-                        Text(
-                            text = "📜 ${dua.hadithReference}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFB06000)
-                        )
-                    }
-                }
-
-                // Sunnah Tasbih Counter Button
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    FilledTonalButton(
-                        onClick = {
-                            if (tasbihCount < dua.repeatCount) {
-                                tasbihCount++
-                            }
-                        },
-                        shape = RoundedCornerShape(12.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = "📿 $tasbihCount / ${dua.repeatCount}",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    if (tasbihCount > 0) {
-                        IconButton(
-                            onClick = { tasbihCount = 0 },
-                            modifier = Modifier.size(28.dp)
-                        ) {
-                            Icon(Icons.Default.Refresh, contentDescription = "Reset", modifier = Modifier.size(16.dp))
-                        }
-                    }
-                }
-            }
-
-
         }
     }
 }

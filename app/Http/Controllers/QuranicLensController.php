@@ -6,6 +6,7 @@ use App\Models\QuranicLensAnalysis;
 use App\Models\QuranicLensWordTag;
 use App\Models\QuranicLensVerseTag;
 use App\Services\GeminiService;
+use App\Services\QuranTranslationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Cache;
@@ -339,6 +340,21 @@ class QuranicLensController extends Controller
 
             $verseIds = $rawVerses->pluck('id')->toArray();
 
+            $localTranslationByVerseId = [];
+            try {
+                $localTranslationRows = \Illuminate\Support\Facades\DB::table('translations')
+                    ->whereIn('verse_id', $verseIds)
+                    ->where('language', 'en')
+                    ->get(['verse_id', 'text']);
+                foreach ($localTranslationRows as $row) {
+                    if (!isset($localTranslationByVerseId[$row->verse_id])) {
+                        $localTranslationByVerseId[$row->verse_id] = trim(strip_tags((string) $row->text));
+                    }
+                }
+            } catch (\Throwable $e) {
+                $localTranslationByVerseId = [];
+            }
+
             $hasHadith = \Illuminate\Support\Facades\DB::table('quran_hadith_links')
                 ->whereIn('verse_id', $verseIds)
                 ->where('status', 'approved')
@@ -383,18 +399,13 @@ class QuranicLensController extends Controller
                 ->unique()
                 ->toArray();
 
-            $verses = $rawVerses->map(function ($v) use ($hasHadith, $hasSeerat, $hasScience, $hasHistory, $hasBible, $hasTorah) {
-                $translation = \Illuminate\Support\Facades\DB::table('translations')
-                    ->where('verse_id', $v->id)
-                    ->where('language', 'en')
-                    ->first();
-
+            $verses = $rawVerses->map(function ($v) use ($hasHadith, $hasSeerat, $hasScience, $hasHistory, $hasBible, $hasTorah, $localTranslationByVerseId) {
                 return [
                     'id' => $v->id,
                     'verse_number' => $v->verse_number,
                     'verse_key' => $v->surah_id . ':' . $v->verse_number,
                     'text_uthmani' => $v->text_arabic,
-                    'translation' => $translation ? strip_tags($translation->text) : '',
+                    'translation' => $localTranslationByVerseId[$v->id] ?? '',
                     'juz' => $v->juz,
                     'has_hadith' => in_array($v->id, $hasHadith),
                     'has_seerat' => in_array($v->id, $hasSeerat),
@@ -408,9 +419,37 @@ class QuranicLensController extends Controller
             $verses = [];
         }
 
+        $translationEditions = [];
+        $translationsByVerse = [];
+        $defaultTranslationId = 'en.sahih';
+        try {
+            $translationService = app(QuranTranslationService::class);
+            $remoteByVerse = $translationService->forSurah($chapter);
+            $translationEditions = $translationService->editionsPresent($remoteByVerse);
+            $defaultTranslationId = $translationEditions[0]['id'] ?? 'en.sahih';
+            foreach ($remoteByVerse as $verseNumber => $items) {
+                $translationsByVerse[(string) $verseNumber] = [];
+                foreach ($items as $item) {
+                    $translationsByVerse[(string) $verseNumber][$item['id']] = $item['text'];
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::warning('Unable to load web translations for surah', [
+                'surah' => $chapter,
+                'message' => $e->getMessage(),
+            ]);
+        }
+
         $isSurahRead = auth()->check() ? in_array($surahInfo['id'], auth()->user()->getCompletedSurahs()) : false;
 
-        return view('quranic-lens.surah', compact('surahInfo', 'verses', 'isSurahRead'));
+        return view('quranic-lens.surah', compact(
+            'surahInfo',
+            'verses',
+            'isSurahRead',
+            'translationEditions',
+            'translationsByVerse',
+            'defaultTranslationId'
+        ));
     }
 
     /**
@@ -477,19 +516,26 @@ class QuranicLensController extends Controller
 
         $translationsList = [];
         foreach ($localTranslations as $trans) {
+            $language = $trans->language ?? 'en';
             $translationsList[] = [
                 'author_name' => $trans->translator ?: 'Unknown Translator',
-                'text' => $trans->text
+                'text' => $trans->text,
+                'language' => $language,
             ];
         }
 
-        // Default fallback if no translations found
-        if (empty($translationsList)) {
-            $translationsList[] = [
-                'author_name' => 'Default Translator',
-                'text' => ''
-            ];
+        try {
+            $remoteTranslations = app(QuranTranslationService::class)->forVerse($chapter, $verse);
+        } catch (\Throwable $e) {
+            Log::warning('Unable to load web translations for verse', [
+                'surah' => $chapter,
+                'verse' => $verse,
+                'message' => $e->getMessage(),
+            ]);
+            $remoteTranslations = [];
         }
+
+        $translationsList = app(QuranTranslationService::class)->mergeWithLocal($translationsList, $remoteTranslations);
 
         // Build word list by splitting Arabic text and transliteration
         $arabicWords = preg_split('/\s+/u', trim($localVerse->text_arabic));
@@ -758,6 +804,16 @@ class QuranicLensController extends Controller
             'lens_type' => 'required|string|in:tafsir,hadith,seerat,science,biology,maths,history,bible,torah,psychology',
         ]);
 
+        $userId = (int) Auth::id();
+        $dailyKey = 'gemini_ai_draft:'.$userId.':'.now()->toDateString();
+        $used = (int) Cache::get($dailyKey, 0);
+        if ($used >= 20) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Daily AI draft limit reached. Please try again tomorrow.',
+            ], 429);
+        }
+
         try {
             $analysis = $gemini->generateVerseLensAnalysis(
                 $request->chapter_number,
@@ -768,6 +824,8 @@ class QuranicLensController extends Controller
             );
 
             if ($analysis) {
+                Cache::put($dailyKey, $used + 1, now()->endOfDay());
+
                 return response()->json([
                     'success' => true,
                     'analysis' => trim($analysis)

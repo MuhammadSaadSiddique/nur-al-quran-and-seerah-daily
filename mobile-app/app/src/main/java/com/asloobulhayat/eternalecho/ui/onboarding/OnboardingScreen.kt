@@ -424,8 +424,8 @@ fun OnboardingScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = activeColor)
                     ) {
                         Text(
-                            text = if (currentStep == steps.size - 1) "Begin Journey ✨" else "Next",
-                            fontWeight = FontWeight.Black,
+                            text = if (currentStep == steps.size - 1) "Begin journey" else "Next",
+                            fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = Color.White
                         )

@@ -7,7 +7,7 @@
 @push('schema')
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "BreadcrumbList",
     "itemListElement": [
         {
@@ -33,7 +33,7 @@
 </script>
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "Chapter",
     "name": "Surah {{ $surahInfo['name_simple'] }} ({{ $surahInfo['translated_name']['name'] }})",
     "position": {{ $surahInfo['id'] }},
@@ -116,6 +116,23 @@
         </div>
     @endif
 
+    @if(!empty($translationEditions))
+        <div class="bg-white border border-slate-100 rounded-3xl shadow-sm p-4 md:p-5 space-y-3">
+            <div class="flex items-center justify-between gap-3">
+                <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Translation</p>
+                <p class="text-[10px] font-bold text-slate-400">AlQuran Cloud</p>
+            </div>
+            <div class="flex flex-wrap gap-2">
+                <template x-for="edition in editions" :key="edition.id">
+                    <button type="button" @click="setEdition(edition.id)"
+                        class="px-3 py-1.5 rounded-full text-xs font-black border transition-all"
+                        :class="selectedEdition === edition.id ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-slate-50 text-slate-600 border-slate-200 hover:border-emerald-300'"
+                        x-text="edition.name"></button>
+                </template>
+            </div>
+        </div>
+    @endif
+
     {{-- Verses List --}}
     <div class="space-y-4">
         @foreach($verses as $verse)
@@ -135,10 +152,11 @@
                         {{ $verse['text_uthmani'] }}
                     </div>
 
-                    {{-- English Translation --}}
-                    <div class="text-slate-600 font-medium text-sm leading-relaxed max-w-4xl">
-                        {{ $verse['translation'] }}
-                    </div>
+                    {{-- Selected translation (English or Urdu) --}}
+                    <div class="text-slate-600 font-medium text-sm leading-relaxed max-w-4xl"
+                        :dir="translationDirection()"
+                        :class="translationDirection() === 'rtl' ? 'text-right text-base leading-loose' : ''"
+                        x-text="verseTranslation({{ (int) $verse['verse_number'] }}, @js($verse['translation'] ?? ''))">{{ $verse['translation'] }}</div>
 
                     {{-- Relational Mapping Indicators --}}
                     @if(($verse['has_hadith'] ?? false) || ($verse['has_seerat'] ?? false) || ($verse['has_science'] ?? false) || ($verse['has_history'] ?? false) || ($verse['has_bible'] ?? false) || ($verse['has_torah'] ?? false))
@@ -219,11 +237,46 @@
 @push('scripts')
 <script>
     function surahReader(surahId, initialRead) {
+        const editions = @json($translationEditions ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+        const translationsByVerse = @json($translationsByVerse ?? [], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
+        const defaultEdition = @json($defaultTranslationId ?? 'en.sahih');
+        let storedEdition = '';
+        try {
+            storedEdition = localStorage.getItem('quran_translation_id') || '';
+        } catch (e) {}
+
         return {
             surahId: surahId,
             isRead: initialRead,
             loading: false,
             toastMessage: '',
+            editions: editions,
+            translationsByVerse: translationsByVerse,
+            selectedEdition: (storedEdition && editions.some(item => item.id === storedEdition)) ? storedEdition : defaultEdition,
+
+            setEdition(id) {
+                this.selectedEdition = id;
+                try {
+                    localStorage.setItem('quran_translation_id', id);
+                } catch (e) {}
+            },
+
+            verseTranslation(verseNumber, fallback) {
+                const bucket = this.translationsByVerse[verseNumber] || this.translationsByVerse[String(verseNumber)] || {};
+                if (bucket[this.selectedEdition]) {
+                    return bucket[this.selectedEdition];
+                }
+                const firstId = this.editions[0] && this.editions[0].id;
+                if (firstId && bucket[firstId]) {
+                    return bucket[firstId];
+                }
+                return fallback || '';
+            },
+
+            translationDirection() {
+                const edition = this.editions.find(item => item.id === this.selectedEdition) || this.editions[0];
+                return edition && edition.direction === 'rtl' ? 'rtl' : 'ltr';
+            },
 
             async toggleRead() {
                 this.loading = true;

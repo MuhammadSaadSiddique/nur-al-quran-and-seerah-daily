@@ -44,6 +44,7 @@ import com.asloobulhayat.eternalecho.data.ConnectionsData
 import com.asloobulhayat.eternalecho.data.DefaultDataRepository
 import com.asloobulhayat.eternalecho.data.ResearchContribution
 import com.asloobulhayat.eternalecho.data.Verse
+import com.asloobulhayat.eternalecho.data.VerseTranslation
 import com.asloobulhayat.eternalecho.security.SecurePreferences
 import com.asloobulhayat.eternalecho.theme.EternalEchoMobileTheme
 import com.asloobulhayat.eternalecho.ui.research.ContributeResearchBottomSheet
@@ -61,14 +62,12 @@ fun SurahScreen(
     viewModel: SurahScreenViewModel = viewModel(key = "surah_$surahNumber") { SurahScreenViewModel(surahNumber, DefaultDataRepository()) }
 ) {
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Surah #$surahNumber", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
+                title = "Surah $surahNumber",
+                onBackClick = onBackClick,
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 actions = {
                     val context = LocalContext.current
                     IconButton(onClick = {
@@ -76,22 +75,20 @@ fun SurahScreen(
                     }) {
                         Icon(imageVector = Icons.Default.Share, contentDescription = "Share Surah")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         }
     ) { paddingValues ->
-        SurahReaderContent(
-            surahNumber = surahNumber,
-            initialVerseNumber = initialVerseNumber,
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues),
-            viewModel = viewModel
-        )
+        com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
+            SurahReaderContent(
+                surahNumber = surahNumber,
+                initialVerseNumber = initialVerseNumber,
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(paddingValues),
+                viewModel = viewModel
+            )
+        }
     }
 }
 
@@ -105,6 +102,12 @@ fun SurahReaderContent(
 ) {
     val versesState by viewModel.versesState.collectAsStateWithLifecycle()
     val connectionsState by viewModel.connectionsState.collectAsStateWithLifecycle()
+    val translationsLoading by viewModel.translationsLoading.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val prefs = remember { SecurePreferences.getInstance(context) }
+    var selectedEditionId by remember {
+        mutableStateOf(prefs.getString("quran_translation_id", "en.sahih") ?: "en.sahih")
+    }
 
     var activeVerseNumber by remember { mutableStateOf<Int?>(initialVerseNumber) }
     var initialCategory by remember { mutableStateOf("all") }
@@ -144,21 +147,55 @@ fun SurahReaderContent(
                 }
             }
             is VersesUiState.Success -> {
-                LazyColumn(
-                    state = listState,
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
-                ) {
-                    items(state.data, key = { it.verseNumber }) { verse ->
-                        VerseItem(
-                            verse = verse,
-                            onOpenCategory = { category ->
-                                activeVerseNumber = verse.verseNumber
-                                initialCategory = category
-                                viewModel.loadConnections(verse.verseNumber)
-                            }
-                        )
+                val editions = state.data.firstNotNullOfOrNull { verse ->
+                    verse.translations.takeIf { it.isNotEmpty() }
+                }.orEmpty()
+
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (translationsLoading && editions.isEmpty()) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, top = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                            Text(
+                                text = "Loading translations…",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    TranslationEditionBar(
+                        editions = editions,
+                        selectedId = selectedEditionId,
+                        onSelect = { editionId ->
+                            selectedEditionId = editionId
+                            prefs.putString("quran_translation_id", editionId)
+                        }
+                    )
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        items(state.data, key = { it.verseNumber }) { verse ->
+                            VerseItem(
+                                verse = verse,
+                                selectedEditionId = selectedEditionId,
+                                onOpenCategory = { category ->
+                                    activeVerseNumber = verse.verseNumber
+                                    initialCategory = category
+                                    viewModel.loadConnections(verse.verseNumber)
+                                }
+                            )
+                        }
                     }
                 }
 
@@ -170,6 +207,7 @@ fun SurahReaderContent(
                         surahNumber = surahNumber,
                         verseNumber = activeVerseNumber!!,
                         verse = currentVerse,
+                        selectedEditionId = selectedEditionId,
                         totalVerses = totalVerses,
                         connectionsState = connectionsState,
                         initialCategory = initialCategory,
@@ -191,12 +229,55 @@ fun SurahReaderContent(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun TranslationEditionBar(
+    editions: List<VerseTranslation>,
+    selectedId: String,
+    onSelect: (String) -> Unit
+) {
+    if (editions.isEmpty()) return
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 16.dp, top = 12.dp)
+    ) {
+        Text(
+            text = "Translation",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(editions, key = { it.id }) { edition ->
+                FilterChip(
+                    selected = edition.id == selectedId,
+                    onClick = { onSelect(edition.id) },
+                    label = {
+                        Text(
+                            text = edition.name,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                )
+            }
+        }
+    }
+}
+
 @Composable
 fun VerseItem(
     verse: Verse,
     onOpenCategory: (category: String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedEditionId: String = "en.sahih"
 ) {
+    val chosen = verse.translationFor(selectedEditionId)
+    val translationText = chosen?.text?.takeIf { it.isNotBlank() } ?: verse.textTransliteration
+    val isRtl = chosen?.direction == "rtl"
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -249,7 +330,7 @@ fun VerseItem(
                                 context = context,
                                 verseKey = verse.verseKey,
                                 arabicText = verse.textArabic,
-                                translation = verse.textTransliteration
+                                translation = translationText
                             )
                         },
                         modifier = Modifier.size(28.dp)
@@ -279,12 +360,35 @@ fun VerseItem(
 
             Spacer(modifier = Modifier.height(10.dp))
 
+            if (!chosen?.name.isNullOrBlank()) {
+                Text(
+                    text = chosen.name.uppercase(),
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+            }
+
             Text(
-                text = verse.textTransliteration,
+                text = translationText,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                lineHeight = 20.sp
+                color = MaterialTheme.colorScheme.onSurface,
+                lineHeight = if (isRtl) 28.sp else 22.sp,
+                textAlign = if (isRtl) TextAlign.Right else TextAlign.Start,
+                modifier = Modifier.fillMaxWidth()
             )
+
+            if (chosen != null && verse.textTransliteration.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = verse.textTransliteration,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontStyle = FontStyle.Italic,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    lineHeight = 18.sp
+                )
+            }
 
             Spacer(modifier = Modifier.height(14.dp))
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f))
@@ -386,6 +490,7 @@ fun QuranicLinkageBottomSheet(
     verseNumber: Int,
     verse: Verse?,
     totalVerses: Int,
+    selectedEditionId: String = "en.sahih",
     connectionsState: ConnectionsUiState,
     initialCategory: String,
     onDismiss: () -> Unit,
@@ -402,6 +507,9 @@ fun QuranicLinkageBottomSheet(
     val userName = remember { prefs.getString("user_name", "") ?: "" }
     val userEmail = remember { prefs.getString("user_email", "") ?: "" }
     val isLoggedIn = userId > 0
+    val chosenTranslation = verse?.translationFor(selectedEditionId)
+    val translationText = chosenTranslation?.text?.takeIf { it.isNotBlank() }
+        ?: verse?.textTransliteration.orEmpty()
     val repository = remember { DefaultDataRepository() }
     val scope = rememberCoroutineScope()
 
@@ -529,7 +637,7 @@ fun QuranicLinkageBottomSheet(
                                     context = context,
                                     verseKey = verse.verseKey,
                                     arabicText = verse.textArabic,
-                                    translation = verse.textTransliteration
+                                    translation = translationText
                                 )
                             } else {
                                 ShareHelper.shareApp(context, "Explore Surah $surahNumber : Ayah $verseNumber linkages on Eternal Echo!")
@@ -570,13 +678,15 @@ fun QuranicLinkageBottomSheet(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
-                        if (verse.textTransliteration.isNotBlank()) {
+                        if (translationText.isNotBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = verse.textTransliteration,
+                                text = translationText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
+                                textAlign = if (chosenTranslation?.direction == "rtl") TextAlign.Right else TextAlign.Start,
+                                modifier = Modifier.fillMaxWidth(),
+                                maxLines = 3,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }

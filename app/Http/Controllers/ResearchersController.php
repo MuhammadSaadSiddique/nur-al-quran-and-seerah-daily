@@ -24,7 +24,7 @@ class ResearchersController extends Controller
     }
 
     /**
-     * Join the research team.
+     * Request to join the research team (does not self-grant privileges).
      */
     public function join(Request $request)
     {
@@ -33,11 +33,14 @@ class ResearchersController extends Controller
             return redirect()->route('login');
         }
 
-        $user->is_researcher = true;
-        $user->save();
+        if ($user->is_researcher || $user->is_admin) {
+            return redirect()->route('researchers.index')
+                ->with('success', 'You are already a member of the research team.');
+        }
 
+        // Privilege elevation is admin-only via Admin\UserController::toggleResearcher.
         return redirect()->route('researchers.index')
-            ->with('success', 'Welcome to the Research Team! You now have researcher permissions to approve analyses and tags.');
+            ->with('success', 'Thank you for your interest. An administrator must grant researcher access before you can approve analyses and tags.');
     }
 
     /**

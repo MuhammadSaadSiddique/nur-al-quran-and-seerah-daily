@@ -36,17 +36,30 @@
                         placeholder="Enter a display name..."
                         class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all">
                 </div>
+                @if(!empty($user->password))
+                <div class="space-y-2">
+                    <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Current Password</label>
+                    <input type="password" name="current_password" placeholder="Required to change password..."
+                        class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all">
+                    @error('current_password')
+                        <p class="text-rose-500 text-xs font-bold ml-1">{{ $message }}</p>
+                    @enderror
+                </div>
+                @endif
                 <div class="space-y-2">
                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">
                         @if(empty($user->password))
                             Set Your Password
                         @else
-                            Password (Leave blank to keep current)
+                            New Password (Leave blank to keep current)
                         @endif
                     </label>
                     <input type="password" name="password" placeholder="Enter new password..."
                         class="w-full p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 outline-none transition-all"
                         {{ empty($user->password) ? 'required' : '' }}>
+                    @error('password')
+                        <p class="text-rose-500 text-xs font-bold ml-1">{{ $message }}</p>
+                    @enderror
                 </div>
                 <button type="submit"
                     class="w-full bg-emerald-600 text-white py-4 rounded-xl font-black hover:bg-emerald-700 transition-all active:scale-[0.99]">
@@ -98,6 +111,33 @@
             @else
                 <div class="bg-emerald-50 text-emerald-800 border border-emerald-200 p-4 rounded-xl text-center text-xs font-bold">
                     Alhamdulillah! Your streak is active today. Return tomorrow to continue your learning journey.
+                </div>
+            @endif
+
+            @if(!empty($engagement))
+                @php
+                    $pPct = (int) ($engagement['progress_percent'] ?? 0);
+                    $pDone = (int) ($engagement['completed_count'] ?? 0);
+                    $pTotal = (int) ($engagement['total'] ?? 4);
+                @endphp
+                <div class="pt-2 border-t border-amber-100/80 space-y-3">
+                    <div class="flex items-center justify-between">
+                        <p class="text-[10px] font-black uppercase tracking-widest text-slate-400">Today's Devotion</p>
+                        <span class="text-xs font-black text-emerald-700">{{ $pDone }}/{{ $pTotal }} · {{ $pPct }}%</span>
+                    </div>
+                    <div class="h-2 rounded-full bg-amber-100 overflow-hidden">
+                        <div class="h-full rounded-full bg-emerald-500 transition-all" style="width: {{ $pPct }}%"></div>
+                    </div>
+                    <ul class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        @foreach(($engagement['activities'] ?? []) as $activity)
+                            <li>
+                                <a href="{{ $activity['href'] }}" class="flex items-center gap-2 text-xs font-bold {{ $activity['done'] ? 'text-emerald-700' : 'text-slate-600 hover:text-slate-900' }}">
+                                    <span>{{ $activity['done'] ? '✓' : '○' }}</span>
+                                    <span class="{{ $activity['done'] ? 'line-through opacity-75' : '' }}">{{ $activity['label'] }}</span>
+                                </a>
+                            </li>
+                        @endforeach
+                    </ul>
                 </div>
             @endif
         </div>

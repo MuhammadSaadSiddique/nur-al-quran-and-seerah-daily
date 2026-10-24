@@ -58,12 +58,7 @@
                     android:scheme="eternalecho" />
             </intent-filter>
         </activity>
-        <activity
-            android:name=".AppActivity"
-            android:exported="false"
-            android:launchMode="singleTop"
-            android:resizeableActivity="true"
-            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize" />
+
 
         <service
             android:name=".notifications.EternalEchoMessagingService"
@@ -79,6 +74,10 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
             android:resource="@drawable/eternal" />
+        <!-- Compose tabs and routes are logged manually. Automatic reporting only sees MainActivity. -->
+        <meta-data
+            android:name="google_analytics_automatic_screen_reporting_enabled"
+            android:value="false" />
     </application>
 
 </manifest>

@@ -881,11 +881,11 @@ try {
             break;
 
         case 'insights':
-            // Web-parity: serve GeneratedQuestion reflections (SEERAH_INSIGHT / QURAN_HISTORY)
-            // with title + content + knowledge-check — same data model as /seerah and /quran-history.
-            $seerahPage = max(1, isset($_GET['seerah_page']) ? (int)$_GET['seerah_page'] : 1);
-            $historyPage = max(1, isset($_GET['history_page']) ? (int)$_GET['history_page'] : 1);
-            $limit = 5;
+            // Web-parity: one daily reflection at a time (limit=1) from GeneratedQuestion
+            // SEERAH_INSIGHT / QURAN_HISTORY — same model as /seerah and /quran-history.
+            $seerahPageRaw = isset($_GET['seerah_page']) ? trim((string)$_GET['seerah_page']) : 'daily';
+            $historyPageRaw = isset($_GET['history_page']) ? trim((string)$_GET['history_page']) : 'daily';
+            $limit = isset($_GET['limit']) ? max(1, min((int)$_GET['limit'], 20)) : 1;
 
             $seerahCategory = isset($_GET['seerah_category']) && $_GET['seerah_category'] !== '' ? trim((string)$_GET['seerah_category']) : null;
             $historyCategory = isset($_GET['history_category']) && $_GET['history_category'] !== '' ? trim((string)$_GET['history_category']) : null;
@@ -897,6 +897,16 @@ try {
             }
 
             $insightUser = \App\Services\MobileApiAuthService::userFromRequest();
+
+            $resolveInsightPage = static function (string $raw, int $total): int {
+                if ($total <= 0) {
+                    return 1;
+                }
+                if ($raw === '' || strtolower($raw) === 'daily' || $raw === '0') {
+                    return (((int) date('z')) % $total) + 1;
+                }
+                return max(1, min((int) $raw, $total));
+            };
 
             $mapReflectionRows = static function (array $rows, string $markType, $user): array {
                 $events = [];
@@ -932,7 +942,7 @@ try {
                 return $events;
             };
 
-            $loadReflections = static function (string $type, int $page, ?string $difficulty, int $limit) use ($pdo, $isSqlite, $mapReflectionRows, $insightUser): array {
+            $loadReflections = static function (string $type, string $pageRaw, ?string $difficulty, int $limit) use ($pdo, $mapReflectionRows, $insightUser, $resolveInsightPage): array {
                 $where = 'WHERE type = :type';
                 $params = ['type' => $type];
                 if (in_array($difficulty, ['Easy', 'Medium', 'Hard'], true)) {
@@ -943,8 +953,12 @@ try {
                 $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM generated_questions $where");
                 $stmtCount->execute($params);
                 $total = (int) $stmtCount->fetchColumn();
-                $totalPages = max(1, (int) ceil($total / $limit));
-                $page = min($page, $totalPages);
+                $totalPages = max(1, (int) ceil(max(1, $total) / $limit));
+                // For limit=1, total pages == total reflections.
+                if ($limit === 1) {
+                    $totalPages = max(1, $total);
+                }
+                $page = $resolveInsightPage($pageRaw, $totalPages);
                 $offset = ($page - 1) * $limit;
 
                 $stmt = $pdo->prepare(
@@ -977,8 +991,8 @@ try {
                 ];
             };
 
-            $seerahBundle = $loadReflections('SEERAH_INSIGHT', $seerahPage, $seerahCategory, $limit);
-            $historyBundle = $loadReflections('QURAN_HISTORY', $historyPage, $historyCategory, $limit);
+            $seerahBundle = $loadReflections('SEERAH_INSIGHT', $seerahPageRaw, $seerahCategory, $limit);
+            $historyBundle = $loadReflections('QURAN_HISTORY', $historyPageRaw, $historyCategory, $limit);
 
             // Fallback to catalog events only if no web-style reflections exist yet.
             if (($seerahBundle['total'] ?? 0) === 0 && ($historyBundle['total'] ?? 0) === 0) {

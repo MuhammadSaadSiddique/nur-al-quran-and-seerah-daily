@@ -58,9 +58,17 @@ fun SurahScreen(
     surahNumber: Int,
     initialVerseNumber: Int? = null,
     onBackClick: () -> Unit,
+    onAuthClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SurahScreenViewModel = viewModel(key = "surah_$surahNumber") { SurahScreenViewModel(surahNumber, DefaultDataRepository()) }
 ) {
+    val context = LocalContext.current
+    val prefs = remember { SecurePreferences.getInstance(context) }
+    val scope = rememberCoroutineScope()
+    val repository = remember { DefaultDataRepository() }
+    var isMarkedRead by remember { mutableStateOf(false) }
+    var isMarkingRead by remember { mutableStateOf(false) }
+
     Scaffold(
         containerColor = Color.Transparent,
         topBar = {
@@ -69,7 +77,55 @@ fun SurahScreen(
                 onBackClick = onBackClick,
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 actions = {
-                    val context = LocalContext.current
+                    TextButton(
+                        onClick = {
+                            val userId = prefs.getInt("user_id", -1)
+                            val token = prefs.getString("api_token", null).orEmpty()
+                            if (userId <= 0 || token.isBlank()) {
+                                onAuthClick()
+                                return@TextButton
+                            }
+                            if (isMarkedRead || isMarkingRead) return@TextButton
+                            isMarkingRead = true
+                            scope.launch {
+                                try {
+                                    com.asloobulhayat.eternalecho.data.ApiClient.authToken = token
+                                    val result = repository.toggleSurahRead(userId, surahNumber)
+                                    result.onSuccess { readResult ->
+                                        // Toggle API: if already marked, first tap unmarks — remake once.
+                                        if (!readResult.isRead) {
+                                            repository.toggleSurahRead(userId, surahNumber).onSuccess { remake ->
+                                                isMarkedRead = remake.isRead
+                                                remake.engagement?.let {
+                                                    com.asloobulhayat.eternalecho.data.EngagementBus.publish(it)
+                                                }
+                                                    ?: com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
+                                            }
+                                        } else {
+                                            isMarkedRead = true
+                                            readResult.engagement?.let {
+                                                com.asloobulhayat.eternalecho.data.EngagementBus.publish(it)
+                                            }
+                                                ?: com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
+                                        }
+                                    }
+                                } finally {
+                                    isMarkingRead = false
+                                }
+                            }
+                        },
+                        enabled = !isMarkedRead && !isMarkingRead
+                    ) {
+                        Text(
+                            text = when {
+                                isMarkingRead -> "Saving…"
+                                isMarkedRead -> "✓ Read"
+                                else -> "Mark Read"
+                            },
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 12.sp
+                        )
+                    }
                     IconButton(onClick = {
                         ShareHelper.shareSurah(context, surahNumber)
                     }) {

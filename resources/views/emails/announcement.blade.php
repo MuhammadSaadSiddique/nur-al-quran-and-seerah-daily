@@ -88,6 +88,11 @@
         <div class="body">
             <h2>Assalamu Alaikum {{ $user->display_name ?: explode('@', $user->email)[0] }}!</h2>
             <p>{{ $announcementContent }}</p>
+            @if(!empty($actionUrl))
+                <p style="margin-bottom: 0;">
+                    <a href="{{ $actionUrl }}" style="display: inline-block; background: #047857; color: #ffffff; text-decoration: none; font-weight: 700; font-size: 14px; padding: 12px 20px; border-radius: 12px;">Open link</a>
+                </p>
+            @endif
         </div>
         <div class="footer">
             <p>© {{ date('Y') }} The Eternal Echo. All rights reserved.</p>

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
+import com.asloobulhayat.eternalecho.analytics.ScreenAnalytics
 import com.asloobulhayat.eternalecho.util.ShareHelper
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -265,13 +266,20 @@ class PlayThemeQuizViewModel(
                 )
                 if (success) {
                     isScoreSubmitted = true
+                    // submitQuiz already marks quiz locally; nudge Home to re-read store.
+                    com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
                     onComplete?.invoke(true)
                 } else {
+                    // Score may be queued offline — still count the quiz habit locally.
+                    com.asloobulhayat.eternalecho.data.EngagementBus.markLocal("quiz")
+                    com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
                     submissionError = "Could not record score. Please try again."
                     onComplete?.invoke(false)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("PlayThemeQuizViewModel", "Failed to submit quiz score", e)
+                com.asloobulhayat.eternalecho.data.EngagementBus.markLocal("quiz")
+                com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
                 submissionError = e.message ?: "Failed to submit quiz score"
                 onComplete?.invoke(false)
             } finally {
@@ -307,6 +315,10 @@ fun ThemeSelectionScreen(
     val context = LocalContext.current
     val prefs = remember { SecurePreferences.getInstance(context) }
     var showLimitDialog by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedTab) {
+        ScreenAnalytics.logQuizThemeTab(context, selectedTab)
+    }
 
     fun checkAndLaunch(action: () -> Unit) {
         val currentIsLoggedIn = prefs.getInt("user_id", -1) != -1
@@ -1483,11 +1495,13 @@ fun QuizQuestionCard(
     questionText: String,
     modifier: Modifier = Modifier
 ) {
+    val scheme = MaterialTheme.colorScheme
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        colors = CardDefaults.cardColors(containerColor = scheme.surface),
+        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
@@ -1495,13 +1509,12 @@ fun QuizQuestionCard(
                 .padding(22.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Delicate Islamic Rosette Watermarks in the corners
             IslamicGeometricRosette(
                 modifier = Modifier
                     .size(80.dp)
                     .align(Alignment.TopStart)
                     .offset(x = (-24).dp, y = (-24).dp),
-                strokeColor = Color(0xFF065F46).copy(alpha = 0.08f),
+                strokeColor = scheme.primary.copy(alpha = 0.12f),
                 strokeWidth = 1.dp
             )
             IslamicGeometricRosette(
@@ -1509,16 +1522,16 @@ fun QuizQuestionCard(
                     .size(80.dp)
                     .align(Alignment.BottomEnd)
                     .offset(x = 24.dp, y = 24.dp),
-                strokeColor = Color(0xFF065F46).copy(alpha = 0.08f),
+                strokeColor = scheme.primary.copy(alpha = 0.12f),
                 strokeWidth = 1.dp
             )
 
             Text(
                 text = questionText,
-                color = Color(0xFF0F172A),
+                color = scheme.onSurface,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.5.sp,
+                    fontSize = 18.sp,
                     lineHeight = 26.sp,
                     textAlign = TextAlign.Center
                 ),
@@ -1544,30 +1557,30 @@ fun QuizOptionsList(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         options.forEachIndexed { index, option ->
+            val scheme = MaterialTheme.colorScheme
             val letter = ('A'.code + index).toChar()
             val isSelected = selectedOptionIndex == index
             val isCorrect = index == correctAnswerIndex
 
-            // Color scheme matching mockup: unselected is clean light pill, selected is emerald with checkmark
             val containerColor = when {
-                !isConfirmed -> if (isSelected) Color(0xFF07452E) else Color.White
-                isCorrect -> Color(0xFF07452E)
-                isSelected && !isCorrect -> Color(0xFF7F1D1D)
-                else -> Color(0xFFF8FAFC).copy(alpha = 0.8f)
+                !isConfirmed -> if (isSelected) scheme.primary else scheme.surface
+                isCorrect -> scheme.primary
+                isSelected && !isCorrect -> scheme.error
+                else -> scheme.surfaceVariant.copy(alpha = 0.45f)
             }
 
             val textColor = when {
-                !isConfirmed -> if (isSelected) Color.White else Color(0xFF0F172A)
-                isCorrect -> Color.White
-                isSelected && !isCorrect -> Color.White
-                else -> Color(0xFF64748B)
+                !isConfirmed -> if (isSelected) scheme.onPrimary else scheme.onSurface
+                isCorrect -> scheme.onPrimary
+                isSelected && !isCorrect -> scheme.onError
+                else -> scheme.onSurfaceVariant
             }
 
             val borderStroke = when {
-                !isConfirmed -> if (isSelected) BorderStroke(2.dp, Color(0xFF10B981)) else BorderStroke(1.dp, Color(0xFFE2E8F0))
-                isCorrect -> BorderStroke(2.dp, Color(0xFF10B981))
-                isSelected && !isCorrect -> BorderStroke(2.dp, Color(0xFFEF4444))
-                else -> BorderStroke(1.dp, Color(0xFFE2E8F0))
+                !isConfirmed -> if (isSelected) BorderStroke(2.dp, scheme.primary) else BorderStroke(1.dp, scheme.outlineVariant)
+                isCorrect -> BorderStroke(2.dp, scheme.primary)
+                isSelected && !isCorrect -> BorderStroke(2.dp, scheme.error)
+                else -> BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.5f))
             }
 
             Surface(
@@ -1585,7 +1598,8 @@ fun QuizOptionsList(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 15.dp),
+                        .padding(horizontal = 18.dp, vertical = 16.dp)
+                        .defaultMinSize(minHeight = 52.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {

@@ -81,6 +81,20 @@ object DeepLinkHelper {
         return "$BASE_WEB_URL/${trimmed.trimStart('/')}"
     }
 
+    /**
+     * An http(s) address that does not map to an in-app screen.
+     * Returns null for app paths such as /duas or /lens/2/255.
+     */
+    fun externalWebUrl(urlString: String?): String? {
+        if (urlString.isNullOrBlank()) return null
+        if (parse(urlString) != null) return null
+
+        val absolute = toAbsoluteUrl(urlString)
+        val lower = absolute.lowercase()
+        if (!lower.startsWith("https://") && !lower.startsWith("http://")) return null
+        return absolute
+    }
+
     fun parse(urlString: String?): DeepLinkDestination? {
         if (urlString.isNullOrBlank()) return null
 

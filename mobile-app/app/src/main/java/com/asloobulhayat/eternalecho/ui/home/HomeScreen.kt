@@ -490,7 +490,7 @@ fun DailyEngagementChecklistCard(
                 )
                 Text(
                     text = if (engagement == null) {
-                        "Sign in to track today's habits"
+                        "Sign in to sync today's devotion checklist"
                     } else {
                         "Complete any habit to keep your streak"
                     },

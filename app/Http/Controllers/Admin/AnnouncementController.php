@@ -34,6 +34,15 @@ class AnnouncementController extends Controller
         $request->validate([
             'subject' => 'required|string|max:255',
             'content' => 'required|string|min:5',
+            'action_url' => ['nullable', 'string', 'max:500', function (string $attribute, mixed $value, \Closure $fail) {
+                $url = trim((string) $value);
+                if ($url === '') {
+                    return;
+                }
+                if (!preg_match('#^(https?://|eternalecho://|/)#i', $url)) {
+                    $fail('The link must be an app path (like /duas) or an http(s) URL.');
+                }
+            }],
         ]);
 
         $sendPush = $request->has('send_push') ? $request->boolean('send_push') : true;
@@ -48,6 +57,7 @@ class AnnouncementController extends Controller
             'title' => $request->subject,
             'message' => $request->content,
             'type' => 'announcement',
+            'action_url' => $this->normalizeActionUrl($request->input('action_url')),
             'sent_by' => auth()->id(),
             'send_push' => $sendPush,
             'send_email' => $sendEmail,
@@ -68,7 +78,12 @@ class AnnouncementController extends Controller
 
             foreach ($users as $user) {
                 try {
-                    Mail::to($user->email)->send(new AdminAnnouncementMail($request->subject, $request->content, $user));
+                    Mail::to($user->email)->send(new AdminAnnouncementMail(
+                        $request->subject,
+                        $request->content,
+                        $user,
+                        $notification->action_url
+                    ));
                     $sentEmailCount++;
                 } catch (\Exception $e) {
                     Log::error("Failed to send announcement email to {$user->email}: " . $e->getMessage());
@@ -80,5 +95,18 @@ class AnnouncementController extends Controller
 
         $summary = implode(' and ', $messages);
         return back()->with('success', "✅ Announcement published successfully! {$summary}.");
+    }
+
+    private function normalizeActionUrl(mixed $url): ?string
+    {
+        $url = trim((string) $url);
+        if ($url === '') {
+            return null;
+        }
+        if (preg_match('#^https?://#i', $url) || str_starts_with(strtolower($url), 'eternalecho://')) {
+            return $url;
+        }
+
+        return 'https://theeternalecho.asloobulhayat.com/' . ltrim($url, '/');
     }
 }

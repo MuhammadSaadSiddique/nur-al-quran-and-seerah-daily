@@ -79,12 +79,6 @@ class PushNotificationService
                     'Content-Type' => 'application/json',
                 ])->timeout(10)->post('https://fcm.googleapis.com/fcm/send', [
                     'registration_ids' => $chunk,
-                    'notification' => [
-                        'title' => $notification->title,
-                        'body' => $notification->message,
-                        'sound' => 'default',
-                        'click_action' => 'OPEN_MAIN_ACTIVITY',
-                    ],
                     'data' => [
                         'notification_id' => (string)$notification->id,
                         'title' => $notification->title,
@@ -138,10 +132,6 @@ class PushNotificationService
                     ->post($endpoint, [
                         'message' => [
                             'token' => $token,
-                            'notification' => [
-                                'title' => $notification->title,
-                                'body' => $notification->message,
-                            ],
                             'data' => [
                                 'notification_id' => (string)$notification->id,
                                 'title' => $notification->title,
@@ -152,10 +142,6 @@ class PushNotificationService
                             ],
                             'android' => [
                                 'priority' => 'HIGH',
-                                'notification' => [
-                                    'channel_id' => 'eternal_echo_announcements',
-                                    'sound' => 'default',
-                                ],
                             ],
                         ],
                     ]);

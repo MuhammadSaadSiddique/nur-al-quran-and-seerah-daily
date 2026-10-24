@@ -17,8 +17,8 @@ interface DataRepository {
     ): AllConnectionsResponse
     suspend fun getLeaderboard(): List<LeaderboardUser>
     suspend fun getInsights(
-        seerahPage: Int = 1,
-        historyPage: Int = 1,
+        seerahPage: Int = 0,
+        historyPage: Int = 0,
         seerahCategory: String = "",
         historyCategory: String = ""
     ): InsightsData
@@ -69,6 +69,8 @@ interface DataRepository {
     suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> = Result.success(DailyEngagement())
     suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> = Result.success(DailyEngagement())
     suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> = Result.success(null)
+    suspend fun toggleSurahRead(userId: Int, surah: Int): Result<ApiClient.SurahReadResult> =
+        Result.success(ApiClient.SurahReadResult(isRead = false, engagement = null))
     suspend fun getResearchContributions(
         tab: String = "published",
         category: String = "all",
@@ -220,10 +222,18 @@ class DefaultDataRepository : DataRepository {
         userAnswersJson: String,
         attemptToken: String
     ): Boolean {
-        return ApiClient.submitQuiz(
+        // Habit checklist updates immediately; score sync may still be pending offline.
+        DailyEngagementStore.markLocal("quiz")
+        val ok = ApiClient.submitQuiz(
             userId, type, title, score, totalQuestions, difficulty,
             questionsJson, userAnswersJson, attemptToken
         )
+        if (ok) {
+            ApiClient.getDailyEngagement(userId).getOrNull()?.let {
+                DailyEngagementStore.applyServer(it)
+            }
+        }
+        return ok
     }
 
     override suspend fun getDuas(category: String, search: String, sourceType: String): List<Dua> {
@@ -255,15 +265,52 @@ class DefaultDataRepository : DataRepository {
     }
 
     override suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> {
-        return ApiClient.getDailyEngagement(userId)
+        val cached = DailyEngagementStore.snapshot()
+        val remote = ApiClient.getDailyEngagement(userId)
+        return remote.fold(
+            onSuccess = { Result.success(DailyEngagementStore.applyServer(it)) },
+            onFailure = { Result.success(cached) }
+        )
     }
 
     override suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> {
-        return ApiClient.markEngagement(userId, activity)
+        val local = DailyEngagementStore.markLocal(activity)
+        val remote = ApiClient.markEngagement(userId, activity)
+        return remote.fold(
+            onSuccess = { Result.success(DailyEngagementStore.applyServer(it)) },
+            onFailure = { Result.success(local) }
+        )
     }
 
     override suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> {
-        return ApiClient.markInsight(userId, type, insightId)
+        val local = DailyEngagementStore.markLocal("insight")
+        val remote = ApiClient.markInsight(userId, type, insightId)
+        return remote.fold(
+            onSuccess = { engagement ->
+                Result.success(engagement?.let { DailyEngagementStore.applyServer(it) } ?: local)
+            },
+            onFailure = { Result.success(local) }
+        )
+    }
+
+    override suspend fun toggleSurahRead(userId: Int, surah: Int): Result<ApiClient.SurahReadResult> {
+        // Optimistic read habit — Home updates even if the network call fails.
+        DailyEngagementStore.markLocal("read")
+        val remote = ApiClient.toggleSurahRead(userId, surah)
+        return remote.fold(
+            onSuccess = { result ->
+                result.engagement?.let { DailyEngagementStore.applyServer(it) }
+                Result.success(result)
+            },
+            onFailure = {
+                Result.success(
+                    ApiClient.SurahReadResult(
+                        isRead = true,
+                        engagement = DailyEngagementStore.snapshot()
+                    )
+                )
+            }
+        )
     }
 
     private fun getFallbackDuas(category: String, search: String, sourceType: String): List<Dua> {

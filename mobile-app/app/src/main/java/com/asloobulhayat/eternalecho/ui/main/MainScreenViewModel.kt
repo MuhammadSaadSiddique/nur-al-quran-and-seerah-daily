@@ -26,9 +26,10 @@ class MainScreenViewModel(private val dataRepository: DataRepository) : ViewMode
     private val _allConnectionsState = MutableStateFlow<AllConnectionsUiState>(AllConnectionsUiState.Loading)
     val allConnectionsState: StateFlow<AllConnectionsUiState> = _allConnectionsState.asStateFlow()
 
-    var currentSeerahPage = 1
+    /** 0 = API "daily" (day-of-year insight); after load, holds resolved page. */
+    var currentSeerahPage = 0
         private set
-    var currentHistoryPage = 1
+    var currentHistoryPage = 0
         private set
     var currentSeerahCategory = ""
         private set

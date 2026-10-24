@@ -502,12 +502,17 @@ object ApiClient {
     }
 
     suspend fun fetchInsights(
-        seerahPage: Int = 1,
-        historyPage: Int = 1,
+        seerahPage: Int = 0,
+        historyPage: Int = 0,
         seerahCategory: String = "",
         historyCategory: String = ""
     ): InsightsData {
-        val url = "$BASE_URL?action=insights&seerah_page=$seerahPage&history_page=$historyPage&seerah_category=$seerahCategory&history_category=$historyCategory"
+        // page 0 / negative => "daily" (server picks today's reflection)
+        val seerahPageParam = if (seerahPage <= 0) "daily" else seerahPage.toString()
+        val historyPageParam = if (historyPage <= 0) "daily" else historyPage.toString()
+        val encodedSeerahCat = URLEncoder.encode(seerahCategory, "UTF-8")
+        val encodedHistoryCat = URLEncoder.encode(historyCategory, "UTF-8")
+        val url = "$BASE_URL?action=insights&limit=1&seerah_page=$seerahPageParam&history_page=$historyPageParam&seerah_category=$encodedSeerahCat&history_category=$encodedHistoryCat"
         val jsonStr = makeGetRequest(url)
         val jsonObj = JSONObject(jsonStr)
         val dataObj = jsonObj.getJSONObject("data")
@@ -1234,7 +1239,12 @@ object ApiClient {
         }
     }
 
-    suspend fun toggleSurahRead(userId: Int, surah: Int): Result<DailyEngagement?> = withContext(Dispatchers.IO) {
+    data class SurahReadResult(
+        val isRead: Boolean,
+        val engagement: DailyEngagement?
+    )
+
+    suspend fun toggleSurahRead(userId: Int, surah: Int): Result<SurahReadResult> = withContext(Dispatchers.IO) {
         try {
             val params = mapOf(
                 "user_id" to userId.toString(),
@@ -1245,7 +1255,12 @@ object ApiClient {
             if (jsonObj.optString("status") == "success") {
                 val data = jsonObj.optJSONObject("data")
                 val engagementObj = data?.optJSONObject("engagement")
-                Result.success(engagementObj?.let { parseDailyEngagement(it) })
+                Result.success(
+                    SurahReadResult(
+                        isRead = data?.optBoolean("is_read", false) ?: false,
+                        engagement = engagementObj?.let { parseDailyEngagement(it) }
+                    )
+                )
             } else {
                 Result.failure(Exception(jsonObj.optString("message", "Unable to toggle surah.")))
             }

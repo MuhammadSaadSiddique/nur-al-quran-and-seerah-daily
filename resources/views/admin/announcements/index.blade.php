@@ -92,6 +92,13 @@
             </div>
 
             <div class="space-y-2">
+                <label class="text-[11px] font-black uppercase text-slate-500 tracking-wider">Open this link when tapped <span class="normal-case tracking-normal font-semibold text-slate-400">(optional)</span></label>
+                <input type="text" name="action_url" value="{{ old('action_url') }}" placeholder="/duas or https://theeternalecho.asloobulhayat.com/lens/2/255"
+                    class="w-full p-4 rounded-xl border-2 border-slate-100 bg-white font-medium text-slate-800 focus:border-emerald-500 outline-none transition-all text-sm shadow-sm" />
+                <p class="text-xs text-slate-500">App paths open inside the app. Any other https link opens in the browser.</p>
+            </div>
+
+            <div class="space-y-2">
                 <label class="text-[11px] font-black uppercase text-slate-500 tracking-wider">Message Content</label>
                 <textarea name="content" rows="6" placeholder="Type the message to be received by app users and email subscribers..." required
                     class="w-full p-4 rounded-xl border-2 border-slate-100 bg-white font-medium text-slate-800 focus:border-emerald-500 outline-none transition-all text-sm leading-relaxed shadow-sm">{{ old('content') }}</textarea>
@@ -161,8 +168,11 @@
                                 <td class="py-4 px-4 font-bold text-slate-800">
                                     {{ $item->title }}
                                 </td>
-                                <td class="py-4 px-4 text-slate-600 max-w-xs truncate">
-                                    {{ Str::limit($item->message, 80) }}
+                                <td class="py-4 px-4 text-slate-600 max-w-xs">
+                                    <div class="truncate">{{ Str::limit($item->message, 80) }}</div>
+                                    @if($item->action_url)
+                                        <div class="text-[11px] text-emerald-700 truncate mt-1">{{ $item->action_url }}</div>
+                                    @endif
                                 </td>
                                 <td class="py-4 px-4 whitespace-nowrap">
                                     <div class="flex items-center gap-1.5">

@@ -19,6 +19,7 @@ import com.asloobulhayat.eternalecho.ui.auth.*
 import com.asloobulhayat.eternalecho.ui.onboarding.OnboardingScreen
 import com.asloobulhayat.eternalecho.ui.duas.DuasScreen
 import com.asloobulhayat.eternalecho.ui.duas.DuaDetailScreen
+import com.asloobulhayat.eternalecho.ui.insights.InsightQuizScreen
 import com.asloobulhayat.eternalecho.data.SurahNavKey
 import com.asloobulhayat.eternalecho.security.SecurePreferences
 
@@ -26,12 +27,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import com.asloobulhayat.eternalecho.analytics.ScreenAnalytics
 import com.asloobulhayat.eternalecho.util.DeepLinkDestination
 
 @Composable
 fun MainNavigation(
     deepLinkDestination: DeepLinkDestination? = null,
-    onDeepLinkHandled: () -> Unit = {}
+    onDeepLinkHandled: () -> Unit = {},
+    announcementsRequest: Int = 0
 ) {
   val context = LocalContext.current
   val prefs = remember { SecurePreferences.getInstance(context) }
@@ -92,6 +95,18 @@ fun MainNavigation(
     }
   }
 
+  // When returning to Main from Surah / Quiz / Insight / Dua, force home stats to reload.
+  val topRoute = backStack.lastOrNull()
+  LaunchedEffect(topRoute) {
+    if (topRoute == Main) {
+      com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
+    }
+  }
+
+  LaunchedEffect(topRoute, mainTab) {
+    ScreenAnalytics.logVisibleScreen(context, topRoute, mainTab)
+  }
+
   NavDisplay(
     backStack = backStack,
     onBack = { backStack.removeLastOrNull() },
@@ -111,6 +126,7 @@ fun MainNavigation(
             initialTab = mainTab,
             tabRequestId = tabRequestId,
             onTabSelected = { mainTab = it },
+            announcementsRequest = announcementsRequest,
             modifier = Modifier
           )
         }
@@ -150,6 +166,7 @@ fun MainNavigation(
             surahNumber = surahNumber,
             initialVerseNumber = verseNumber,
             onBackClick = { backStack.removeLastOrNull() },
+            onAuthClick = { backStack.add(AuthRoute) },
             modifier = Modifier.safeDrawingPadding().padding(4.dp)
           )
         }
@@ -183,6 +200,18 @@ fun MainNavigation(
           AuthScreen(
             onBackClick = { backStack.removeLastOrNull() },
             modifier = Modifier.safeDrawingPadding().padding(16.dp)
+          )
+        }
+        entry<InsightQuizRoute> { key ->
+          InsightQuizScreen(
+            markType = key.markType,
+            questionId = key.questionId,
+            insightTitle = key.insightTitle,
+            questionText = key.questionText,
+            options = key.options,
+            onBackClick = { backStack.removeLastOrNull() },
+            onAuthClick = { backStack.add(AuthRoute) },
+            modifier = Modifier.safeDrawingPadding()
           )
         }
       },

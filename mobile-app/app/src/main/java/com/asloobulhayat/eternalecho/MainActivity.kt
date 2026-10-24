@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -30,6 +31,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 class MainActivity : ComponentActivity() {
 
   private var currentDeepLink by mutableStateOf<DeepLinkDestination?>(null)
+  private var announcementsRequest by mutableIntStateOf(0)
 
   private val requestPermissionLauncher = registerForActivityResult(
     ActivityResultContracts.RequestPermission()
@@ -65,6 +67,13 @@ class MainActivity : ComponentActivity() {
       NotificationSyncWorker.triggerImmediateSync(this)
     }
 
+    // Restore Sanctum token before any Compose/API work (daily engagement, streaks, etc.).
+    val savedToken = com.asloobulhayat.eternalecho.security.SecurePreferences
+      .getInstance(this)
+      .getString("api_token", null)
+    com.asloobulhayat.eternalecho.data.ApiClient.authToken = savedToken
+    com.asloobulhayat.eternalecho.data.DailyEngagementStore.init(this)
+
     enableEdgeToEdge()
     setContent {
       EternalEchoMobileTheme {
@@ -79,7 +88,8 @@ class MainActivity : ComponentActivity() {
         ) {
           MainNavigation(
             deepLinkDestination = currentDeepLink,
-            onDeepLinkHandled = { currentDeepLink = null }
+            onDeepLinkHandled = { currentDeepLink = null },
+            announcementsRequest = announcementsRequest
           )
         }
       }
@@ -102,13 +112,24 @@ class MainActivity : ComponentActivity() {
       NotificationRepository.getInstance(this).markAsRead(notificationId)
     }
 
+    if (intent.getBooleanExtra("EXTRA_SHOW_ANNOUNCEMENTS", false)) {
+      announcementsRequest += 1
+    }
+
     // Parse deep link from intent URI or notification action URL
     val actionUrl = intent.getStringExtra("EXTRA_ACTION_URL")
       ?: intent.getStringExtra("action_url")
     val targetUri = intent.data ?: actionUrl?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
-    targetUri?.let { uri ->
-      DeepLinkHelper.parse(uri)?.let { destination ->
-        currentDeepLink = destination
+    val destination = targetUri?.let { DeepLinkHelper.parse(it) }
+    if (destination != null) {
+      currentDeepLink = destination
+    } else {
+      val external = DeepLinkHelper.externalWebUrl(actionUrl ?: targetUri?.toString())
+      if (!external.isNullOrBlank()) {
+        try {
+          startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(external)))
+        } catch (_: Exception) {
+        }
       }
     }
   }

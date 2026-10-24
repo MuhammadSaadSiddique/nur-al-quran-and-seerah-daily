@@ -2,7 +2,6 @@ package com.asloobulhayat.eternalecho.ui.notifications
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -172,10 +171,8 @@ fun NotificationsBottomSheet(
                     items(notifications, key = { it.id }) { item ->
                         NotificationCard(
                             item = item,
-                            onClick = {
-                                onMarkAsRead(item.id)
-                                onOpen(item)
-                            }
+                            onMarkAsRead = { onMarkAsRead(item.id) },
+                            onOpen = { onOpen(item) }
                         )
                     }
                 }
@@ -187,11 +184,14 @@ fun NotificationsBottomSheet(
 @Composable
 fun NotificationCard(
     item: NotificationItem,
-    onClick: () -> Unit,
+    onMarkAsRead: () -> Unit,
+    onOpen: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
     val typeLabel = item.type.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    val hasLink = !item.actionUrl.isNullOrBlank()
+    val canReadMore = item.message.length > 120 || item.message.count { it == '\n' } >= 3
 
     Surface(
         shape = RoundedCornerShape(16.dp),
@@ -208,12 +208,7 @@ fun NotificationCard(
                 MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
             }
         ),
-        modifier = modifier
-            .fillMaxWidth()
-            .clickable {
-                expanded = !expanded
-                onClick()
-            }
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(14.dp),
@@ -285,13 +280,38 @@ fun NotificationCard(
                 lineHeight = 20.sp
             )
 
-            if (!expanded && item.message.length > 120) {
-                Text(
-                    text = "Tap to read more",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.primary,
-                    fontWeight = FontWeight.Bold
-                )
+            if (canReadMore || hasLink) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (canReadMore || expanded) {
+                        TextButton(
+                            onClick = {
+                                expanded = !expanded
+                                onMarkAsRead()
+                            },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = if (expanded) "Show less" else "Read more",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                    if (hasLink) {
+                        TextButton(
+                            onClick = onOpen,
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Open",
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             }
         }
     }

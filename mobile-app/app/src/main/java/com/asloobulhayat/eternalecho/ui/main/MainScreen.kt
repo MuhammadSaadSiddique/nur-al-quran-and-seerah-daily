@@ -53,6 +53,7 @@ import androidx.navigation3.runtime.NavKey
 import com.asloobulhayat.eternalecho.AuthRoute
 import com.asloobulhayat.eternalecho.DuaDetailRoute
 import com.asloobulhayat.eternalecho.DuasRoute
+import com.asloobulhayat.eternalecho.InsightQuizRoute
 import com.asloobulhayat.eternalecho.OnboardingRoute
 import com.asloobulhayat.eternalecho.ThemeQuizSelection
 import com.asloobulhayat.eternalecho.config.AppConfig
@@ -82,6 +83,7 @@ fun MainScreen(
     initialTab: Int = 0,
     tabRequestId: Int = 0,
     onTabSelected: (Int) -> Unit = {},
+    announcementsRequest: Int = 0,
     viewModel: MainScreenViewModel = viewModel { MainScreenViewModel(DefaultDataRepository()) }
 ) {
     var selectedTab by remember { mutableIntStateOf(initialTab) }
@@ -101,6 +103,12 @@ fun MainScreen(
     val notifications by notificationRepo.notifications.collectAsState()
     val unreadCount by notificationRepo.unreadCount.collectAsState()
     var showNotificationsSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(announcementsRequest) {
+        if (announcementsRequest > 0) {
+            showNotificationsSheet = true
+        }
+    }
 
 
     LaunchedEffect(Unit) {
@@ -143,53 +151,57 @@ fun MainScreen(
         prefs.remove("has_password")
         ApiClient.authToken = null
         userHasPassword = false
-    }
-
-    LaunchedEffect(loginStateRefresh) {
-        ApiClient.authToken = prefs.getString("api_token", null)
-        // Drop stale pre-token sessions that look logged-in but always 401.
-        if (prefs.getInt("user_id", -1) > 0 && prefs.getString("api_token", null).isNullOrBlank()) {
-            clearLocalSession()
-            authVersion++
-        }
+        DailyEngagementStore.clear()
     }
 
     val repository = remember { DefaultDataRepository() }
 
-    var streakDays by remember { mutableIntStateOf(prefs.getInt("current_streak", 0)) }
-    var longestStreak by remember { mutableIntStateOf(prefs.getInt("longest_streak", 0)) }
-    var isStreakActiveToday by remember { mutableStateOf(prefs.getBoolean("is_streak_active_today", false)) }
-    var dailyEngagement by remember { mutableStateOf<com.asloobulhayat.eternalecho.data.DailyEngagement?>(null) }
+    // Offline-first: Home always reads from the local engagement store (synced when online).
+    LaunchedEffect(Unit) {
+        DailyEngagementStore.init(context)
+    }
+    val dailyEngagement by DailyEngagementStore.engagement.collectAsStateWithLifecycle()
+    val engagementSyncTick by DailyEngagementStore.syncTick.collectAsStateWithLifecycle()
+    var engagementRefreshTick by remember { mutableIntStateOf(0) }
 
-    LaunchedEffect(userId, loginStateRefresh) {
-        if (userId > 0) {
-            QuizSubmissionHelper.submitPendingQuizIfAny(
-                repository,
-                prefs,
-                userId
-            )
-            val engagementRes = repository.getDailyEngagement(userId)
-            engagementRes.getOrNull()?.let { engagement ->
-                dailyEngagement = engagement
-                streakDays = engagement.streak.currentStreak
-                longestStreak = engagement.streak.longestStreak
-                isStreakActiveToday = engagement.streak.isActiveToday
-                prefs.putInt("current_streak", engagement.streak.currentStreak)
-                prefs.putInt("longest_streak", engagement.streak.longestStreak)
-                prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
-            } ?: run {
-                val res = repository.getStreakStatus(userId)
-                res.getOrNull()?.let { streak ->
-                    streakDays = streak.currentStreak
-                    longestStreak = streak.longestStreak
-                    isStreakActiveToday = streak.isActiveToday
-                    prefs.putInt("current_streak", streak.currentStreak)
-                    prefs.putInt("longest_streak", streak.longestStreak)
-                    prefs.putBoolean("is_streak_active_today", streak.isActiveToday)
-                }
-            }
-        } else {
-            dailyEngagement = null
+    val streakDays = dailyEngagement?.streak?.currentStreak
+        ?: prefs.getInt("current_streak", 0)
+    val longestStreak = dailyEngagement?.streak?.longestStreak
+        ?: prefs.getInt("longest_streak", 0)
+    val isStreakActiveToday = dailyEngagement?.streak?.isActiveToday
+        ?: prefs.getBoolean("is_streak_active_today", false)
+
+    fun applyEngagement(engagement: com.asloobulhayat.eternalecho.data.DailyEngagement) {
+        DailyEngagementStore.applyServer(engagement)
+    }
+
+    // Keep Bearer token in sync before any authenticated call (avoids 401 race on cold start / login).
+    LaunchedEffect(authKey) {
+        val token = prefs.getString("api_token", null)
+        ApiClient.authToken = token
+        if (prefs.getInt("user_id", -1) > 0 && token.isNullOrBlank()) {
+            clearLocalSession()
+            authVersion++
+            DailyEngagementStore.clear()
+            return@LaunchedEffect
+        }
+        val uid = prefs.getInt("user_id", -1)
+        if (uid > 0 && !token.isNullOrBlank()) {
+            QuizSubmissionHelper.submitPendingQuizIfAny(repository, prefs, uid)
+            repository.getDailyEngagement(uid)
+        } else if (uid <= 0) {
+            // Guest: still show today's local checklist if any marks exist.
+            DailyEngagementStore.init(context)
+        }
+    }
+
+    // Pull latest from server when Home is focused or a nested screen requests sync.
+    LaunchedEffect(selectedTab, engagementRefreshTick, engagementSyncTick, authKey) {
+        val token = prefs.getString("api_token", null)
+        ApiClient.authToken = token
+        val uid = prefs.getInt("user_id", -1)
+        if (uid > 0 && !token.isNullOrBlank()) {
+            repository.getDailyEngagement(uid)
         }
     }
 
@@ -733,7 +745,13 @@ fun MainScreen(
             onMarkAllAsRead = { notificationRepo.markAllAsRead() },
             onOpen = open@{ item ->
                 notificationRepo.markAsRead(item.id)
-                val destination = DeepLinkHelper.parse(item.actionUrl) ?: return@open
+                val destination = DeepLinkHelper.parse(item.actionUrl)
+                if (destination == null) {
+                    val external = DeepLinkHelper.externalWebUrl(item.actionUrl) ?: return@open
+                    showNotificationsSheet = false
+                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(external)))
+                    return@open
+                }
                 showNotificationsSheet = false
                 when (destination) {
                     is DeepLinkDestination.Surah ->
@@ -812,12 +830,7 @@ fun MainScreen(
                     } catch (_: Exception) {}
                 },
                 onStreakUpdated = { updatedStreak ->
-                    streakDays = updatedStreak.currentStreak
-                    longestStreak = updatedStreak.longestStreak
-                    isStreakActiveToday = updatedStreak.isActiveToday
-                    prefs.putInt("current_streak", updatedStreak.currentStreak)
-                    prefs.putInt("longest_streak", updatedStreak.longestStreak)
-                    prefs.putBoolean("is_streak_active_today", updatedStreak.isActiveToday)
+                    DailyEngagementStore.setStreak(updatedStreak)
                 }
             )
         }
@@ -907,41 +920,48 @@ fun MainScreen(
                             scope.launch {
                                 val res = repository.checkInDailyStreak(userId)
                                 res.getOrNull()?.let { streak ->
-                                    streakDays = streak.currentStreak
-                                    longestStreak = streak.longestStreak
-                                    isStreakActiveToday = true
-                                    prefs.putInt("current_streak", streak.currentStreak)
-                                    prefs.putInt("longest_streak", streak.longestStreak)
-                                    prefs.putBoolean("is_streak_active_today", true)
+                                    DailyEngagementStore.setStreak(streak.copy(isActiveToday = true))
+                                } ?: run {
+                                    // Offline fallback: bump local streak.
+                                    val cur = DailyEngagementStore.snapshot().streak
+                                    val next = (cur.currentStreak + 1).coerceAtLeast(1)
+                                    DailyEngagementStore.setStreak(
+                                        cur.copy(
+                                            currentStreak = next,
+                                            longestStreak = maxOf(cur.longestStreak, next),
+                                            isActiveToday = true
+                                        )
+                                    )
                                 }
                             }
                         } else {
-                            streakDays += 1
-                            if (streakDays > longestStreak) longestStreak = streakDays
-                            isStreakActiveToday = true
-                            prefs.putInt("current_streak", streakDays)
-                            prefs.putInt("longest_streak", longestStreak)
-                            prefs.putBoolean("is_streak_active_today", true)
+                            val cur = DailyEngagementStore.snapshot().streak
+                            val next = (cur.currentStreak + 1).coerceAtLeast(1)
+                            DailyEngagementStore.setStreak(
+                                cur.copy(
+                                    currentStreak = next,
+                                    longestStreak = maxOf(cur.longestStreak, next),
+                                    isActiveToday = true
+                                )
+                            )
                         }
                     },
                     onEngagementActivityClick = { activityKey ->
                         when (activityKey) {
                             "quiz" -> onItemClick(ThemeQuizSelection)
-                            "read" -> selectedTab = 5
+                            "read" -> {
+                                selectedTab = 10
+                                // Open a Surah so the user can Mark as Read (records "read" engagement).
+                                onItemClick(SurahNavKey(1))
+                            }
                             "insight" -> selectedTab = 2
                             "dua" -> {
                                 onItemClick(DuasRoute)
-                                if (userId > 0) {
+                                DailyEngagementStore.markLocal("dua")
+                                if (isLoggedIn) {
                                     scope.launch {
-                                        repository.markEngagement(userId, "dua").getOrNull()?.let { engagement ->
-                                            dailyEngagement = engagement
-                                            streakDays = engagement.streak.currentStreak
-                                            longestStreak = engagement.streak.longestStreak
-                                            isStreakActiveToday = engagement.streak.isActiveToday
-                                            prefs.putInt("current_streak", engagement.streak.currentStreak)
-                                            prefs.putInt("longest_streak", engagement.streak.longestStreak)
-                                            prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
-                                        }
+                                        ApiClient.authToken = prefs.getString("api_token", null)
+                                        repository.markEngagement(userId, "dua")
                                     }
                                 }
                             }
@@ -952,14 +972,11 @@ fun MainScreen(
                     onDeepDiveClick = { selectedTab = 5 },
                     onReadDuasClick = {
                         onItemClick(DuasRoute)
-                        if (userId > 0) {
+                        DailyEngagementStore.markLocal("dua")
+                        if (isLoggedIn) {
                             scope.launch {
-                                repository.markEngagement(userId, "dua").getOrNull()?.let { engagement ->
-                                    dailyEngagement = engagement
-                                    streakDays = engagement.streak.currentStreak
-                                    longestStreak = engagement.streak.longestStreak
-                                    isStreakActiveToday = engagement.streak.isActiveToday
-                                }
+                                ApiClient.authToken = prefs.getString("api_token", null)
+                                repository.markEngagement(userId, "dua")
                             }
                         }
                     },
@@ -1007,28 +1024,40 @@ fun MainScreen(
                 2 -> SeerahTab(
                     viewModel = viewModel,
                     onAuthClick = { onItemClick(AuthRoute) },
+                    onTakeQuiz = { event ->
+                        onItemClick(
+                            InsightQuizRoute(
+                                markType = "SEERAH",
+                                questionId = event.questionId.ifBlank { event.id.toString() },
+                                insightTitle = event.title,
+                                questionText = event.questionText,
+                                options = event.options
+                            )
+                        )
+                    },
                     onEngagementUpdated = { engagement ->
-                        dailyEngagement = engagement
-                        streakDays = engagement.streak.currentStreak
-                        longestStreak = engagement.streak.longestStreak
-                        isStreakActiveToday = engagement.streak.isActiveToday
-                        prefs.putInt("current_streak", engagement.streak.currentStreak)
-                        prefs.putInt("longest_streak", engagement.streak.longestStreak)
-                        prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
+                        applyEngagement(engagement)
+                        engagementRefreshTick++
                     },
                     adaptiveInfo = adaptiveInfo
                 )
                 3 -> HistoryTab(
                     viewModel = viewModel,
                     onAuthClick = { onItemClick(AuthRoute) },
+                    onTakeQuiz = { event ->
+                        onItemClick(
+                            InsightQuizRoute(
+                                markType = "QURAN_HISTORY",
+                                questionId = event.questionId.ifBlank { event.id.toString() },
+                                insightTitle = event.title,
+                                questionText = event.questionText,
+                                options = event.options
+                            )
+                        )
+                    },
                     onEngagementUpdated = { engagement ->
-                        dailyEngagement = engagement
-                        streakDays = engagement.streak.currentStreak
-                        longestStreak = engagement.streak.longestStreak
-                        isStreakActiveToday = engagement.streak.isActiveToday
-                        prefs.putInt("current_streak", engagement.streak.currentStreak)
-                        prefs.putInt("longest_streak", engagement.streak.longestStreak)
-                        prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
+                        applyEngagement(engagement)
+                        engagementRefreshTick++
                     },
                     adaptiveInfo = adaptiveInfo
                 )
@@ -1275,11 +1304,14 @@ fun SurahListItemCard(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface
         ),
-        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
+        border = BorderStroke(
+            1.dp,
+            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
+        )
     ) {
         Row(
             modifier = Modifier
@@ -1309,9 +1341,10 @@ fun SurahListItemCard(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        text = surah.nameTranslated,
+                        text = "${surah.nameTranslated} · ${surah.revelationPlace}",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1
                     )
                 }
             }
@@ -1348,7 +1381,7 @@ fun LeaderboardTab(
             modifier = Modifier
                 .fillMaxSize()
                 .widthIn(max = 760.dp)
-                .padding(horizontal = if (adaptiveInfo.widthClass != WindowWidthClass.Compact) 16.dp else 0.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
             SurahThematicQuizCard(onThemeQuizClick)
         when (val uiState = state) {
@@ -1433,6 +1466,7 @@ fun LeaderboardTab(
 fun SeerahItem(
     event: SeerahEvent,
     onAuthClick: () -> Unit,
+    onTakeQuiz: () -> Unit = {},
     onEngagementUpdated: (DailyEngagement) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -1444,7 +1478,9 @@ fun SeerahItem(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1455,7 +1491,7 @@ fun SeerahItem(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = event.title,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
 
@@ -1540,188 +1576,12 @@ fun SeerahItem(
 
             if (event.questionText.isNotEmpty() && event.options.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                var completedQuizzes by remember { mutableIntStateOf(prefs.getInt("completed_quizzes", 0)) }
-                var showLimitDialog by remember { mutableStateOf(false) }
-
-                if (showLimitDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showLimitDialog = false },
-                        title = { Text("Login Required") },
-                        text = { Text("You have completed 1 free guest quiz. Please sign in or create an account to unlock unlimited quizzes!") },
-                        confirmButton = {
-                            Button(onClick = {
-                                showLimitDialog = false
-                                onAuthClick()
-                            }) {
-                                Text("Sign In")
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showLimitDialog = false }) {
-                                Text("Cancel")
-                            }
-                        }
-                    )
-                }
-
-                var selectedOptionIndex by remember { mutableStateOf<Int?>(null) }
-                var revealedCorrectIndex by remember { mutableIntStateOf(-1) }
-                var revealedExplanation by remember { mutableStateOf("") }
-                val hasAnswered = selectedOptionIndex != null
-
-                Text(
-                    text = "Knowledge Check",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                Text(
-                    text = event.questionText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (index in event.options.indices) {
-                        val option = event.options[index]
-                        val isCorrectOption = revealedCorrectIndex >= 0 && index == revealedCorrectIndex
-                        val isSelectedOption = index == selectedOptionIndex
-
-                        val containerColor = when {
-                            !hasAnswered -> MaterialTheme.colorScheme.surface
-                            isCorrectOption -> MaterialTheme.colorScheme.primaryContainer
-                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.errorContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.secondaryContainer
-                            else -> MaterialTheme.colorScheme.surface
-                        }
-
-                        val contentColor = when {
-                            !hasAnswered -> MaterialTheme.colorScheme.onSurface
-                            isCorrectOption -> MaterialTheme.colorScheme.onPrimaryContainer
-                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.onErrorContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.onSecondaryContainer
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-
-                        val borderColor = when {
-                            !hasAnswered -> MaterialTheme.colorScheme.outline
-                            isCorrectOption -> MaterialTheme.colorScheme.primary
-                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.error
-                            isSelectedOption -> MaterialTheme.colorScheme.secondary
-                            else -> MaterialTheme.colorScheme.outlineVariant
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                if (!hasAnswered) {
-                                    val userId = prefs.getInt("user_id", -1)
-                                    val token = prefs.getString("api_token", null).orEmpty()
-                                    val currentIsLoggedIn = userId > 0 && token.isNotBlank()
-                                    val currentCompleted = prefs.getInt("completed_quizzes", 0)
-                                    if (!currentIsLoggedIn && currentCompleted >= 1) {
-                                        showLimitDialog = true
-                                    } else {
-                                        selectedOptionIndex = index
-                                        if (!currentIsLoggedIn) {
-                                            prefs.putInt("completed_quizzes", currentCompleted + 1)
-                                            completedQuizzes = currentCompleted + 1
-                                        } else {
-                                            scope.launch {
-                                                try {
-                                                    val qid = event.questionId.ifBlank { event.id.toString() }
-                                                    if (event.questionId.isNotBlank()) {
-                                                        repository.checkAnswer(
-                                                            event.questionId,
-                                                            index,
-                                                            event.options
-                                                        )?.let { reveal ->
-                                                            revealedCorrectIndex = reveal.correctAnswerIndex
-                                                            revealedExplanation = reveal.explanation
-                                                        }
-                                                    }
-                                                    repository.markInsight(userId, "SEERAH", qid).onSuccess { engagement ->
-                                                        isRead = true
-                                                        engagement?.let(onEngagementUpdated)
-                                                    }
-                                                } catch (e: Exception) {
-                                                    android.util.Log.e("SeerahItem", "Failed to reveal/mark insight", e)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = containerColor,
-                                contentColor = contentColor
-                            ),
-                            border = BorderStroke(1.dp, borderColor)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${(65 + index).toChar()}. $option",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelectedOption) FontWeight.Bold else FontWeight.Normal
-                                )
-                                if (hasAnswered && revealedCorrectIndex >= 0) {
-                                    if (isCorrectOption) {
-                                        Text("✓", fontWeight = FontWeight.Bold)
-                                    } else if (isSelectedOption) {
-                                        Text("✗", fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (hasAnswered && revealedExplanation.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "Deep Insight",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = revealedExplanation,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-
-                if (hasAnswered && prefs.getInt("user_id", -1) == -1) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = {
-                            onAuthClick()
-                        },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Sign Up to Save Score & Join Leaderboard")
-                    }
+                Button(
+                    onClick = onTakeQuiz,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Take Knowledge Check", fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1732,6 +1592,7 @@ fun SeerahItem(
 fun HistoryItem(
     event: HistoryEvent,
     onAuthClick: () -> Unit,
+    onTakeQuiz: () -> Unit = {},
     onEngagementUpdated: (DailyEngagement) -> Unit = {}
 ) {
     val context = LocalContext.current
@@ -1743,7 +1604,9 @@ fun HistoryItem(
 
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp)
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f))
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Row(
@@ -1754,7 +1617,7 @@ fun HistoryItem(
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
                         text = event.title,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold
                     )
 
@@ -1782,7 +1645,7 @@ fun HistoryItem(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
-                        contentDescription = "Share History Milestone",
+                        contentDescription = "Share History Event",
                         modifier = Modifier.size(18.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -1839,191 +1702,18 @@ fun HistoryItem(
 
             if (event.questionText.isNotEmpty() && event.options.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                var completedQuizzes by remember { mutableIntStateOf(prefs.getInt("completed_quizzes", 0)) }
-                var showLimitDialog by remember { mutableStateOf(false) }
-
-                if (showLimitDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showLimitDialog = false },
-                        title = { Text("Login Required") },
-                        text = { Text("You have completed 1 free guest quiz. Please sign in or create an account to unlock unlimited quizzes!") },
-                        confirmButton = {
-                            Button(onClick = {
-                                showLimitDialog = false
-                                onAuthClick()
-                            }) {
-                                Text("Sign In")
-                            }
-                        },
-                        dismissButton = {
-                            TextButton(onClick = { showLimitDialog = false }) {
-                                Text("Cancel")
-                            }
-                        }
-                    )
-                }
-
-                var selectedOptionIndex by remember { mutableStateOf<Int?>(null) }
-                var revealedCorrectIndex by remember { mutableIntStateOf(-1) }
-                var revealedExplanation by remember { mutableStateOf("") }
-                val hasAnswered = selectedOptionIndex != null
-
-                Text(
-                    text = "Knowledge Check",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                )
-
-                Text(
-                    text = event.questionText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(bottom = 12.dp)
-                )
-
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    for (index in event.options.indices) {
-                        val option = event.options[index]
-                        val isCorrectOption = revealedCorrectIndex >= 0 && index == revealedCorrectIndex
-                        val isSelectedOption = index == selectedOptionIndex
-
-                        val containerColor = when {
-                            !hasAnswered -> MaterialTheme.colorScheme.surface
-                            isCorrectOption -> MaterialTheme.colorScheme.primaryContainer
-                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.errorContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.secondaryContainer
-                            else -> MaterialTheme.colorScheme.surface
-                        }
-
-                        val contentColor = when {
-                            !hasAnswered -> MaterialTheme.colorScheme.onSurface
-                            isCorrectOption -> MaterialTheme.colorScheme.onPrimaryContainer
-                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.onErrorContainer
-                            isSelectedOption -> MaterialTheme.colorScheme.onSecondaryContainer
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-
-                        val borderColor = when {
-                            !hasAnswered -> MaterialTheme.colorScheme.outline
-                            isCorrectOption -> MaterialTheme.colorScheme.primary
-                            isSelectedOption && revealedCorrectIndex >= 0 -> MaterialTheme.colorScheme.error
-                            isSelectedOption -> MaterialTheme.colorScheme.secondary
-                            else -> MaterialTheme.colorScheme.outlineVariant
-                        }
-
-                        OutlinedButton(
-                            onClick = {
-                                if (!hasAnswered) {
-                                    val userId = prefs.getInt("user_id", -1)
-                                    val token = prefs.getString("api_token", null).orEmpty()
-                                    val currentIsLoggedIn = userId > 0 && token.isNotBlank()
-                                    val currentCompleted = prefs.getInt("completed_quizzes", 0)
-                                    if (!currentIsLoggedIn && currentCompleted >= 1) {
-                                        showLimitDialog = true
-                                    } else {
-                                        selectedOptionIndex = index
-                                        if (!currentIsLoggedIn) {
-                                            prefs.putInt("completed_quizzes", currentCompleted + 1)
-                                            completedQuizzes = currentCompleted + 1
-                                        } else {
-                                            scope.launch {
-                                                try {
-                                                    val qid = event.questionId.ifBlank { event.id.toString() }
-                                                    if (event.questionId.isNotBlank()) {
-                                                        repository.checkAnswer(
-                                                            event.questionId,
-                                                            index,
-                                                            event.options
-                                                        )?.let { reveal ->
-                                                            revealedCorrectIndex = reveal.correctAnswerIndex
-                                                            revealedExplanation = reveal.explanation
-                                                        }
-                                                    }
-                                                    repository.markInsight(userId, "QURAN_HISTORY", qid).onSuccess { engagement ->
-                                                        isRead = true
-                                                        engagement?.let(onEngagementUpdated)
-                                                    }
-                                                } catch (e: Exception) {
-                                                    android.util.Log.e("HistoryItem", "Failed to reveal/mark insight", e)
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(
-                                containerColor = containerColor,
-                                contentColor = contentColor
-                            ),
-                            border = BorderStroke(1.dp, borderColor)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "${(65 + index).toChar()}. $option",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelectedOption) FontWeight.Bold else FontWeight.Normal
-                                )
-                                if (hasAnswered && revealedCorrectIndex >= 0) {
-                                    if (isCorrectOption) {
-                                        Text("✓", fontWeight = FontWeight.Bold)
-                                    } else if (isSelectedOption) {
-                                        Text("✗", fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                if (hasAnswered && revealedExplanation.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Surface(
-                        color = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(12.dp)) {
-                            Text(
-                                text = "Deep Insight",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.tertiary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = revealedExplanation,
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        }
-                    }
-                }
-
-                if (hasAnswered && prefs.getInt("user_id", -1) == -1) {
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Button(
-                        onClick = { onAuthClick() },
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text("Sign Up to Save Score & Join Leaderboard")
-                    }
+                Button(
+                    onClick = onTakeQuiz,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Take Knowledge Check", fontWeight = FontWeight.Bold)
                 }
             }
         }
     }
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -2089,17 +1779,27 @@ fun CategoryDropdownSelector(
 fun SeerahTab(
     viewModel: MainScreenViewModel,
     onAuthClick: () -> Unit,
+    onTakeQuiz: (SeerahEvent) -> Unit = {},
     onEngagementUpdated: (DailyEngagement) -> Unit = {},
     adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
 ) {
     val state by viewModel.insightsState.collectAsStateWithLifecycle()
-    var selectedEventId by rememberSaveable { mutableIntStateOf(-1) }
 
-    Column(modifier = Modifier.fillMaxSize()) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
         Text(
-            text = "Seerah & Historical Insights",
+            text = "Today's Seerah",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Text(
+            text = "One reflection a day — tap Knowledge Check when you're ready.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(bottom = 16.dp)
         )
 
@@ -2122,182 +1822,69 @@ fun SeerahTab(
             }
             is InsightsUiState.Success -> {
                 val categories = listOf("All") + uiState.data.seerahCategories
-                val selectedEvent = uiState.data.seerahEvents.find { it.id == selectedEventId }
-                    ?: uiState.data.seerahEvents.firstOrNull()
+                val event = uiState.data.seerahEvents.firstOrNull()
 
-                if (adaptiveInfo.isDualPane && selectedEvent != null) {
-                    AdaptiveTwoPane(
-                        adaptiveInfo = adaptiveInfo,
-                        firstPane = {
-                            Column(modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp)) {
-                                CategoryDropdownSelector(
-                                    label = "Category",
-                                    categories = categories,
-                                    selectedCategory = viewModel.currentSeerahCategory,
-                                    onCategorySelected = { viewModel.filterSeerahByCategory(it) }
-                                )
+                CategoryDropdownSelector(
+                    label = "Category",
+                    categories = categories,
+                    selectedCategory = viewModel.currentSeerahCategory,
+                    onCategorySelected = { viewModel.filterSeerahByCategory(it) }
+                )
 
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    if (uiState.data.seerahEvents.isEmpty()) {
-                                        item {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(24.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = "No events found for this category.",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        items(uiState.data.seerahEvents, key = { it.id }) { event ->
-                                            val isSelected = event.id == selectedEvent.id
-                                            Card(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable { selectedEventId = event.id },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                                                ),
-                                                border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
-                                            ) {
-                                                Column(modifier = Modifier.padding(12.dp)) {
-                                                    Text(
-                                                        text = event.title,
-                                                        style = MaterialTheme.typography.titleSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    if (event.category.isNotEmpty()) {
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                        Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                                                            Text(
-                                                                text = event.category,
-                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                                                style = MaterialTheme.typography.labelSmall
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    item {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Button(
-                                                onClick = { viewModel.prevPageSeerah() },
-                                                enabled = uiState.data.seerahPage > 1
-                                            ) {
-                                                Text("Previous")
-                                            }
-                                            Text(
-                                                text = "Page ${uiState.data.seerahPage} of ${uiState.data.seerahTotalPages}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Button(
-                                                onClick = { viewModel.nextPageSeerah() },
-                                                enabled = uiState.data.seerahPage < uiState.data.seerahTotalPages
-                                            ) {
-                                                Text("Next")
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        secondPane = {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (event == null) {
+                        item {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp)
-                            ) {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    item {
-                                        SeerahItem(selectedEvent, onAuthClick, onEngagementUpdated)
-                                    }
-                                }
-                            }
-                        }
-                    )
-                } else {
-                    CategoryDropdownSelector(
-                        label = "Category",
-                        categories = categories,
-                        selectedCategory = viewModel.currentSeerahCategory,
-                        onCategorySelected = { viewModel.filterSeerahByCategory(it) }
-                    )
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (uiState.data.seerahEvents.isEmpty()) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "No events found for this category.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        } else {
-                            items(uiState.data.seerahEvents) { event ->
-                                SeerahItem(event, onAuthClick, onEngagementUpdated)
-                            }
-                        }
-
-                        item {
-                            Row(
-                                modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Button(
-                                    onClick = { viewModel.prevPageSeerah() },
-                                    enabled = uiState.data.seerahPage > 1
-                                ) {
-                                    Text("Previous")
-                                }
                                 Text(
-                                    text = "Page ${uiState.data.seerahPage} of ${uiState.data.seerahTotalPages}",
+                                    text = "No insight found for this category.",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Button(
-                                    onClick = { viewModel.nextPageSeerah() },
-                                    enabled = uiState.data.seerahPage < uiState.data.seerahTotalPages
-                                ) {
-                                    Text("Next")
-                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            SeerahItem(
+                                event = event,
+                                onAuthClick = onAuthClick,
+                                onTakeQuiz = { onTakeQuiz(event) },
+                                onEngagementUpdated = onEngagementUpdated
+                            )
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { viewModel.prevPageSeerah() },
+                                enabled = uiState.data.seerahPage > 1
+                            ) {
+                                Text("Previous")
+                            }
+                            Text(
+                                text = "Day ${uiState.data.seerahPage} of ${uiState.data.seerahTotalPages}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Button(
+                                onClick = { viewModel.nextPageSeerah() },
+                                enabled = uiState.data.seerahPage < uiState.data.seerahTotalPages
+                            ) {
+                                Text("Next")
                             }
                         }
                     }
@@ -2307,33 +1894,35 @@ fun SeerahTab(
     }
 }
 
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryTab(
     viewModel: MainScreenViewModel,
     onAuthClick: () -> Unit,
+    onTakeQuiz: (HistoryEvent) -> Unit = {},
     onEngagementUpdated: (DailyEngagement) -> Unit = {},
     adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
 ) {
     val state by viewModel.insightsState.collectAsStateWithLifecycle()
-    var selectedEventId by rememberSaveable { mutableIntStateOf(-1) }
 
-    Column(modifier = Modifier
-        .fillMaxSize()
-        .padding(horizontal = 4.dp)) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "History Insights",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold
-            )
-        }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = "Today's History",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+        Text(
+            text = "One reflection a day — tap Knowledge Check when you're ready.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
 
         when (val uiState = state) {
             is InsightsUiState.Loading -> {
@@ -2354,182 +1943,69 @@ fun HistoryTab(
             }
             is InsightsUiState.Success -> {
                 val categories = listOf("All") + uiState.data.historyCategories
-                val selectedEvent = uiState.data.historyEvents.find { it.id == selectedEventId }
-                    ?: uiState.data.historyEvents.firstOrNull()
+                val event = uiState.data.historyEvents.firstOrNull()
 
-                if (adaptiveInfo.isDualPane && selectedEvent != null) {
-                    AdaptiveTwoPane(
-                        adaptiveInfo = adaptiveInfo,
-                        firstPane = {
-                            Column(modifier = Modifier
-                                .fillMaxSize()
-                                .padding(12.dp)) {
-                                CategoryDropdownSelector(
-                                    label = "Category",
-                                    categories = categories,
-                                    selectedCategory = viewModel.currentHistoryCategory,
-                                    onCategorySelected = { viewModel.filterHistoryByCategory(it) }
-                                )
+                CategoryDropdownSelector(
+                    label = "Category",
+                    categories = categories,
+                    selectedCategory = viewModel.currentHistoryCategory,
+                    onCategorySelected = { viewModel.filterHistoryByCategory(it) }
+                )
 
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                                ) {
-                                    if (uiState.data.historyEvents.isEmpty()) {
-                                        item {
-                                            Box(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(24.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text(
-                                                    text = "No events found for this category.",
-                                                    style = MaterialTheme.typography.bodyMedium,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
-                                    } else {
-                                        items(uiState.data.historyEvents, key = { it.id }) { event ->
-                                            val isSelected = event.id == selectedEvent.id
-                                            Card(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .clickable { selectedEventId = event.id },
-                                                shape = RoundedCornerShape(12.dp),
-                                                colors = CardDefaults.cardColors(
-                                                    containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-                                                ),
-                                                border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null
-                                            ) {
-                                                Column(modifier = Modifier.padding(12.dp)) {
-                                                    Text(
-                                                        text = event.title,
-                                                        style = MaterialTheme.typography.titleSmall,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
-                                                    )
-                                                    if (event.category.isNotEmpty()) {
-                                                        Spacer(modifier = Modifier.height(4.dp))
-                                                        Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
-                                                            Text(
-                                                                text = event.category,
-                                                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp),
-                                                                style = MaterialTheme.typography.labelSmall
-                                                            )
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-
-                                    item {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(vertical = 8.dp),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Button(
-                                                onClick = { viewModel.prevPageHistory() },
-                                                enabled = uiState.data.historyPage > 1
-                                            ) {
-                                                Text("Previous")
-                                            }
-                                            Text(
-                                                text = "Page ${uiState.data.historyPage} of ${uiState.data.historyTotalPages}",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            Button(
-                                                onClick = { viewModel.nextPageHistory() },
-                                                enabled = uiState.data.historyPage < uiState.data.historyTotalPages
-                                            ) {
-                                                Text("Next")
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        },
-                        secondPane = {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    if (event == null) {
+                        item {
                             Box(
                                 modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(12.dp)
-                            ) {
-                                LazyColumn(
-                                    modifier = Modifier.fillMaxSize(),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    item {
-                                        HistoryItem(selectedEvent, onAuthClick, onEngagementUpdated)
-                                    }
-                                }
-                            }
-                        }
-                    )
-                } else {
-                    CategoryDropdownSelector(
-                        label = "Category",
-                        categories = categories,
-                        selectedCategory = viewModel.currentHistoryCategory,
-                        onCategorySelected = { viewModel.filterHistoryByCategory(it) }
-                    )
-
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (uiState.data.historyEvents.isEmpty()) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(32.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Text(
-                                        text = "No events found for this category.",
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
-                        } else {
-                            items(uiState.data.historyEvents) { event ->
-                                HistoryItem(event, onAuthClick, onEngagementUpdated)
-                            }
-                        }
-
-                        item {
-                            Row(
-                                modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(vertical = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                                    .padding(32.dp),
+                                contentAlignment = Alignment.Center
                             ) {
-                                Button(
-                                    onClick = { viewModel.prevPageHistory() },
-                                    enabled = uiState.data.historyPage > 1
-                                ) {
-                                    Text("Previous")
-                                }
                                 Text(
-                                    text = "Page ${uiState.data.historyPage} of ${uiState.data.historyTotalPages}",
+                                    text = "No insight found for this category.",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                Button(
-                                    onClick = { viewModel.nextPageHistory() },
-                                    enabled = uiState.data.historyPage < uiState.data.historyTotalPages
-                                ) {
-                                    Text("Next")
-                                }
+                            }
+                        }
+                    } else {
+                        item {
+                            HistoryItem(
+                                event = event,
+                                onAuthClick = onAuthClick,
+                                onTakeQuiz = { onTakeQuiz(event) },
+                                onEngagementUpdated = onEngagementUpdated
+                            )
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Button(
+                                onClick = { viewModel.prevPageHistory() },
+                                enabled = uiState.data.historyPage > 1
+                            ) {
+                                Text("Previous")
+                            }
+                            Text(
+                                text = "Day ${uiState.data.historyPage} of ${uiState.data.historyTotalPages}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Button(
+                                onClick = { viewModel.nextPageHistory() },
+                                enabled = uiState.data.historyPage < uiState.data.historyTotalPages
+                            ) {
+                                Text("Next")
                             }
                         }
                     }
@@ -2538,6 +2014,7 @@ fun HistoryTab(
         }
     }
 }
+
 
 @Composable
 fun QuranicLensBannerCard(

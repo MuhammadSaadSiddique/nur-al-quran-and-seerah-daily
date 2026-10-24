@@ -178,5 +178,11 @@ class DeepLinkHelperTest {
         assertNull(DeepLinkHelper.parse("   "))
         assertNull(DeepLinkHelper.parse("https://google.com/lens/2/255"))
         assertNull(DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/invalid_page_here"))
+        assertNull(DeepLinkHelper.externalWebUrl("/duas"))
+        assertNull(DeepLinkHelper.externalWebUrl("https://theeternalecho.asloobulhayat.com/lens/2/255"))
+        assertEquals(
+            "https://example.com/article",
+            DeepLinkHelper.externalWebUrl("https://example.com/article")
+        )
     }
 }

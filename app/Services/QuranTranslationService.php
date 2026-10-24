@@ -287,6 +287,12 @@ class QuranTranslationService
     {
         $text = preg_replace('/<sup\b[^>]*>.*?<\/sup>/isu', '', $text) ?? $text;
         $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/[\x{00B9}\x{00B2}\x{00B3}\x{2070}-\x{2079}]/u', '', $text) ?? $text;
+        $text = preg_replace('/\s*\[\d{1,3}\]|\s*\(\d{1,2}\)/u', '', $text) ?? $text;
+        $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
+        // Plain footnote numbers left behind after tags are stripped, e.g. Say,1 "O My servants".
+        $text = preg_replace('/(?<=[,.;:!?])\s*\d{1,2}(?=\s*["“”«»]|\s|$)/u', '', $text) ?? $text;
+        $text = preg_replace('/,(?=["“”«»])/u', ', ', $text) ?? $text;
         $text = preg_replace('/\s+/u', ' ', $text) ?? $text;
 
         return trim($text);

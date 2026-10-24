@@ -93,4 +93,23 @@ class QuranTranslationServiceTest extends TestCase
         $this->assertSame('Maududi (Urdu)', $merged[1]['author_name']);
         $this->assertSame('rtl', $merged[1]['direction']);
     }
+
+    public function test_plain_footnote_numbers_are_removed_from_translations(): void
+    {
+        $service = app(QuranTranslationService::class);
+
+        $merged = $service->mergeWithLocal(
+            [[
+                'author_name' => 'Sahih International',
+                'text' => 'Say,1 "O My servants who have believed, fear your Lord."',
+                'language' => 'en',
+            ]],
+            []
+        );
+
+        $this->assertSame(
+            'Say, "O My servants who have believed, fear your Lord."',
+            $merged[0]['text']
+        );
+    }
 }

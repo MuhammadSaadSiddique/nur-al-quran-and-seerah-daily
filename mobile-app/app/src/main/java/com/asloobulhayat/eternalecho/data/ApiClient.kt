@@ -536,7 +536,8 @@ object ApiClient {
                     options = parseOptions(item),
                     // Server must send -1; never trust a leaked key if present.
                     correctAnswerIndex = -1,
-                    explanation = ""
+                    explanation = "",
+                    isRead = item.optBoolean("is_read", false)
                 )
             )
         }
@@ -555,7 +556,8 @@ object ApiClient {
                     questionText = item.optString("question_text", ""),
                     options = parseOptions(item),
                     correctAnswerIndex = -1,
-                    explanation = ""
+                    explanation = "",
+                    isRead = item.optBoolean("is_read", false)
                 )
             )
         }

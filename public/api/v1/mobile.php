@@ -881,120 +881,225 @@ try {
             break;
 
         case 'insights':
-            $seerahPage = isset($_GET['seerah_page']) ? (int)$_GET['seerah_page'] : 1;
-            $historyPage = isset($_GET['history_page']) ? (int)$_GET['history_page'] : 1;
+            // Web-parity: serve GeneratedQuestion reflections (SEERAH_INSIGHT / QURAN_HISTORY)
+            // with title + content + knowledge-check — same data model as /seerah and /quran-history.
+            $seerahPage = max(1, isset($_GET['seerah_page']) ? (int)$_GET['seerah_page'] : 1);
+            $historyPage = max(1, isset($_GET['history_page']) ? (int)$_GET['history_page'] : 1);
             $limit = 5;
 
-            $seerahOffset = ($seerahPage - 1) * $limit;
-            $historyOffset = ($historyPage - 1) * $limit;
-
-            $seerahCategory = isset($_GET['seerah_category']) && $_GET['seerah_category'] !== '' ? $_GET['seerah_category'] : null;
-            $historyCategory = isset($_GET['history_category']) && $_GET['history_category'] !== '' ? $_GET['history_category'] : null;
-
-            // Get categories
-            $seerahCategories = $pdo->query("SELECT DISTINCT category FROM seerat_events WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
-            $historyCategories = $pdo->query("SELECT DISTINCT {$historyExtraCol} FROM {$historyTable} WHERE {$historyExtraCol} IS NOT NULL AND {$historyExtraCol} != '' ORDER BY {$historyExtraCol} ASC")->fetchAll(PDO::FETCH_COLUMN);
-
-            // Seerah where clause
-            $seerahWhere = "";
-            $seerahParams = [];
-            if ($seerahCategory !== null) {
-                $seerahWhere = "WHERE category = :category";
-                $seerahParams['category'] = $seerahCategory;
+            $seerahCategory = isset($_GET['seerah_category']) && $_GET['seerah_category'] !== '' ? trim((string)$_GET['seerah_category']) : null;
+            $historyCategory = isset($_GET['history_category']) && $_GET['history_category'] !== '' ? trim((string)$_GET['history_category']) : null;
+            if ($seerahCategory === 'All') {
+                $seerahCategory = null;
+            }
+            if ($historyCategory === 'All') {
+                $historyCategory = null;
             }
 
-            // Seerah count
-            $stmtCountSeer = $pdo->prepare("SELECT COUNT(*) FROM seerat_events $seerahWhere");
-            foreach ($seerahParams as $k => $v) {
-                $stmtCountSeer->bindValue($k, $v);
-            }
-            $stmtCountSeer->execute();
-            $totalSeer = $stmtCountSeer->fetchColumn();
-            $seerahTotalPages = max(1, (int)ceil($totalSeer / $limit));
+            $insightUser = \App\Services\MobileApiAuthService::userFromRequest();
 
-            // Fetch Seerah
-            $stmtSeer = $pdo->prepare("SELECT id, title, description, category FROM seerat_events $seerahWhere ORDER BY id ASC LIMIT :limit OFFSET :offset");
-            foreach ($seerahParams as $k => $v) {
-                $stmtSeer->bindValue($k, $v);
-            }
-            $stmtSeer->bindValue(':limit', $limit, PDO::PARAM_INT);
-            $stmtSeer->bindValue(':offset', $seerahOffset, PDO::PARAM_INT);
-            $stmtSeer->execute();
-            $seeratEvents = $stmtSeer->fetchAll();
-
-            // History where clause
-            $historyWhere = "";
-            $historyParams = [];
-            if ($historyCategory !== null) {
-                $historyWhere = "WHERE {$historyExtraCol} = :category";
-                $historyParams['category'] = $historyCategory;
-            }
-
-            // History count
-            $stmtCountHist = $pdo->prepare("SELECT COUNT(*) FROM {$historyTable} $historyWhere");
-            foreach ($historyParams as $k => $v) {
-                $stmtCountHist->bindValue($k, $v);
-            }
-            $stmtCountHist->execute();
-            $totalHist = $stmtCountHist->fetchColumn();
-            $historyTotalPages = max(1, (int)ceil($totalHist / $limit));
-
-            // Fetch History
-            $stmtHist = $pdo->prepare("SELECT id, title, description, {$historyExtraCol} as category FROM {$historyTable} $historyWhere ORDER BY id ASC LIMIT :limit OFFSET :offset");
-            foreach ($historyParams as $k => $v) {
-                $stmtHist->bindValue($k, $v);
-            }
-            $stmtHist->bindValue(':limit', $limit, PDO::PARAM_INT);
-            $stmtHist->bindValue(':offset', $historyOffset, PDO::PARAM_INT);
-            $stmtHist->execute();
-            $historyEvents = $stmtHist->fetchAll();
-
-            // Attach knowledge-check questions without answer keys (reveal via check_answer).
-            $randFunc = $isSqlite ? 'RANDOM()' : 'RAND()';
-            $attachInsightQuestions = static function (array $events, string $questionType) use ($pdo, $randFunc): array {
-                if ($events === []) {
-                    return $events;
-                }
-                $needed = count($events);
-                $stmt = $pdo->prepare("SELECT question_id, text, options FROM generated_questions WHERE type = :type ORDER BY $randFunc LIMIT :limit");
-                $stmt->bindValue(':type', $questionType, PDO::PARAM_STR);
-                $stmt->bindValue(':limit', $needed, PDO::PARAM_INT);
-                $stmt->execute();
-                $pool = $stmt->fetchAll() ?: [];
-                if ($pool === []) {
-                    return $events;
-                }
-                foreach ($events as $i => $event) {
-                    $row = $pool[$i % count($pool)];
+            $mapReflectionRows = static function (array $rows, string $markType, $user): array {
+                $events = [];
+                foreach ($rows as $row) {
                     $options = $row['options'] ?? [];
                     if (is_string($options)) {
                         $options = json_decode($options, true) ?: [];
                     }
-                    $events[$i]['question_id'] = (string) ($row['question_id'] ?? '');
-                    $events[$i]['question_text'] = (string) ($row['text'] ?? '');
-                    $events[$i]['options'] = array_values($options);
-                    // Never ship the real key / explanation before the client answers.
-                    $events[$i]['correct_answer_index'] = -1;
-                    $events[$i]['explanation'] = '';
+                    $questionId = (string) ($row['question_id'] ?? '');
+                    $title = trim((string) ($row['insight_title'] ?? ''));
+                    if ($title === '') {
+                        $title = trim((string) ($row['theme'] ?? 'Reflection'));
+                    }
+                    $description = trim((string) ($row['insight_content'] ?? ''));
+                    if ($description === '') {
+                        $description = 'Reflection context is not available for this older question.';
+                    }
+                    $events[] = [
+                        'id' => (int) ($row['id'] ?? 0),
+                        'title' => $title,
+                        'description' => $description,
+                        'category' => (string) ($row['difficulty'] ?? ''),
+                        'question_id' => $questionId,
+                        'question_text' => (string) ($row['text'] ?? ''),
+                        'options' => array_values($options),
+                        'correct_answer_index' => -1,
+                        'explanation' => '',
+                        'is_read' => ($user && $questionId !== '')
+                            ? $user->isInsightRead($markType, $questionId)
+                            : false,
+                    ];
                 }
-
                 return $events;
             };
 
-            $seeratEvents = $attachInsightQuestions($seeratEvents, 'SEERAH_INSIGHT');
-            $historyEvents = $attachInsightQuestions($historyEvents, 'QURAN_HISTORY');
+            $loadReflections = static function (string $type, int $page, ?string $difficulty, int $limit) use ($pdo, $isSqlite, $mapReflectionRows, $insightUser): array {
+                $where = 'WHERE type = :type';
+                $params = ['type' => $type];
+                if (in_array($difficulty, ['Easy', 'Medium', 'Hard'], true)) {
+                    $where .= ' AND difficulty = :difficulty';
+                    $params['difficulty'] = $difficulty;
+                }
+
+                $stmtCount = $pdo->prepare("SELECT COUNT(*) FROM generated_questions $where");
+                $stmtCount->execute($params);
+                $total = (int) $stmtCount->fetchColumn();
+                $totalPages = max(1, (int) ceil($total / $limit));
+                $page = min($page, $totalPages);
+                $offset = ($page - 1) * $limit;
+
+                $stmt = $pdo->prepare(
+                    "SELECT id, question_id, text, options, difficulty, theme, insight_title, insight_content
+                     FROM generated_questions $where
+                     ORDER BY updated_at DESC, id DESC
+                     LIMIT :limit OFFSET :offset"
+                );
+                foreach ($params as $k => $v) {
+                    $stmt->bindValue($k, $v);
+                }
+                $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+                $stmt->execute();
+                $rows = $stmt->fetchAll() ?: [];
+
+                $markType = $type === 'QURAN_HISTORY' ? 'QURAN_HISTORY' : 'SEERAH';
+                $events = $mapReflectionRows($rows, $markType, $insightUser);
+
+                $catStmt = $pdo->prepare("SELECT DISTINCT difficulty FROM generated_questions WHERE type = :type AND difficulty IS NOT NULL AND difficulty != '' ORDER BY difficulty ASC");
+                $catStmt->execute(['type' => $type]);
+                $categories = $catStmt->fetchAll(PDO::FETCH_COLUMN) ?: ['Easy', 'Medium', 'Hard'];
+
+                return [
+                    'events' => $events,
+                    'page' => $page,
+                    'total_pages' => $totalPages,
+                    'categories' => array_values($categories),
+                    'total' => $total,
+                ];
+            };
+
+            $seerahBundle = $loadReflections('SEERAH_INSIGHT', $seerahPage, $seerahCategory, $limit);
+            $historyBundle = $loadReflections('QURAN_HISTORY', $historyPage, $historyCategory, $limit);
+
+            // Fallback to catalog events only if no web-style reflections exist yet.
+            if (($seerahBundle['total'] ?? 0) === 0 && ($historyBundle['total'] ?? 0) === 0) {
+                $seerahOffset = ($seerahPage - 1) * $limit;
+                $historyOffset = ($historyPage - 1) * $limit;
+
+                $seerahCategories = $pdo->query("SELECT DISTINCT category FROM seerat_events WHERE category IS NOT NULL AND category != '' ORDER BY category ASC")->fetchAll(PDO::FETCH_COLUMN);
+                $historyCategories = $pdo->query("SELECT DISTINCT {$historyExtraCol} FROM {$historyTable} WHERE {$historyExtraCol} IS NOT NULL AND {$historyExtraCol} != '' ORDER BY {$historyExtraCol} ASC")->fetchAll(PDO::FETCH_COLUMN);
+
+                $seerahWhere = "";
+                $seerahParams = [];
+                if ($seerahCategory !== null) {
+                    $seerahWhere = "WHERE category = :category";
+                    $seerahParams['category'] = $seerahCategory;
+                }
+                $stmtCountSeer = $pdo->prepare("SELECT COUNT(*) FROM seerat_events $seerahWhere");
+                foreach ($seerahParams as $k => $v) {
+                    $stmtCountSeer->bindValue($k, $v);
+                }
+                $stmtCountSeer->execute();
+                $totalSeer = $stmtCountSeer->fetchColumn();
+                $seerahTotalPages = max(1, (int)ceil($totalSeer / $limit));
+
+                $stmtSeer = $pdo->prepare("SELECT id, title, description, category FROM seerat_events $seerahWhere ORDER BY id ASC LIMIT :limit OFFSET :offset");
+                foreach ($seerahParams as $k => $v) {
+                    $stmtSeer->bindValue($k, $v);
+                }
+                $stmtSeer->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $stmtSeer->bindValue(':offset', $seerahOffset, PDO::PARAM_INT);
+                $stmtSeer->execute();
+                $seeratEvents = $stmtSeer->fetchAll();
+
+                $historyWhere = "";
+                $historyParams = [];
+                if ($historyCategory !== null) {
+                    $historyWhere = "WHERE {$historyExtraCol} = :category";
+                    $historyParams['category'] = $historyCategory;
+                }
+                $stmtCountHist = $pdo->prepare("SELECT COUNT(*) FROM {$historyTable} $historyWhere");
+                foreach ($historyParams as $k => $v) {
+                    $stmtCountHist->bindValue($k, $v);
+                }
+                $stmtCountHist->execute();
+                $totalHist = $stmtCountHist->fetchColumn();
+                $historyTotalPages = max(1, (int)ceil($totalHist / $limit));
+
+                $stmtHist = $pdo->prepare("SELECT id, title, description, {$historyExtraCol} as category FROM {$historyTable} $historyWhere ORDER BY id ASC LIMIT :limit OFFSET :offset");
+                foreach ($historyParams as $k => $v) {
+                    $stmtHist->bindValue($k, $v);
+                }
+                $stmtHist->bindValue(':limit', $limit, PDO::PARAM_INT);
+                $stmtHist->bindValue(':offset', $historyOffset, PDO::PARAM_INT);
+                $stmtHist->execute();
+                $historyEvents = $stmtHist->fetchAll();
+
+                $randFunc = $isSqlite ? 'RANDOM()' : 'RAND()';
+                $attachInsightQuestions = static function (array $events, string $questionType) use ($pdo, $randFunc, $insightUser): array {
+                    if ($events === []) {
+                        return $events;
+                    }
+                    $needed = count($events);
+                    $stmt = $pdo->prepare("SELECT question_id, text, options FROM generated_questions WHERE type = :type ORDER BY $randFunc LIMIT :limit");
+                    $stmt->bindValue(':type', $questionType, PDO::PARAM_STR);
+                    $stmt->bindValue(':limit', $needed, PDO::PARAM_INT);
+                    $stmt->execute();
+                    $pool = $stmt->fetchAll() ?: [];
+                    if ($pool === []) {
+                        return $events;
+                    }
+                    $markType = $questionType === 'QURAN_HISTORY' ? 'QURAN_HISTORY' : 'SEERAH';
+                    foreach ($events as $i => $event) {
+                        $row = $pool[$i % count($pool)];
+                        $options = $row['options'] ?? [];
+                        if (is_string($options)) {
+                            $options = json_decode($options, true) ?: [];
+                        }
+                        $qid = (string) ($row['question_id'] ?? '');
+                        $events[$i]['question_id'] = $qid;
+                        $events[$i]['question_text'] = (string) ($row['text'] ?? '');
+                        $events[$i]['options'] = array_values($options);
+                        $events[$i]['correct_answer_index'] = -1;
+                        $events[$i]['explanation'] = '';
+                        $events[$i]['is_read'] = ($insightUser && $qid !== '')
+                            ? $insightUser->isInsightRead($markType, $qid)
+                            : false;
+                    }
+                    return $events;
+                };
+
+                $seeratEvents = $attachInsightQuestions($seeratEvents, 'SEERAH_INSIGHT');
+                $historyEvents = $attachInsightQuestions($historyEvents, 'QURAN_HISTORY');
+
+                echo json_encode([
+                    'status' => 'success',
+                    'data' => [
+                        'seerah_events' => $seeratEvents,
+                        'history_events' => $historyEvents,
+                        'seerah_page' => $seerahPage,
+                        'seerah_total_pages' => $seerahTotalPages,
+                        'history_page' => $historyPage,
+                        'history_total_pages' => $historyTotalPages,
+                        'seerah_categories' => $seerahCategories,
+                        'history_categories' => $historyCategories,
+                        'mode' => 'catalog_fallback',
+                    ]
+                ]);
+                break;
+            }
 
             echo json_encode([
                 'status' => 'success',
                 'data' => [
-                    'seerah_events' => $seeratEvents,
-                    'history_events' => $historyEvents,
-                    'seerah_page' => $seerahPage,
-                    'seerah_total_pages' => $seerahTotalPages,
-                    'history_page' => $historyPage,
-                    'history_total_pages' => $historyTotalPages,
-                    'seerah_categories' => $seerahCategories,
-                    'history_categories' => $historyCategories,
+                    'seerah_events' => $seerahBundle['events'],
+                    'history_events' => $historyBundle['events'],
+                    'seerah_page' => $seerahBundle['page'],
+                    'seerah_total_pages' => $seerahBundle['total_pages'],
+                    'history_page' => $historyBundle['page'],
+                    'history_total_pages' => $historyBundle['total_pages'],
+                    'seerah_categories' => $seerahBundle['categories'],
+                    'history_categories' => $historyBundle['categories'],
+                    'mode' => 'web_reflections',
                 ]
             ]);
             break;

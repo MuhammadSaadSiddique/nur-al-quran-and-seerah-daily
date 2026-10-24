@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ResearcherOnboarding;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -39,6 +40,7 @@ class QuranicLensRoleTest extends TestCase
             'is_admin' => false,
             'is_researcher' => true,
         ]);
+        ResearcherOnboarding::acceptFor($researcher);
 
         // Access approvals
         $response = $this->actingAs($researcher)->get(route('admin.lens.approvals.index'));
@@ -91,7 +93,7 @@ class QuranicLensRoleTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->post(route('researchers.join'));
-        $response->assertRedirect(route('researchers.index'));
+        $response->assertRedirect(route('researchers.onboarding'));
 
         $user->refresh();
         $this->assertFalse((bool) $user->is_researcher);
@@ -113,6 +115,7 @@ class QuranicLensRoleTest extends TestCase
             'is_researcher' => true,
             'expert_category_id' => $category->id,
         ]);
+        ResearcherOnboarding::acceptFor($researcher);
 
         // Create a matching tag (Geology)
         \App\Models\QuranicLensVerseTag::create([

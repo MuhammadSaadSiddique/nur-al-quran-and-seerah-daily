@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ResearcherOnboarding;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,14 @@ class QuranicLensConnectionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+
+        // Existing approval tests create researchers directly. Record the pledge
+        // the approvals middleware now requires, without granting any new role.
+        User::saved(function (User $user) {
+            if ($user->is_researcher && !$user->researcherOnboarding()->exists()) {
+                ResearcherOnboarding::acceptFor($user);
+            }
+        });
 
         // Seed necessary database tables
         DB::table('surahs')->insert([

@@ -88,6 +88,15 @@
                                             {{ $user->is_researcher ? 'Revoke Researcher' : 'Make Researcher' }}
                                         </button>
                                     </form>
+                                    @if($user->researcherOnboarding?->pledged_at)
+                                        <span class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                            Pledged {{ $user->researcherOnboarding->pledged_at->format('M d, Y') }}
+                                        </span>
+                                    @elseif($user->is_researcher)
+                                        <span class="px-3 py-1 text-[10px] font-black uppercase tracking-widest rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
+                                            Pledge required
+                                        </span>
+                                    @endif
                                 </div>
                             </td>
                         </tr>

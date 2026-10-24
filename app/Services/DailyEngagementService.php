@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\User;
 use App\Models\UserDailyEngagement;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
 
 class DailyEngagementService
 {
@@ -18,31 +20,39 @@ class DailyEngagementService
             return $this->todayStatus($user, $date);
         }
 
-        $day = ($date ?? now())->toDateString();
-
-        $engagement = UserDailyEngagement::where('user_id', $user->id)
-            ->whereDate('engagement_date', $day)
-            ->first();
-
-        if (!$engagement) {
-            try {
-                $engagement = UserDailyEngagement::create([
-                    'user_id' => $user->id,
-                    'engagement_date' => $day,
-                    'activities' => [],
-                ]);
-            } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
-                $engagement = UserDailyEngagement::where('user_id', $user->id)
-                    ->whereDate('engagement_date', $day)
-                    ->firstOrFail();
-            }
-        }
-
-        $engagement->mark($activity);
-
-        // Any checklist activity maintains the spiritual streak.
+        // Always maintain streak even if engagement table is unavailable.
         $user->checkInStreak();
         $user->refresh();
+
+        if (!$this->engagementTableReady()) {
+            return $this->todayStatus($user, $date);
+        }
+
+        $day = ($date ?? now())->toDateString();
+
+        try {
+            $engagement = UserDailyEngagement::where('user_id', $user->id)
+                ->whereDate('engagement_date', $day)
+                ->first();
+
+            if (!$engagement) {
+                try {
+                    $engagement = UserDailyEngagement::create([
+                        'user_id' => $user->id,
+                        'engagement_date' => $day,
+                        'activities' => [],
+                    ]);
+                } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+                    $engagement = UserDailyEngagement::where('user_id', $user->id)
+                        ->whereDate('engagement_date', $day)
+                        ->firstOrFail();
+                }
+            }
+
+            $engagement->mark($activity);
+        } catch (\Throwable $e) {
+            Log::warning('Daily engagement record failed: ' . $e->getMessage());
+        }
 
         return $this->todayStatus($user, $date ? Carbon::parse($day) : null);
     }
@@ -53,12 +63,18 @@ class DailyEngagementService
     public function todayStatus(User $user, ?Carbon $date = null): array
     {
         $day = ($date ?? now())->toDateString();
+        $completed = [];
 
-        $engagement = UserDailyEngagement::where('user_id', $user->id)
-            ->whereDate('engagement_date', $day)
-            ->first();
-
-        $completed = $engagement ? $engagement->getActivitiesList() : [];
+        if ($this->engagementTableReady()) {
+            try {
+                $engagement = UserDailyEngagement::where('user_id', $user->id)
+                    ->whereDate('engagement_date', $day)
+                    ->first();
+                $completed = $engagement ? $engagement->getActivitiesList() : [];
+            } catch (\Throwable $e) {
+                Log::warning('Daily engagement status failed: ' . $e->getMessage());
+            }
+        }
 
         $definitions = $this->activityDefinitions();
         $activities = [];
@@ -81,6 +97,15 @@ class DailyEngagementService
             'progress_percent' => $total > 0 ? (int) round(($completedCount / $total) * 100) : 0,
             'streak' => $user->getStreakStatus(),
         ];
+    }
+
+    private function engagementTableReady(): bool
+    {
+        try {
+            return Schema::hasTable('user_daily_engagements');
+        } catch (\Throwable $e) {
+            return false;
+        }
     }
 
     /**

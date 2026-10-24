@@ -97,6 +97,8 @@ Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap')
 
 // Researchers Directory
 Route::get('/researchers', [\App\Http\Controllers\ResearchersController::class, 'index'])->name('researchers.index');
+Route::get('/researchers/onboarding', [\App\Http\Controllers\ResearchersController::class, 'onboarding'])->name('researchers.onboarding')->middleware('auth');
+Route::post('/researchers/onboarding', [\App\Http\Controllers\ResearchersController::class, 'storeOnboarding'])->name('researchers.onboarding.store')->middleware('auth');
 Route::post('/researchers/join', [\App\Http\Controllers\ResearchersController::class, 'join'])->name('researchers.join')->middleware('auth');
 Route::post('/researchers/{user}/update-expert', [\App\Http\Controllers\ResearchersController::class, 'updateExpert'])->name('researchers.update-expert')->middleware('auth');
 
@@ -207,7 +209,7 @@ Route::middleware('auth')->group(function () {
     });
 
     // Quranic Lens approvals (accessible by Researchers and Admins)
-    Route::middleware('researcher')->prefix('admin/lens')->name('admin.lens.')->group(function () {
+    Route::middleware(['researcher', 'researcher.pledge'])->prefix('admin/lens')->name('admin.lens.')->group(function () {
         Route::get('/approvals', [QuranicLensApprovalController::class, 'index'])->name('approvals.index');
         Route::post('/approvals/{type}/{id}/approve', [QuranicLensApprovalController::class, 'approve'])->name('approvals.approve');
         Route::post('/approvals/{type}/{id}/reject', [QuranicLensApprovalController::class, 'reject'])->name('approvals.reject');

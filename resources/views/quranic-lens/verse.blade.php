@@ -1,8 +1,6 @@
 @extends('layouts.app')
 
 @php
-    $firstTransText = !empty($verseDetail['translations']) ? strip_tags($verseDetail['translations'][0]['text']) : '';
-    
     // Extract Science Facts for dynamic SEO enrichment
     $scienceCount = isset($localScience) ? (method_exists($localScience, 'total') ? $localScience->total() : count($localScience)) : 0;
     $scienceTitles = [];
@@ -20,15 +18,55 @@
         $scienceTitles = array_values(array_unique($scienceTitles));
     }
 
-    if ($scienceCount > 0) {
-        $topFields = implode(', ', array_slice($scienceFields, 0, 3));
-        $topTitles = implode('; ', array_slice($scienceTitles, 0, 2));
-        $pageTitle = "Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}) — Science Facts ({$topFields}) & Tafsir";
-        $pageDescription = "Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}) scientific analysis: Explore modern facts in {$topFields} ({$topTitles}). Complete with Arabic text, English translation, Tafsir, and historical context.";
-    } else {
-        $pageTitle = "Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}) — Meaning & Analysis";
-        $pageDescription = "Read and study Surah {$surahInfo['name_simple']} Verse {$verse} ({$surahInfo['id']}:{$verse}). " . ($firstTransText ? \Illuminate\Support\Str::limit($firstTransText, 130) : 'Linguistic insights, classical Tafsir, Hadith references, and thematic connections.');
+    $defaultTranslation = '';
+    $englishTranslation = '';
+    foreach ($verseDetail['translations'] as $item) {
+        $text = trim(strip_tags((string) ($item['text'] ?? '')));
+        if ($text === '') {
+            continue;
+        }
+        if ($defaultTranslation === '') {
+            $defaultTranslation = $text;
+        }
+        if ($englishTranslation === '' && ($item['language'] ?? 'en') === 'en') {
+            $englishTranslation = $text;
+        }
     }
+    $seoTranslation = $englishTranslation !== '' ? $englishTranslation : $defaultTranslation;
+    $seoArabic = trim((string) ($verseDetail['text_uthmani'] ?? ''));
+
+    $pageTitle = \App\Support\LensVerseSeo::title(
+        $surahInfo['name_simple'],
+        (int) $surahInfo['id'],
+        (int) $verse,
+        $seoTranslation,
+        $scienceFields
+    );
+    $pageDescription = \App\Support\LensVerseSeo::description(
+        $surahInfo['name_simple'],
+        (string) ($surahInfo['translated_name']['name'] ?? ''),
+        (int) $surahInfo['id'],
+        (int) $verse,
+        $seoArabic,
+        $seoTranslation,
+        $scienceFields
+    );
+    $schemaFlags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_HEX_TAG | JSON_HEX_AMP;
+    $breadcrumbSchema = \App\Support\LensVerseSeo::breadcrumb([
+        ['name' => 'Home', 'item' => url('/')],
+        ['name' => 'Quranic Lens', 'item' => route('welcome')],
+        ['name' => $surahInfo['name_simple'], 'item' => route('lens.surah', $surahInfo['id'])],
+        ['name' => 'Verse '.$verse, 'item' => route('lens.verse', [$surahInfo['id'], $verse])],
+    ]);
+    $articleSchema = \App\Support\LensVerseSeo::article(
+        $pageTitle,
+        $pageDescription,
+        route('lens.verse', [$surahInfo['id'], $verse]),
+        asset('eternal.png'),
+        $seoArabic,
+        $scienceFields,
+        $scienceTitles
+    );
 
     $dynamicKeywords = "Surah {$surahInfo['name_simple']} {$verse}, Ayah {$verse}, Quran {$surahInfo['id']}:{$verse}, Quran translation, Tafsir, Quranic Arabic";
     if ($scienceCount > 0) {
@@ -43,71 +81,10 @@
 
 @push('schema')
 <script type="application/ld+json">
-{
-    "@@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-        {
-            "@type": "ListItem",
-            "position": 1,
-            "name": "Home",
-            "item": "{{ url('/') }}"
-        },
-        {
-            "@type": "ListItem",
-            "position": 2,
-            "name": "Quranic Lens",
-            "item": "{{ route('welcome') }}"
-        },
-        {
-            "@type": "ListItem",
-            "position": 3,
-            "name": "{{ $surahInfo['name_simple'] }}",
-            "item": "{{ route('lens.surah', $surahInfo['id']) }}"
-        },
-        {
-            "@type": "ListItem",
-            "position": 4,
-            "name": "Verse {{ $verse }}",
-            "item": "{{ route('lens.verse', [$surahInfo['id'], $verse]) }}"
-        }
-    ]
-}
+{!! json_encode($breadcrumbSchema, $schemaFlags) !!}
 </script>
 <script type="application/ld+json">
-{
-    "@@context": "https://schema.org",
-    "@type": "Article",
-    "headline": "Surah {{ $surahInfo['name_simple'] }} Verse {{ $verse }} Analysis & Scientific Correlations",
-    "description": "{{ addslashes($pageDescription) }}",
-    "mainEntityOfPage": "{{ route('lens.verse', [$surahInfo['id'], $verse]) }}",
-    "inLanguage": "en",
-    "publisher": {
-        "@type": "Organization",
-        "name": "The Eternal Echo",
-        "logo": {
-            "@type": "ImageObject",
-            "url": "{{ asset('eternal.png') }}"
-        }
-    }@if($scienceCount > 0),
-    "about": [
-        @foreach($scienceFields as $field)
-        {
-            "@type": "Thing",
-            "name": "{{ $field }}"
-        }@if(!$loop->last),@endif
-        @endforeach
-    ],
-    "mentions": [
-        @foreach(array_slice($scienceTitles, 0, 5) as $title)
-        {
-            "@type": "CreativeWork",
-            "name": "{{ addslashes($title) }}"
-        }@if(!$loop->last),@endif
-        @endforeach
-    ]
-    @endif
-}
+{!! json_encode($articleSchema, $schemaFlags) !!}
 </script>
 @endpush
 
@@ -151,7 +128,11 @@
     <div class="bg-white rounded-[2.5rem] border border-slate-100 p-8 shadow-sm space-y-6">
         <div class="flex items-center justify-between border-b border-slate-50 pb-4">
             <h1 class="text-base md:text-lg font-black text-slate-900 tracking-tight">
-                Surah {{ $surahInfo['name_simple'] }} &bull; Ayah {{ $verse }}
+                Surah {{ $surahInfo['name_simple'] }}
+                @if(!empty($surahInfo['translated_name']['name']))
+                    <span class="text-slate-500 font-bold">({{ $surahInfo['translated_name']['name'] }})</span>
+                @endif
+                &bull; Ayah {{ $verse }}
             </h1>
             <div class="flex items-center space-x-2">
                 @if(isset($juz))
@@ -172,7 +153,7 @@
         </div>
 
         {{-- Uthmani Arabic Text --}}
-        <div class="text-right font-arabic text-3xl md:text-4xl font-bold text-slate-800 leading-loose py-4" dir="rtl">
+        <div class="text-right font-arabic text-3xl md:text-4xl font-bold text-slate-800 leading-loose py-4" dir="rtl" lang="ar">
             {{ $verseDetail['text_uthmani'] }}
         </div>
 
@@ -196,7 +177,7 @@
                     :dir="translations[selectedTranslationIndex] && translations[selectedTranslationIndex].direction === 'rtl' ? 'rtl' : 'ltr'"
                     :class="translations[selectedTranslationIndex] && translations[selectedTranslationIndex].direction === 'rtl' ? 'text-right' : ''"
                     x-text="translations[selectedTranslationIndex] ? translations[selectedTranslationIndex].text : ''"
-                    class="text-slate-800 text-lg leading-relaxed font-medium"></p>
+                    class="text-slate-800 text-lg leading-relaxed font-medium">{{ $defaultTranslation }}</p>
             </div>
         </div>
     </div>
@@ -967,8 +948,8 @@
                 axios.post("{{ route('lens.analysis.ai') }}", {
                     chapter_number: {{ $chapter }},
                     verse_number: {{ $verse }},
-                    arabic: "{{ addslashes($verseDetail['text_uthmani']) }}",
-                    translation: "{{ addslashes(strip_tags($verseDetail['translations'][0]['text'] ?? '')) }}",
+                    arabic: @json($verseDetail['text_uthmani']),
+                    translation: @json($seoTranslation),
                     lens_type: this.activeLens
                 })
                 .then(response => {

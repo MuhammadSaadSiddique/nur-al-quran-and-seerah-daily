@@ -19,6 +19,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'admin' => \App\Http\Middleware\IsAdmin::class,
             'researcher' => \App\Http\Middleware\IsResearcher::class,
+            'researcher.pledge' => \App\Http\Middleware\EnsureResearcherPledged::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

@@ -1007,11 +1007,29 @@ fun MainScreen(
                 2 -> SeerahTab(
                     viewModel = viewModel,
                     onAuthClick = { onItemClick(AuthRoute) },
+                    onEngagementUpdated = { engagement ->
+                        dailyEngagement = engagement
+                        streakDays = engagement.streak.currentStreak
+                        longestStreak = engagement.streak.longestStreak
+                        isStreakActiveToday = engagement.streak.isActiveToday
+                        prefs.putInt("current_streak", engagement.streak.currentStreak)
+                        prefs.putInt("longest_streak", engagement.streak.longestStreak)
+                        prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
+                    },
                     adaptiveInfo = adaptiveInfo
                 )
                 3 -> HistoryTab(
                     viewModel = viewModel,
                     onAuthClick = { onItemClick(AuthRoute) },
+                    onEngagementUpdated = { engagement ->
+                        dailyEngagement = engagement
+                        streakDays = engagement.streak.currentStreak
+                        longestStreak = engagement.streak.longestStreak
+                        isStreakActiveToday = engagement.streak.isActiveToday
+                        prefs.putInt("current_streak", engagement.streak.currentStreak)
+                        prefs.putInt("longest_streak", engagement.streak.longestStreak)
+                        prefs.putBoolean("is_streak_active_today", engagement.streak.isActiveToday)
+                    },
                     adaptiveInfo = adaptiveInfo
                 )
                 4 -> if (AppConfig.IS_DUAS_FEATURE_ENABLED) {
@@ -1412,8 +1430,18 @@ fun LeaderboardTab(
 }
 
 @Composable
-fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
+fun SeerahItem(
+    event: SeerahEvent,
+    onAuthClick: () -> Unit,
+    onEngagementUpdated: (DailyEngagement) -> Unit = {}
+) {
     val context = LocalContext.current
+    val prefs = remember { SecurePreferences.getInstance(context) }
+    val scope = rememberCoroutineScope()
+    val repository = remember { DefaultDataRepository() }
+    var isRead by remember(event.id, event.questionId) { mutableStateOf(event.isRead) }
+    var isMarkingRead by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
@@ -1468,16 +1496,55 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            val qid = event.questionId.ifBlank { "" }
+            if (qid.isNotBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        val userId = prefs.getInt("user_id", -1)
+                        val token = prefs.getString("api_token", null).orEmpty()
+                        if (userId <= 0 || token.isBlank()) {
+                            onAuthClick()
+                            return@Button
+                        }
+                        if (isRead || isMarkingRead) return@Button
+                        isMarkingRead = true
+                        scope.launch {
+                            try {
+                                val result = repository.markInsight(userId, "SEERAH", qid)
+                                result.onSuccess { engagement ->
+                                    isRead = true
+                                    engagement?.let(onEngagementUpdated)
+                                }
+                            } finally {
+                                isMarkingRead = false
+                            }
+                        }
+                    },
+                    enabled = !isRead && !isMarkingRead,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isRead) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = if (isRead) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                ) {
+                    Text(
+                        text = when {
+                            isMarkingRead -> "Saving…"
+                            isRead -> "✓ Read"
+                            else -> "Mark as Read"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             if (event.questionText.isNotEmpty() && event.options.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(12.dp))
 
-                val context = LocalContext.current
-                val prefs = remember { SecurePreferences.getInstance(context) }
                 var completedQuizzes by remember { mutableIntStateOf(prefs.getInt("completed_quizzes", 0)) }
                 var showLimitDialog by remember { mutableStateOf(false) }
-                val scope = rememberCoroutineScope()
 
                 if (showLimitDialog) {
                     AlertDialog(
@@ -1504,7 +1571,6 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                 var revealedCorrectIndex by remember { mutableIntStateOf(-1) }
                 var revealedExplanation by remember { mutableStateOf("") }
                 val hasAnswered = selectedOptionIndex != null
-                val repository = remember { DefaultDataRepository() }
 
                 Text(
                     text = "Knowledge Check",
@@ -1579,7 +1645,10 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
                                                             revealedExplanation = reveal.explanation
                                                         }
                                                     }
-                                                    repository.markInsight(userId, "SEERAH", qid)
+                                                    repository.markInsight(userId, "SEERAH", qid).onSuccess { engagement ->
+                                                        isRead = true
+                                                        engagement?.let(onEngagementUpdated)
+                                                    }
                                                 } catch (e: Exception) {
                                                     android.util.Log.e("SeerahItem", "Failed to reveal/mark insight", e)
                                                 }
@@ -1660,8 +1729,18 @@ fun SeerahItem(event: SeerahEvent, onAuthClick: () -> Unit) {
 }
 
 @Composable
-fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
+fun HistoryItem(
+    event: HistoryEvent,
+    onAuthClick: () -> Unit,
+    onEngagementUpdated: (DailyEngagement) -> Unit = {}
+) {
     val context = LocalContext.current
+    val prefs = remember { SecurePreferences.getInstance(context) }
+    val scope = rememberCoroutineScope()
+    val repository = remember { DefaultDataRepository() }
+    var isRead by remember(event.id, event.questionId) { mutableStateOf(event.isRead) }
+    var isMarkingRead by remember { mutableStateOf(false) }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp)
@@ -1716,16 +1795,55 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
+            val qid = event.questionId.ifBlank { "" }
+            if (qid.isNotBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        val userId = prefs.getInt("user_id", -1)
+                        val token = prefs.getString("api_token", null).orEmpty()
+                        if (userId <= 0 || token.isBlank()) {
+                            onAuthClick()
+                            return@Button
+                        }
+                        if (isRead || isMarkingRead) return@Button
+                        isMarkingRead = true
+                        scope.launch {
+                            try {
+                                val result = repository.markInsight(userId, "QURAN_HISTORY", qid)
+                                result.onSuccess { engagement ->
+                                    isRead = true
+                                    engagement?.let(onEngagementUpdated)
+                                }
+                            } finally {
+                                isMarkingRead = false
+                            }
+                        }
+                    },
+                    enabled = !isRead && !isMarkingRead,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isRead) MaterialTheme.colorScheme.tertiaryContainer else MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = if (isRead) MaterialTheme.colorScheme.onTertiaryContainer else MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                ) {
+                    Text(
+                        text = when {
+                            isMarkingRead -> "Saving…"
+                            isRead -> "✓ Read"
+                            else -> "Mark as Read"
+                        },
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
             if (event.questionText.isNotEmpty() && event.options.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(16.dp))
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 Spacer(modifier = Modifier.height(12.dp))
 
-                val context = LocalContext.current
-                val prefs = remember { SecurePreferences.getInstance(context) }
                 var completedQuizzes by remember { mutableIntStateOf(prefs.getInt("completed_quizzes", 0)) }
                 var showLimitDialog by remember { mutableStateOf(false) }
-                val scope = rememberCoroutineScope()
 
                 if (showLimitDialog) {
                     AlertDialog(
@@ -1752,7 +1870,6 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                 var revealedCorrectIndex by remember { mutableIntStateOf(-1) }
                 var revealedExplanation by remember { mutableStateOf("") }
                 val hasAnswered = selectedOptionIndex != null
-                val repository = remember { DefaultDataRepository() }
 
                 Text(
                     text = "Knowledge Check",
@@ -1827,7 +1944,10 @@ fun HistoryItem(event: HistoryEvent, onAuthClick: () -> Unit) {
                                                             revealedExplanation = reveal.explanation
                                                         }
                                                     }
-                                                    repository.markInsight(userId, "QURAN_HISTORY", qid)
+                                                    repository.markInsight(userId, "QURAN_HISTORY", qid).onSuccess { engagement ->
+                                                        isRead = true
+                                                        engagement?.let(onEngagementUpdated)
+                                                    }
                                                 } catch (e: Exception) {
                                                     android.util.Log.e("HistoryItem", "Failed to reveal/mark insight", e)
                                                 }
@@ -1969,6 +2089,7 @@ fun CategoryDropdownSelector(
 fun SeerahTab(
     viewModel: MainScreenViewModel,
     onAuthClick: () -> Unit,
+    onEngagementUpdated: (DailyEngagement) -> Unit = {},
     adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
 ) {
     val state by viewModel.insightsState.collectAsStateWithLifecycle()
@@ -2113,7 +2234,7 @@ fun SeerahTab(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     item {
-                                        SeerahItem(selectedEvent, onAuthClick)
+                                        SeerahItem(selectedEvent, onAuthClick, onEngagementUpdated)
                                     }
                                 }
                             }
@@ -2148,7 +2269,7 @@ fun SeerahTab(
                             }
                         } else {
                             items(uiState.data.seerahEvents) { event ->
-                                SeerahItem(event, onAuthClick)
+                                SeerahItem(event, onAuthClick, onEngagementUpdated)
                             }
                         }
 
@@ -2191,6 +2312,7 @@ fun SeerahTab(
 fun HistoryTab(
     viewModel: MainScreenViewModel,
     onAuthClick: () -> Unit,
+    onEngagementUpdated: (DailyEngagement) -> Unit = {},
     adaptiveInfo: WindowAdaptiveInfo = rememberWindowAdaptiveInfo()
 ) {
     val state by viewModel.insightsState.collectAsStateWithLifecycle()
@@ -2344,7 +2466,7 @@ fun HistoryTab(
                                     verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
                                     item {
-                                        HistoryItem(selectedEvent, onAuthClick)
+                                        HistoryItem(selectedEvent, onAuthClick, onEngagementUpdated)
                                     }
                                 }
                             }
@@ -2379,7 +2501,7 @@ fun HistoryTab(
                             }
                         } else {
                             items(uiState.data.historyEvents) { event ->
-                                HistoryItem(event, onAuthClick)
+                                HistoryItem(event, onAuthClick, onEngagementUpdated)
                             }
                         }
 

@@ -126,6 +126,24 @@ class User extends Authenticatable
         return $this->belongsTo(ScienceCategory::class, 'expert_category_id');
     }
 
+    public function researcherOnboarding()
+    {
+        return $this->hasOne(ResearcherOnboarding::class);
+    }
+
+    /**
+     * True after the user has submitted onboarding and accepted the authenticity pledge.
+     * This does not by itself grant researcher access.
+     */
+    public function hasAcceptedResearcherPledge(): bool
+    {
+        if ($this->relationLoaded('researcherOnboarding')) {
+            return $this->researcherOnboarding !== null && $this->researcherOnboarding->pledged_at !== null;
+        }
+
+        return $this->researcherOnboarding()->whereNotNull('pledged_at')->exists();
+    }
+
     public function researchContributions()
     {
         return $this->hasMany(QuranResearchContribution::class);

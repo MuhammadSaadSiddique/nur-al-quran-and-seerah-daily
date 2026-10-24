@@ -466,22 +466,24 @@
             </p>
             <div class="pt-4 flex flex-col sm:flex-row justify-center gap-4">
                 @auth
-                    @if(auth()->user()->is_researcher)
+                    @if(auth()->user()->is_researcher && auth()->user()->hasAcceptedResearcherPledge())
                         <a href="{{ route('admin.lens.approvals.index') }}"
                             class="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-full transition-all">
                             Go to Approvals Dashboard
                         </a>
+                    @elseif(auth()->user()->is_researcher)
+                        <a href="{{ route('researchers.onboarding') }}"
+                            class="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-full transition-all">
+                            Complete the authenticity pledge
+                        </a>
                     @else
-                        <form action="{{ route('researchers.join') }}" method="POST" class="inline">
-                            @csrf
-                            <button type="submit"
-                                class="w-full sm:w-auto px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-full shadow-lg transition-all">
-                                Join Research Team
-                            </button>
-                        </form>
+                        <a href="{{ route('researchers.onboarding') }}"
+                            class="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-full shadow-lg transition-all">
+                            Start researcher onboarding
+                        </a>
                     @endif
                 @else
-                    <a href="{{ route('login') }}"
+                    <a href="{{ route('researchers.onboarding') }}"
                         class="px-8 py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-full shadow-lg transition-all">
                         Apply to Join Research Team
                     </a>

@@ -158,7 +158,8 @@ data class SeerahEvent(
     val questionText: String = "",
     val options: List<String> = emptyList(),
     val correctAnswerIndex: Int = -1,
-    val explanation: String = ""
+    val explanation: String = "",
+    val isRead: Boolean = false
 )
 
 @Serializable
@@ -171,7 +172,8 @@ data class HistoryEvent(
     val questionText: String = "",
     val options: List<String> = emptyList(),
     val correctAnswerIndex: Int = -1,
-    val explanation: String = ""
+    val explanation: String = "",
+    val isRead: Boolean = false
 )
 
 @Serializable

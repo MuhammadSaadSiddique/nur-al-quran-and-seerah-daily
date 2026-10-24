@@ -53,6 +53,7 @@ import androidx.navigation3.runtime.NavKey
 import com.asloobulhayat.eternalecho.AuthRoute
 import com.asloobulhayat.eternalecho.DuaDetailRoute
 import com.asloobulhayat.eternalecho.DuasRoute
+import com.asloobulhayat.eternalecho.PatternsRoute
 import com.asloobulhayat.eternalecho.InsightQuizRoute
 import com.asloobulhayat.eternalecho.OnboardingRoute
 import com.asloobulhayat.eternalecho.ThemeQuizSelection
@@ -970,6 +971,7 @@ fun MainScreen(
                     onStartQuizClick = { onItemClick(ThemeQuizSelection) },
                     onExploreHistoryClick = { selectedTab = 2 },
                     onDeepDiveClick = { selectedTab = 5 },
+                    onQuranPatternsClick = { onItemClick(PatternsRoute) },
                     onReadDuasClick = {
                         onItemClick(DuasRoute)
                         DailyEngagementStore.markLocal("dua")

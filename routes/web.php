@@ -21,6 +21,7 @@ use App\Http\Controllers\DuaController;
 use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\DonationController;
 use App\Http\Controllers\EngagementController;
+use App\Http\Controllers\QuranPatternController;
 use Illuminate\Support\Facades\Route;
 
 // Android App Links verification. A static copy also lives in public/.well-known/.
@@ -46,6 +47,12 @@ Route::get('/duas/create', [DuaController::class, 'create'])->name('duas.create'
 Route::post('/duas', [DuaController::class, 'store'])->name('duas.store')->middleware('auth');
 Route::get('/duas/{dua:slug}', [DuaController::class, 'show'])->name('duas.show');
 Route::get('/daily-dua', [DuaController::class, 'daily'])->name('daily.dua');
+
+// Quran Patterns: ring, math counts, and linguistic notes
+Route::get('/patterns', [QuranPatternController::class, 'index'])->name('patterns.index');
+Route::get('/patterns/{chapter}/{verse}', [QuranPatternController::class, 'show'])
+    ->whereNumber(['chapter', 'verse'])
+    ->name('patterns.show');
 
 // User & App Feedback Submission
 Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store'])->name('app-feedback.store')->middleware('throttle:10,1');

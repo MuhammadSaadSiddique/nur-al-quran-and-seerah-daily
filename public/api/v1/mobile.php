@@ -2759,6 +2759,46 @@ try {
             ]);
             break;
 
+        case 'quran_patterns':
+            $patternService = app(\App\Services\QuranPatternService::class);
+            $patternQuery = trim((string) ($_GET['q'] ?? ''));
+            $patternChapter = isset($_GET['chapter']) ? (int) $_GET['chapter'] : 0;
+            $patternVerse = isset($_GET['verse']) ? (int) $_GET['verse'] : 0;
+            $patternFocus = isset($_GET['focus']) ? (string) $_GET['focus'] : null;
+            try {
+                if ($patternChapter > 0 && $patternVerse > 0) {
+                    $patternCard = $patternService->cardFor($patternChapter, $patternVerse, $patternFocus);
+                    if ($patternCard === null) {
+                        echo json_encode([
+                            'status' => 'error',
+                            'message' => 'That verse was not found.',
+                        ]);
+                        break;
+                    }
+                    echo json_encode([
+                        'status' => 'success',
+                        'data' => $patternCard,
+                    ], JSON_UNESCAPED_UNICODE);
+                    break;
+                }
+
+                $patternSearch = $patternService->search($patternQuery);
+                echo json_encode([
+                    'status' => 'success',
+                    'suggested' => $patternSearch['suggested'],
+                    'direct' => $patternSearch['direct'],
+                    'message' => $patternSearch['message'],
+                    'hits' => $patternSearch['hits'],
+                ], JSON_UNESCAPED_UNICODE);
+            } catch (\App\Exceptions\PatternGenerationLimited $e) {
+                http_response_code(429);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $e->getMessage(),
+                ]);
+            }
+            break;
+
         default:
             echo json_encode([
                 'status' => 'error',

@@ -611,5 +611,110 @@ Requirements:
         }
         return $filtered->random();
     }
+
+    /**
+     * Suggest up to three chapter:verse keys related to a search that did not match the stored text.
+     *
+     * @return array<int, string>
+     */
+    public function suggestPatternVerses(string $query): array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return [];
+        }
+
+        $prompt = "A reader searched the Quran for: {$query}\n"
+            . "Suggest up to 3 verse keys whose wording may relate to that search.\n"
+            . "Return JSON with key verses, an array of strings like \"86:1\".\n"
+            . "Use only real chapter:verse keys. Do not explain. If you are unsure, return an empty array.\n"
+            . "Do not invent scientific claims.";
+
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'verses' => [
+                    'type' => 'ARRAY',
+                    'items' => ['type' => 'STRING'],
+                ],
+            ],
+            'required' => ['verses'],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+        if (!$result) {
+            return [];
+        }
+
+        $decoded = json_decode($result, true);
+        if (!is_array($decoded) || !isset($decoded['verses']) || !is_array($decoded['verses'])) {
+            return [];
+        }
+
+        $keys = [];
+        foreach ($decoded['verses'] as $verse) {
+            if (is_string($verse) && $verse !== '') {
+                $keys[] = $verse;
+            }
+            if (count($keys) >= 3) {
+                break;
+            }
+        }
+
+        return $keys;
+    }
+
+    /**
+     * Study notes for one verse. Counts are computed elsewhere and must not be invented here.
+     *
+     * @param  array<string, mixed>  $context
+     * @return array<string, mixed>|null
+     */
+    public function generatePatternNotes(array $context): ?array
+    {
+        $topics = 'Biology, Cosmology, Physics, Archeology, Climatology';
+        $passage = (string) ($context['passage'] ?? '');
+        $focus = (string) ($context['focus'] ?? '');
+        $prompt = "You write a short study note for one Quran verse. Use only the passage below.\n"
+            . "Do not invent counts, scientific equivalences, chromosome numbers, land-sea ratios, or distances in light years.\n\n"
+            . "Surah {$context['surah_name']} ({$context['verse_key']}).\n"
+            . "Focus (may be empty): {$focus}\n"
+            . "Verse Arabic: {$context['arabic']}\n"
+            . "Verse translation: {$context['translation']}\n\n"
+            . "Passage:\n{$passage}\n\n"
+            . "Return JSON with:\n"
+            . "- gloss: a short English sense of the focus, taken from the translation. If there is no focus, gloss the opening of the translation in a few words.\n"
+            . "- arabic_term: an Arabic word that appears in the verse. Prefer the focus when it appears in the verse.\n"
+            . "- ring_note: one or two sentences on ring or symmetry visible in the passage. If none is visible, say that no clear ring is established for this passage from the text provided.\n"
+            . "- linguistic_note: one or two sentences that quote arabic_term and comment on its sound or meaning using the translation. Do not add scientific claims.\n"
+            . "- topics: an array of at most 2 values, each one of: {$topics}. Use an empty array when none fit.";
+
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'gloss' => ['type' => 'STRING'],
+                'arabic_term' => ['type' => 'STRING'],
+                'ring_note' => ['type' => 'STRING'],
+                'linguistic_note' => ['type' => 'STRING'],
+                'topics' => [
+                    'type' => 'ARRAY',
+                    'items' => ['type' => 'STRING'],
+                ],
+            ],
+            'required' => ['gloss', 'arabic_term', 'ring_note', 'linguistic_note', 'topics'],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+        if (!$result) {
+            return null;
+        }
+
+        $decoded = json_decode($result, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        return $decoded;
+    }
 }
 

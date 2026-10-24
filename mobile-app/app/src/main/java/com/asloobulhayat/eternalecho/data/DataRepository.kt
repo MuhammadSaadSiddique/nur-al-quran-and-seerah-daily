@@ -109,6 +109,9 @@ interface DataRepository {
         userEmail: String? = null,
         deviceInfo: String? = null
     ): Result<String> = Result.success("Feedback submitted successfully.")
+    suspend fun searchQuranPatterns(query: String): QuranPatternSearchResult =
+        QuranPatternSearchResult()
+    suspend fun loadQuranPatternCard(chapter: Int, verse: Int, focus: String = ""): QuranPatternCard? = null
 }
 
 class DefaultDataRepository : DataRepository {
@@ -242,6 +245,14 @@ class DefaultDataRepository : DataRepository {
         } catch (_: Exception) {
             getFallbackDuas(category, search, sourceType)
         }
+    }
+
+    override suspend fun searchQuranPatterns(query: String): QuranPatternSearchResult {
+        return ApiClient.fetchQuranPatterns(query)
+    }
+
+    override suspend fun loadQuranPatternCard(chapter: Int, verse: Int, focus: String): QuranPatternCard? {
+        return ApiClient.fetchQuranPatternCard(chapter, verse, focus)
     }
 
     override suspend fun getDua(id: Int, slug: String): Dua? {

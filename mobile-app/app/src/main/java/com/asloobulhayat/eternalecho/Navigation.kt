@@ -19,6 +19,7 @@ import com.asloobulhayat.eternalecho.ui.auth.*
 import com.asloobulhayat.eternalecho.ui.onboarding.OnboardingScreen
 import com.asloobulhayat.eternalecho.ui.duas.DuasScreen
 import com.asloobulhayat.eternalecho.ui.duas.DuaDetailScreen
+import com.asloobulhayat.eternalecho.ui.patterns.PatternsScreen
 import com.asloobulhayat.eternalecho.ui.insights.InsightQuizScreen
 import com.asloobulhayat.eternalecho.data.SurahNavKey
 import com.asloobulhayat.eternalecho.security.SecurePreferences
@@ -150,6 +151,13 @@ fun MainNavigation(
               backStack.add(SurahNavKey(surah, verse))
             },
             modifier = Modifier.safeDrawingPadding().padding(4.dp)
+          )
+        }
+        entry<PatternsRoute> {
+          PatternsScreen(
+            onBackClick = { backStack.removeLastOrNull() },
+            onOpenVerse = { chapter, verse -> backStack.add(SurahNavKey(chapter, verse)) },
+            modifier = Modifier.safeDrawingPadding()
           )
         }
         entry<QuranResearchRoute> {

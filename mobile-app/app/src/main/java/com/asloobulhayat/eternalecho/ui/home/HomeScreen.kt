@@ -199,6 +199,7 @@ fun HomeScreen(
     onExploreHistoryClick: () -> Unit = {},
     onDeepDiveClick: () -> Unit = {},
     onReadDuasClick: () -> Unit = {},
+    onQuranPatternsClick: () -> Unit = {},
     onReflectClick: () -> Unit = {},
     onReadingProgressClick: () -> Unit = {},
     onClaimStreakClick: () -> Unit = {},
@@ -385,7 +386,8 @@ fun HomeScreen(
                         onStartQuizClick = onStartQuizClick,
                         onExploreHistoryClick = onExploreHistoryClick,
                         onDeepDiveClick = onDeepDiveClick,
-                        onReadDuasClick = onReadDuasClick
+                        onReadDuasClick = onReadDuasClick,
+                        onQuranPatternsClick = onQuranPatternsClick
                     )
                 }
 
@@ -863,7 +865,8 @@ fun FeatureCardsGrid(
     onStartQuizClick: () -> Unit,
     onExploreHistoryClick: () -> Unit,
     onDeepDiveClick: () -> Unit,
-    onReadDuasClick: () -> Unit
+    onReadDuasClick: () -> Unit,
+    onQuranPatternsClick: () -> Unit = {}
 ) {
     Column(
         modifier = Modifier.fillMaxWidth(),
@@ -922,6 +925,15 @@ fun FeatureCardsGrid(
                 )
             }
         }
+
+        HomeFeatureCard(
+            title = "Quran Patterns",
+            subtitle = "Ring, math, language",
+            buttonText = "Search",
+            palette = palette,
+            onButtonClick = onQuranPatternsClick,
+            illustration = { PatternsIllustration(palette) }
+        )
     }
 }
 
@@ -1108,6 +1120,25 @@ fun ScrollIllustration(palette: HomeThemePalette = rememberHomeThemePalette()) {
         drawCircle(color = Color(0xFF0D9488), radius = 3.dp.toPx(), center = Offset(18.dp.toPx(), timelineY))
         drawCircle(color = palette.goldAccent, radius = 3.dp.toPx(), center = Offset(27.dp.toPx(), timelineY))
         drawCircle(color = palette.primaryAccent, radius = 3.dp.toPx(), center = Offset(36.dp.toPx(), timelineY))
+    }
+}
+
+/**
+ * Quran Patterns: three short lines for ring, math, and language.
+ */
+@Composable
+fun PatternsIllustration(palette: HomeThemePalette = rememberHomeThemePalette()) {
+    Canvas(modifier = Modifier.size(54.dp, 44.dp)) {
+        val bars = listOf(palette.primaryAccent, palette.goldAccent, Color(0xFF34D399))
+        bars.forEachIndexed { index, color ->
+            val top = (8 + index * 12).dp.toPx()
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(8.dp.toPx(), top),
+                size = Size((28 + index * 4).dp.toPx(), 6.dp.toPx()),
+                cornerRadius = CornerRadius(3.dp.toPx(), 3.dp.toPx())
+            )
+        }
     }
 }
 

@@ -748,6 +748,25 @@ object ApiClient {
         }
     }
 
+    suspend fun fetchQuranPatterns(query: String): QuranPatternSearchResult {
+        val encoded = java.net.URLEncoder.encode(query, "UTF-8")
+        val jsonStr = makeGetRequest("$BASE_URL?action=quran_patterns&q=$encoded", timeoutMs = 70000)
+        return QuranPatternJson.parseSearch(jsonStr)
+    }
+
+    suspend fun fetchQuranPatternCard(chapter: Int, verse: Int, focus: String = ""): QuranPatternCard? {
+        val focusParam = if (focus.isNotBlank()) {
+            "&focus=" + java.net.URLEncoder.encode(focus, "UTF-8")
+        } else {
+            ""
+        }
+        val jsonStr = makeGetRequest(
+            "$BASE_URL?action=quran_patterns&chapter=$chapter&verse=$verse$focusParam",
+            timeoutMs = 70000
+        )
+        return QuranPatternJson.parseCard(jsonStr)
+    }
+
     private suspend fun makePostRequest(urlStr: String, params: Map<String, String>): String = withContext(Dispatchers.IO) {
         if (!urlStr.startsWith("https://", ignoreCase = true)) {
             throw SecurityException("Insecure HTTP connections are strictly prohibited.")

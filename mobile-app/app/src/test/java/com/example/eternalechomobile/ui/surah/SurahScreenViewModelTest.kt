@@ -123,7 +123,8 @@ class SurahScreenViewModelTest {
             totalQuestions: Int,
             difficulty: String,
             questionsJson: String,
-            userAnswersJson: String
+            userAnswersJson: String,
+            attemptToken: String
         ): Boolean = true
         override suspend fun getDuas(category: String, search: String, sourceType: String): List<Dua> = emptyList()
     }

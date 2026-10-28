@@ -266,6 +266,37 @@ object ApiClient {
             .trim()
     }
 
+    /**
+     * Same translation set as the website ayah page: stored translations plus
+     * the published Quran.com editions.
+     */
+    suspend fun fetchVerseTranslations(surahNumber: Int, verseNumber: Int): List<VerseTranslation> {
+        if (surahNumber !in 1..114 || verseNumber < 1) return emptyList()
+        val jsonStr = makeGetRequest(
+            "$BASE_URL?action=verse_translations&surah_number=$surahNumber&verse_number=$verseNumber",
+            timeoutMs = 20000
+        )
+        val jsonObj = JSONObject(jsonStr)
+        val dataArray = jsonObj.optJSONArray("data") ?: return emptyList()
+        val list = mutableListOf<VerseTranslation>()
+        for (i in 0 until dataArray.length()) {
+            val item = dataArray.optJSONObject(i) ?: continue
+            val text = cleanTranslationText(item.optString("text"))
+            val id = item.optString("id")
+            if (text.isBlank() || id.isBlank()) continue
+            list.add(
+                VerseTranslation(
+                    id = id,
+                    name = item.optString("name", id),
+                    language = item.optString("language", "en"),
+                    text = text,
+                    direction = item.optString("direction", "ltr").ifBlank { "ltr" }
+                )
+            )
+        }
+        return list
+    }
+
     suspend fun fetchConnections(surahNumber: Int, verseNumber: Int): ConnectionsData {
         val jsonStr = makeGetRequest("$BASE_URL?action=connections&surah_number=$surahNumber&verse_number=$verseNumber")
         val jsonObj = JSONObject(jsonStr)

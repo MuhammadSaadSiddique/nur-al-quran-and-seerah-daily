@@ -563,10 +563,42 @@ fun QuranicLinkageBottomSheet(
     val userName = remember { prefs.getString("user_name", "") ?: "" }
     val userEmail = remember { prefs.getString("user_email", "") ?: "" }
     val isLoggedIn = userId > 0
-    val chosenTranslation = verse?.translationFor(selectedEditionId)
+    val repository = remember { DefaultDataRepository() }
+    var websiteTranslations by remember(surahNumber, verseNumber) {
+        mutableStateOf(verse?.translations.orEmpty())
+    }
+    var translationsLoading by remember(surahNumber, verseNumber) { mutableStateOf(true) }
+    var sheetEditionId by remember(surahNumber, verseNumber) { mutableStateOf(selectedEditionId) }
+
+    LaunchedEffect(surahNumber, verseNumber) {
+        translationsLoading = true
+        val loaded = try {
+            repository.getVerseTranslations(surahNumber, verseNumber)
+        } catch (_: Exception) {
+            emptyList()
+        }
+        if (loaded.isNotEmpty()) {
+            websiteTranslations = loaded
+            val stillValid = loaded.any { it.id == sheetEditionId }
+            if (!stillValid) {
+                sheetEditionId = loaded.firstOrNull { it.id == selectedEditionId }?.id ?: loaded.first().id
+            }
+        }
+        translationsLoading = false
+    }
+
+    LaunchedEffect(verse?.translations) {
+        val ready = verse?.translations.orEmpty()
+        if (websiteTranslations.isEmpty() && ready.isNotEmpty()) {
+            websiteTranslations = ready
+        }
+    }
+
+    val chosenTranslation = websiteTranslations.firstOrNull { it.id == sheetEditionId }
+        ?: websiteTranslations.firstOrNull()
+        ?: verse?.translationFor(selectedEditionId)
     val translationText = chosenTranslation?.text?.takeIf { it.isNotBlank() }
         ?: verse?.textTransliteration.orEmpty()
-    val repository = remember { DefaultDataRepository() }
     val scope = rememberCoroutineScope()
 
     var showContributeSheet by remember { mutableStateOf(false) }
@@ -734,16 +766,51 @@ fun QuranicLinkageBottomSheet(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurface
                         )
+                        if (websiteTranslations.size > 1 || translationsLoading) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            if (translationsLoading && websiteTranslations.isEmpty()) {
+                                Text(
+                                    text = "Loading translations…",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(websiteTranslations, key = { it.id }) { edition ->
+                                        FilterChip(
+                                            selected = edition.id == chosenTranslation?.id,
+                                            onClick = { sheetEditionId = edition.id },
+                                            label = {
+                                                Text(
+                                                    text = edition.name,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                         if (translationText.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(4.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
+                            if (!chosenTranslation?.name.isNullOrBlank() && websiteTranslations.size <= 1) {
+                                Text(
+                                    text = chosenTranslation.name,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                            }
                             Text(
                                 text = translationText,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                lineHeight = if (chosenTranslation?.direction == "rtl") 24.sp else 18.sp,
                                 textAlign = if (chosenTranslation?.direction == "rtl") TextAlign.Right else TextAlign.Start,
-                                modifier = Modifier.fillMaxWidth(),
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis
+                                modifier = Modifier.fillMaxWidth()
                             )
                         }
                     }

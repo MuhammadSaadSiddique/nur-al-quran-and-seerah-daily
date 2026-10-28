@@ -7,6 +7,7 @@ interface DataRepository {
     suspend fun getSurahs(): List<Surah>
     suspend fun getVerses(surahNumber: Int): List<Verse>
     suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> = verses
+    suspend fun getVerseTranslations(surahNumber: Int, verseNumber: Int): List<VerseTranslation> = emptyList()
     suspend fun getConnections(surahNumber: Int, verseNumber: Int): ConnectionsData
     suspend fun getAllConnections(
         category: String = "all",
@@ -118,6 +119,10 @@ class DefaultDataRepository : DataRepository {
 
     override suspend fun getVerses(surahNumber: Int): List<Verse> {
         return ApiClient.fetchVerses(surahNumber)
+    }
+
+    override suspend fun getVerseTranslations(surahNumber: Int, verseNumber: Int): List<VerseTranslation> {
+        return ApiClient.fetchVerseTranslations(surahNumber, verseNumber)
     }
 
     override suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> {

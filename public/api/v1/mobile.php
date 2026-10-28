@@ -441,6 +441,96 @@ try {
             ], JSON_UNESCAPED_UNICODE);
             break;
 
+        case 'verse_translations':
+            $surahNumber = isset($_GET['surah_number']) ? (int) $_GET['surah_number'] : 0;
+            $verseNumber = isset($_GET['verse_number']) ? (int) $_GET['verse_number'] : 0;
+            if ($surahNumber < 1 || $verseNumber < 1) {
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => 'Surah and verse are required.'
+                ]);
+                break;
+            }
+
+            $local = [];
+            try {
+                $verseStmt = $pdo->prepare("SELECT v.id FROM verses v JOIN surahs s ON v.surah_id = s.id WHERE s.number = ? AND v.verse_number = ? LIMIT 1");
+                $verseStmt->execute([$surahNumber, $verseNumber]);
+                $verseRow = $verseStmt->fetch();
+                if ($verseRow) {
+                    $transStmt = $pdo->prepare("SELECT translator, text, language FROM translations WHERE verse_id = ?");
+                    $transStmt->execute([(int) $verseRow['id']]);
+                    foreach ($transStmt->fetchAll() as $row) {
+                        $local[] = [
+                            'author_name' => trim((string) ($row['translator'] ?? '')) ?: 'Translation',
+                            'text' => (string) ($row['text'] ?? ''),
+                            'language' => (string) ($row['language'] ?? 'en'),
+                        ];
+                    }
+                }
+            } catch (\Throwable $e) {
+                $local = [];
+            }
+
+            $remote = [];
+            try {
+                $remote = app(\App\Services\QuranTranslationService::class)->forVerse($surahNumber, $verseNumber);
+            } catch (\Throwable $e) {
+                $remote = [];
+            }
+
+            $merged = [];
+            try {
+                $merged = app(\App\Services\QuranTranslationService::class)->mergeWithLocal($local, $remote);
+            } catch (\Throwable $e) {
+                $merged = $remote;
+            }
+
+            $knownIds = [
+                'Saheeh International' => 'en.sahih',
+                'Pickthall' => 'en.pickthall',
+                'Yusuf Ali' => 'en.yusufali',
+                'Hilali & Khan' => 'en.hilali',
+                'Jalandhry (Urdu)' => 'ur.jalandhry',
+                'Maududi (Urdu)' => 'ur.maududi',
+            ];
+            $data = [];
+            $usedIds = [];
+            foreach ($merged as $index => $item) {
+                $text = trim((string) ($item['text'] ?? ''));
+                if ($text === '') {
+                    continue;
+                }
+                $name = trim((string) ($item['author_name'] ?? 'Translation')) ?: 'Translation';
+                $id = $knownIds[$name] ?? '';
+                if ($id === '') {
+                    $id = strtolower((string) preg_replace('/[^a-z0-9]+/i', '.', $name));
+                    $id = trim($id, '.');
+                }
+                if ($id === '') {
+                    $id = 'translation.' . $index;
+                }
+                if (isset($usedIds[$id])) {
+                    $id .= '.' . $index;
+                }
+                $usedIds[$id] = true;
+                $data[] = [
+                    'id' => $id,
+                    'name' => $name,
+                    'language' => (string) ($item['language'] ?? 'en'),
+                    'direction' => (string) ($item['direction'] ?? 'ltr'),
+                    'text' => $text,
+                ];
+            }
+
+            echo json_encode([
+                'status' => 'success',
+                'surah_number' => $surahNumber,
+                'verse_number' => $verseNumber,
+                'data' => $data
+            ], JSON_UNESCAPED_UNICODE);
+            break;
+
         case 'connections':
             $surahNumber = isset($_GET['surah_number']) ? (int) $_GET['surah_number'] : 1;
             $verseNumber = isset($_GET['verse_number']) ? (int) $_GET['verse_number'] : 1;

@@ -173,7 +173,7 @@
                 <div class="p-1 rounded-3xl">
                     <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo" class="w-8 h-8 object-contain">
                 </div>
-                <span class="font-black text-xl tracking-tight text-white">The Eternal Echo</span>
+                <span class="hidden xl:inline font-black text-xl tracking-tight text-white">The Eternal Echo</span>
             </a>
 
             @php
@@ -211,22 +211,53 @@
                 }
             @endphp
 
-            <nav class="hidden md:flex space-x-1">
-                @foreach($navItems as $item)
+            @php
+                $primaryRoutes = auth()->check()
+                    ? ['welcome', 'seerah', 'duas.index', 'home']
+                    : ['welcome', 'seerah', 'duas.index', 'quiz.learning'];
+                $primaryNav = [];
+                $moreNav = [];
+                foreach ($navItems as $item) {
+                    if (in_array($item['route'], $primaryRoutes, true)) {
+                        $primaryNav[] = $item;
+                    } else {
+                        $moreNav[] = $item;
+                    }
+                }
+                $moreIsActive = collect($moreNav)->contains(fn ($item) => request()->routeIs($item['route']));
+            @endphp
+
+            <nav class="hidden md:flex items-center space-x-1">
+                @foreach($primaryNav as $item)
                     <a href="{{ route($item['route']) }}"
-                        class="px-3.5 py-2 rounded-xl text-sm font-bold transition-all {{ request()->routeIs($item['route']) ? 'bg-white/20 text-white' : 'text-emerald-100 hover:text-white hover:bg-white/10' }}">
+                        class="px-3 py-2 rounded-xl text-sm font-bold transition-all {{ request()->routeIs($item['route']) ? 'bg-white/20 text-white' : 'text-emerald-100 hover:text-white hover:bg-white/10' }}">
                         {{ $item['label'] }}
                     </a>
                 @endforeach
+                @if(count($moreNav))
+                    <div class="relative" x-data="{ open: false }">
+                        <button type="button" @click="open = !open"
+                            class="px-3 py-2 rounded-xl text-sm font-bold transition-all {{ $moreIsActive ? 'bg-white/20 text-white' : 'text-emerald-100 hover:text-white hover:bg-white/10' }}">
+                            More
+                        </button>
+                        <div x-show="open" @click.outside="open = false" x-cloak
+                            class="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 text-slate-900">
+                            @foreach($moreNav as $item)
+                                <a href="{{ route($item['route']) }}"
+                                    class="block px-4 py-2.5 text-sm font-bold transition-colors {{ request()->routeIs($item['route']) ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50' }}">
+                                    {{ $item['label'] }}
+                                </a>
+                            @endforeach
+                            <a href="{{ route('donate') }}"
+                                class="block px-4 py-2.5 text-sm font-bold text-emerald-700 hover:bg-emerald-50 transition-colors border-t border-slate-100 mt-1">
+                                Support Us
+                            </a>
+                        </div>
+                    </div>
+                @endif
             </nav>
 
-            <div class="flex items-center space-x-3">
-                <a href="{{ route('donate') }}" 
-                   class="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-400/30 hover:border-emerald-400/50 transition-all shadow-sm"
-                   title="Support This Mission (Sadaqah Jariyah)">
-                    <span>💚</span>
-                    <span>Support Us</span>
-                </a>
+            <div class="flex items-center space-x-2">
 
                 @auth
                     @php
@@ -268,13 +299,13 @@
                     </div>
 
                     <a href="{{ route('profile') }}"
-                        class="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-black transition-all {{ request()->routeIs('profile') ? 'bg-white/25 text-white border border-white/40' : 'bg-white/10 hover:bg-white/20 text-emerald-100 hover:text-white border border-white/15' }}"
-                        title="My Profile">
+                        class="flex items-center p-2 rounded-xl text-xs font-black transition-all {{ request()->routeIs('profile') ? 'bg-white/25 text-white border border-white/40' : 'bg-white/10 hover:bg-white/20 text-emerald-100 hover:text-white border border-white/15' }}"
+                        title="My Profile"
+                        aria-label="My Profile">
                         <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                 d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                         </svg>
-                        <span class="hidden sm:inline">My Profile</span>
                     </a>
 
                     <form action="{{ route('logout') }}" method="POST">
@@ -320,6 +351,9 @@
             <p class="opacity-50 text-slate-400">&copy; {{ date('Y') }} The Eternal Echo. <a
                     href="https://asloobulhayat.com/">Asloob
                     ul Hayat Project.</a></p>
+            <div class="flex justify-center">
+                @include('partials.play-store-link')
+            </div>
             <div
                 class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-[10px] uppercase font-black tracking-widest text-slate-500">
                 <a href="{{ route('donate') }}" class="text-emerald-400 hover:text-emerald-300 font-black transition-colors">🤲 Sadaqah Jariyah / Donate</a>

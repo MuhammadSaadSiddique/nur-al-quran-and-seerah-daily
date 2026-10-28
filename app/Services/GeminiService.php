@@ -716,5 +716,73 @@ Requirements:
 
         return $decoded;
     }
+
+    /**
+     * One essay draft for an admin-supplied topic. Citations are constrained in the prompt and checked again before saving.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function generateBlogDraft(string $topic): ?array
+    {
+        $topic = trim($topic);
+        if ($topic === '' || $this->apiKey === '') {
+            return null;
+        }
+
+        $prompt = <<<PROMPT
+Write one English essay draft for The Eternal Echo, an Islamic learning app.
+Topic: {$topic}
+
+Rules:
+- About 450 to 700 words.
+- The body is HTML and may use only p, h2, ul, ol, li, a, strong, em, and blockquote.
+- Do not invent hadith numbers, Arabic text, or a long translation. Name a Quran verse as chapter:verse, such as 51:56, only when you are sure of it. If you are not sure, leave the citation out.
+- Do not treat popular word-count claims as established fact. A count needs a stated rule.
+- Mention medical or clinical matters only to say that worship does not replace qualified care.
+- Put 2 or 3 useful links in the body and repeat them in the links array.
+- Internal links may use only these paths: /patterns, /patterns/2/255, /lens/2, /lens/2/255, /duas, /seerah, /quran-research, /quran-history. Change the chapter and verse numbers when a different verse fits. Use a path only when the essay actually points there.
+- External links may use only https://quran.com/... or https://sunnah.com/... and only for a verse or hadith the essay names.
+- category is one short name, such as Quran, Seerah, The Human Being, Duas and Dhikr, Islamic History, or Character.
+- tags is 3 to 5 short labels.
+- excerpt is at most 280 characters.
+- seo_title is at most 70 characters.
+- meta_description is at most 160 characters.
+- title is a clear essay title based on the topic.
+PROMPT;
+
+        $schema = [
+            'type' => 'OBJECT',
+            'properties' => [
+                'title' => ['type' => 'STRING'],
+                'excerpt' => ['type' => 'STRING'],
+                'body' => ['type' => 'STRING'],
+                'category' => ['type' => 'STRING'],
+                'tags' => ['type' => 'ARRAY', 'items' => ['type' => 'STRING']],
+                'links' => [
+                    'type' => 'ARRAY',
+                    'items' => [
+                        'type' => 'OBJECT',
+                        'properties' => [
+                            'label' => ['type' => 'STRING'],
+                            'url' => ['type' => 'STRING'],
+                        ],
+                        'required' => ['label', 'url'],
+                    ],
+                ],
+                'seo_title' => ['type' => 'STRING'],
+                'meta_description' => ['type' => 'STRING'],
+            ],
+            'required' => ['title', 'excerpt', 'body', 'category', 'tags', 'links', 'seo_title', 'meta_description'],
+        ];
+
+        $result = $this->callGemini($prompt, $schema);
+        if (!$result) {
+            return null;
+        }
+
+        $decoded = json_decode($result, true);
+
+        return is_array($decoded) ? $decoded : null;
+    }
 }
 

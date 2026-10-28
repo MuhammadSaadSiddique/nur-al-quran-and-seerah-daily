@@ -22,6 +22,8 @@ use App\Http\Controllers\ReadingController;
 use App\Http\Controllers\DonationController;
 use App\Http\Controllers\EngagementController;
 use App\Http\Controllers\QuranPatternController;
+use App\Http\Controllers\BlogController;
+use App\Http\Controllers\Admin\BlogController as AdminBlogController;
 use Illuminate\Support\Facades\Route;
 
 // Android App Links verification. A static copy also lives in public/.well-known/.
@@ -53,6 +55,11 @@ Route::get('/patterns', [QuranPatternController::class, 'index'])->name('pattern
 Route::get('/patterns/{chapter}/{verse}', [QuranPatternController::class, 'show'])
     ->whereNumber(['chapter', 'verse'])
     ->name('patterns.show');
+
+Route::get('/blog', [BlogController::class, 'index'])->name('blog.index');
+Route::get('/blog/category/{category}', [BlogController::class, 'category'])->name('blog.category');
+Route::get('/blog/tag/{tag}', [BlogController::class, 'tag'])->name('blog.tag');
+Route::get('/blog/{post}', [BlogController::class, 'show'])->name('blog.show');
 
 // User & App Feedback Submission
 Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store'])->name('app-feedback.store')->middleware('throttle:10,1');
@@ -209,6 +216,17 @@ Route::middleware('auth')->group(function () {
         Route::put('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'update'])->name('categories.update');
         Route::match(['post', 'patch'], '/categories/{category}/toggle-active', [\App\Http\Controllers\Admin\CategoryController::class, 'toggleActive'])->name('categories.toggle-active');
         Route::delete('/categories/{category}', [\App\Http\Controllers\Admin\CategoryController::class, 'destroy'])->name('categories.destroy');
+
+        Route::get('/blog', [AdminBlogController::class, 'index'])->name('blog.index');
+        Route::get('/blog/create', [AdminBlogController::class, 'create'])->name('blog.create');
+        Route::post('/blog', [AdminBlogController::class, 'store'])->name('blog.store');
+        Route::post('/blog/generate', [AdminBlogController::class, 'generate'])->name('blog.generate')->middleware('throttle:6,1');
+        Route::get('/blog/{post}/edit', [AdminBlogController::class, 'edit'])->name('blog.edit');
+        Route::put('/blog/{post}', [AdminBlogController::class, 'update'])->name('blog.update');
+        Route::post('/blog/{post}/publish', [AdminBlogController::class, 'publish'])->name('blog.publish');
+        Route::post('/blog/{post}/unpublish', [AdminBlogController::class, 'unpublish'])->name('blog.unpublish');
+        Route::get('/blog/{post}/preview', [AdminBlogController::class, 'preview'])->name('blog.preview');
+        Route::delete('/blog/{post}', [AdminBlogController::class, 'destroy'])->name('blog.destroy');
 
         // Donations & Sadaqah Jariyah Management
         Route::get('/donations', [DonationController::class, 'adminIndex'])->name('donations.index');

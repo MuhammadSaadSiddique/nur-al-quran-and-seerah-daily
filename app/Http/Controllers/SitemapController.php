@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\BlogPost;
 use App\Models\Dua;
 use App\Models\Theme;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
 
@@ -193,6 +195,24 @@ class SitemapController extends Controller
                 'priority' => '0.8',
             ];
         }
+        if (Route::has('blog.index') && Schema::hasTable('blog_posts')) {
+            $urls[] = [
+                'loc' => route('blog.index'),
+                'lastmod' => now()->startOfDay()->toAtomString(),
+                'changefreq' => 'weekly',
+                'priority' => '0.8',
+            ];
+
+            foreach (BlogPost::published()->get() as $post) {
+                $urls[] = [
+                    'loc' => route('blog.show', $post),
+                    'lastmod' => ($post->updated_at ?? $post->published_at ?? now())->toAtomString(),
+                    'changefreq' => 'weekly',
+                    'priority' => '0.7',
+                ];
+            }
+        }
+
         // 16. Leaderboard page
         $urls[] = [
             'loc' => route('leaderboard'),

@@ -138,11 +138,11 @@
     {{-- Header --}}
     <header class="bg-slate-900/80 backdrop-blur-md border-b border-white/10 text-white shadow-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-            <a href="{{ route('lens.landing') }}" class="flex items-center space-x-2">
+            <a href="{{ route('lens.landing') }}" class="flex items-center space-x-2 shrink-0">
                 <div class="p-1 rounded-3xl">
                     <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo" class="w-8 h-8 object-contain">
                 </div>
-                <span class="font-black text-xl tracking-tight text-white">The Eternal Echo</span>
+                <span class="font-black text-xl tracking-tight text-white whitespace-nowrap">The Eternal Echo</span>
             </a>
 
             @php
@@ -293,6 +293,7 @@
                     ul Hayat Project.</a></p>
             <div
                 class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-[10px] uppercase font-black tracking-widest text-slate-500">
+                <a href="{{ route('blog.index') }}" class="hover:text-emerald-500 transition-colors">Blog</a>
                 <a href="{{ route('donate') }}" class="text-emerald-400 hover:text-emerald-300 font-black transition-colors">🤲 Sadaqah Jariyah / Donate</a>
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
                 <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>

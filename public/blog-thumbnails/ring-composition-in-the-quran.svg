@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#022c22"/>
+  <rect width="18" height="630" fill="#d4af5f"/>
+  <circle cx="1040" cy="150" r="105" fill="none" stroke="#d4af5f" stroke-width="3"/>
+  <circle cx="1040" cy="150" r="66" fill="none" stroke="#d4af5f" stroke-width="3"/>
+  <text x="72" y="168" fill="#a7f3d0" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="3">QURAN</text>
+  <text x="72" y="270" fill="#f8fafc" font-family="Segoe UI, Arial, sans-serif" font-size="52" font-weight="800"><tspan x="72" dy="0">Ring Composition in the</tspan><tspan x="72" dy="68">Quran</tspan></text>
+  <text x="72" y="560" fill="#d4af5f" font-family="Segoe UI, Arial, sans-serif" font-size="22" font-weight="700">The Eternal Echo</text>
+</svg>

@@ -4,16 +4,18 @@
 @section('canonical', route('login'))
 
 @section('content')
-    <div class="fixed inset-0 flex items-center justify-center bg-emerald-900 p-6 z-[60] overflow-hidden"
+    <div class="fixed inset-x-0 z-[60] overflow-y-auto overscroll-y-contain bg-emerald-900"
+        style="top: var(--vv-offset-top, 0px); height: var(--vv-height, 100dvh);"
         x-data="loginForm()">
-        <div class="bg-white p-10 rounded-[3.5rem] shadow-2xl max-w-md w-full space-y-8 animate-slideUp relative">
+        <div class="flex min-h-full flex-col px-4 py-6 sm:px-6 sm:py-8">
+        <div class="bg-white p-6 sm:p-10 rounded-[2rem] sm:rounded-[3.5rem] shadow-2xl max-w-md w-full m-auto space-y-6 sm:space-y-8 animate-slideUp relative">
             <div class="text-center space-y-2">
                 <div
                     class="bg-emerald-900 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-6 text-emerald-700 shadow-inner">
                     <img src="{{ asset('eternal.png') }}" alt="The Eternal Echo" class="w-12 h-12">
                 </div>
 
-                <h2 class="text-4xl font-black text-slate-900 tracking-tight leading-none">The Eternal Echo</h2>
+                <h2 class="text-3xl sm:text-4xl font-black text-slate-900 tracking-tight leading-none">The Eternal Echo</h2>
                 <p class="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Spiritual Knowledge Journey
                 </p>
             </div>
@@ -42,12 +44,13 @@
             <form x-show="!loading && phase === 'email' && method === 'otp'" @submit.prevent="requestOtp" class="space-y-5">
                 <div class="space-y-1">
                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Email</label>
-                    <input type="email" x-model="email" placeholder="your@email.com"
-                        class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold text-slate-800 transition-all"
+                    <input type="email" x-model="email" placeholder="your@email.com" enterkeyhint="send"
+                        autocomplete="email" inputmode="email"
+                        class="w-full p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold text-slate-800 transition-all"
                         required>
                 </div>
                 <button type="submit"
-                    class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg hover:bg-emerald-800 transition-all shadow-xl shadow-slate-200 active:scale-[0.98]">
+                    class="w-full bg-slate-900 text-white py-4 sm:py-5 rounded-2xl font-black text-lg hover:bg-emerald-800 transition-all shadow-xl shadow-slate-200 active:scale-[0.98]">
                     Send Verification Code
                 </button>
 
@@ -72,14 +75,16 @@
                 <div class="space-y-4">
                     <div class="space-y-1">
                         <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Email</label>
-                        <input type="email" x-model="email" placeholder="your@email.com"
-                            class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold text-slate-800 transition-all"
+                        <input type="email" x-model="email" placeholder="your@email.com" enterkeyhint="next"
+                            autocomplete="username" inputmode="email"
+                            class="w-full p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold text-slate-800 transition-all"
                             required>
                     </div>
                     <div class="space-y-1">
                         <label class="text-[10px] font-black uppercase text-slate-400 ml-1">Password</label>
-                        <input type="password" x-model="password" placeholder="••••••"
-                            class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold text-slate-800 transition-all"
+                        <input type="password" x-model="password" placeholder="••••••" enterkeyhint="go"
+                            autocomplete="current-password"
+                            class="w-full p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 focus:border-emerald-500 font-bold text-slate-800 transition-all"
                             required>
                     </div>
                 </div>
@@ -87,7 +92,7 @@
                 <p x-show="error" class="text-rose-500 text-xs font-bold text-center leading-relaxed" x-text="error"></p>
 
                 <button type="submit"
-                    class="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-lg hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-[0.98]">
+                    class="w-full bg-emerald-600 text-white py-4 sm:py-5 rounded-2xl font-black text-lg hover:bg-emerald-700 transition-all shadow-xl shadow-emerald-100 active:scale-[0.98]">
                     Sign In / Register
                 </button>
 
@@ -98,7 +103,7 @@
             </form>
 
             {{-- OTP Code Verification Phase --}}
-            <div x-show="!loading && phase === 'otp'" class="space-y-6 animate-fadeIn">
+            <form x-show="!loading && phase === 'otp'" @submit.prevent="verifyOtp" class="space-y-6 animate-fadeIn">
                 <div class="bg-emerald-50 p-5 rounded-2xl border border-emerald-100 text-center">
                     <p class="text-emerald-800 text-sm font-bold leading-relaxed italic" x-text="'\"' + welcome + ' \"'">
                         A verification code has been sent to Email
@@ -108,22 +113,23 @@
                     <label
                         class="text-[10px] font-black uppercase text-slate-400 text-center block tracking-widest">Verification
                         Code</label>
-                    <input type="text" x-model="otp" placeholder="000000" maxlength="6"
-                        class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-center text-4xl tracking-[0.4em] font-black text-slate-900 placeholder:tracking-normal placeholder:font-bold placeholder:text-slate-200">
+                    <input type="text" x-model="otp" placeholder="000000" maxlength="6" inputmode="numeric"
+                        autocomplete="one-time-code" enterkeyhint="done"
+                        class="w-full p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 text-center text-3xl sm:text-4xl tracking-[0.4em] font-black text-slate-900 placeholder:tracking-normal placeholder:font-bold placeholder:text-slate-200">
                 </div>
                 <p x-show="error" class="text-rose-500 text-sm font-bold text-center" x-text="error"></p>
-                <button @click="verifyOtp"
-                    class="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-[0.98]">
+                <button type="submit"
+                    class="w-full bg-emerald-600 text-white py-4 sm:py-5 rounded-2xl font-black text-lg shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-[0.98]">
                     Verify & Enter
                 </button>
-                <button @click="phase = 'email'; error = ''"
+                <button type="button" @click="phase = 'email'; error = ''"
                     class="w-full text-slate-400 font-black uppercase text-[10px] tracking-[0.2em] hover:text-rose-600 transition-colors">
                     Back to Entry Form
                 </button>
-            </div>
+            </form>
 
             {{-- Set Password Phase --}}
-            <div x-show="!loading && phase === 'set_password'" class="space-y-6 animate-fadeIn">
+            <form x-show="!loading && phase === 'set_password'" @submit.prevent="savePassword" class="space-y-6 animate-fadeIn">
                 <div class="bg-amber-50 p-5 rounded-2xl border border-amber-100 text-center">
                     <p class="text-amber-800 text-sm font-bold leading-relaxed">
                         🔒 Success! Secure your account by setting a password now, or skip and set it later in your profile.
@@ -132,20 +138,22 @@
                 <div class="space-y-2">
                     <label class="text-[10px] font-black uppercase text-slate-400 ml-1">New Password</label>
                     <input type="password" x-model="newPassword" placeholder="Minimum 6 characters..."
-                        class="w-full p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 transition-all">
+                        enterkeyhint="done" autocomplete="new-password"
+                        class="w-full p-4 sm:p-5 rounded-2xl bg-slate-50 border-2 border-slate-100 font-bold text-slate-800 focus:border-emerald-500 transition-all">
                 </div>
                 <p x-show="error" class="text-rose-500 text-sm font-bold text-center" x-text="error"></p>
                 <div class="space-y-3">
-                    <button @click="savePassword"
-                        class="w-full bg-emerald-600 text-white py-5 rounded-2xl font-black text-lg shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-[0.98]">
+                    <button type="submit"
+                        class="w-full bg-emerald-600 text-white py-4 sm:py-5 rounded-2xl font-black text-lg shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all active:scale-[0.98]">
                         Save Password
                     </button>
-                    <button @click="skipPassword"
+                    <button type="button" @click="skipPassword"
                         class="w-full bg-slate-100 text-slate-600 py-4 rounded-2xl font-bold text-sm hover:bg-slate-200 transition-all">
                         Skip & Enter Dashboard
                     </button>
                 </div>
-            </div>
+            </form>
+        </div>
         </div>
     </div>
 @endsection

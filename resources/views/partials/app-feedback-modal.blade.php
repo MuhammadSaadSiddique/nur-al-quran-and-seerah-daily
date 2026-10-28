@@ -39,7 +39,7 @@
              x-transition:leave="transition ease-in duration-200"
              x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
              x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
-             class="relative w-full max-w-lg bg-slate-900 border border-emerald-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 text-white z-10"
+             class="relative w-full max-w-lg max-h-full bg-slate-900 border border-emerald-500/30 rounded-3xl shadow-2xl overflow-y-auto p-6 sm:p-8 text-white z-10"
              @click.stop>
 
             {{-- Decorative Header Glow --}}

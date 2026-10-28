@@ -570,6 +570,7 @@ fun VerificationDialog(
     var feedback by remember { mutableStateOf("") }
 
     AlertDialog(
+        modifier = Modifier.imePadding(),
         onDismissRequest = onDismiss,
         title = {
             Text("Peer review", fontWeight = FontWeight.Bold)
@@ -678,7 +679,8 @@ fun ContributeResearchBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 10.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(

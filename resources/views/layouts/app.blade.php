@@ -3,7 +3,7 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, interactive-widget=resizes-content">
     <meta name="csrf-token" content="{{ csrf_token() }}">
 
     {{-- SEO Meta Tags --}}
@@ -128,6 +128,37 @@
 
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
             background: #94a3b8;
+        }
+
+        html.keyboard-open .mobile-bottom-nav {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        @media (max-width: 900px) {
+            button,
+            input[type="submit"],
+            input,
+            textarea {
+                scroll-margin-bottom: 24px;
+            }
+        }
+
+        /* Keep fixed dialogs inside the area above the keyboard and let them scroll. */
+        html.keyboard-open [class~="fixed"][class~="inset-0"] {
+            top: var(--vv-offset-top, 0px) !important;
+            bottom: auto !important;
+            height: var(--vv-height, 100dvh) !important;
+            max-height: var(--vv-height, 100dvh) !important;
+            overflow-y: auto !important;
+            align-items: flex-start !important;
+            justify-content: flex-start !important;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        html.keyboard-open [class~="fixed"][class~="inset-0"] > :not([class~="fixed"]) {
+            margin-top: auto !important;
+            margin-bottom: auto !important;
         }
     </style>
     @stack('styles')
@@ -318,6 +349,71 @@
     @include('partials.app-feedback-modal')
 
     @stack('scripts')
+    <script>
+        (function () {
+            var root = document.documentElement;
+
+            function syncViewport() {
+                var vv = window.visualViewport;
+                var height = vv ? vv.height : window.innerHeight;
+                var offsetTop = vv ? vv.offsetTop : 0;
+                root.style.setProperty('--vv-height', Math.round(height) + 'px');
+                root.style.setProperty('--vv-offset-top', Math.round(offsetTop) + 'px');
+                var keyboardInset = Math.max(0, window.innerHeight - height - offsetTop);
+                root.classList.toggle('keyboard-open', keyboardInset > 72);
+            }
+
+            syncViewport();
+            if (window.visualViewport) {
+                visualViewport.addEventListener('resize', syncViewport);
+                visualViewport.addEventListener('scroll', syncViewport);
+            }
+            window.addEventListener('resize', syncViewport);
+
+            function isTextField(el) {
+                if (!el || el.nodeType !== 1 || el.disabled || el.readOnly) return false;
+                if (el.tagName === 'TEXTAREA') return true;
+                if (el.tagName !== 'INPUT') return false;
+                var type = (el.getAttribute('type') || 'text').toLowerCase();
+                return ['hidden', 'checkbox', 'radio', 'button', 'submit', 'file', 'range', 'color', 'image'].indexOf(type) === -1;
+            }
+
+            function nearestAction(field) {
+                var node = field.parentElement;
+                while (node && node !== document.body) {
+                    var buttons = node.querySelectorAll('button, input[type="submit"]');
+                    var fallback = null;
+                    for (var i = 0; i < buttons.length; i++) {
+                        var button = buttons[i];
+                        if (button.disabled || button.offsetParent === null) continue;
+                        if (!(field.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING)) continue;
+                        var type = (button.getAttribute('type') || 'submit').toLowerCase();
+                        if (type === 'submit') return button;
+                        if (!fallback && type !== 'reset') fallback = button;
+                    }
+                    if (fallback) return fallback;
+                    node = node.parentElement;
+                }
+                return null;
+            }
+
+            function revealAction(field) {
+                var action = nearestAction(field);
+                if (!action) return;
+                var fieldRect = field.getBoundingClientRect();
+                var actionRect = action.getBoundingClientRect();
+                if (actionRect.top - fieldRect.bottom > 480) return;
+                action.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+            }
+
+            document.addEventListener('focusin', function (event) {
+                if (!isTextField(event.target)) return;
+                if (window.matchMedia('(min-width: 901px) and (pointer: fine)').matches) return;
+                window.setTimeout(function () { revealAction(event.target); }, 60);
+                window.setTimeout(function () { revealAction(event.target); }, 340);
+            });
+        })();
+    </script>
 </body>
 
 </html>

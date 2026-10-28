@@ -221,6 +221,7 @@ fun MainScreen(
     if (showPasswordDialog) {
         val isSetFlow = !userHasPassword
         AlertDialog(
+            modifier = Modifier.imePadding(),
             onDismissRequest = {
                 if (!passwordSaving) {
                     showPasswordDialog = false
@@ -633,6 +634,7 @@ fun MainScreen(
 
     if (showDeleteAccountConfirmDialog) {
         AlertDialog(
+            modifier = Modifier.imePadding(),
             onDismissRequest = {
                 if (!isDeletingAccount) {
                     showDeleteAccountConfirmDialog = false

@@ -64,13 +64,41 @@ object DeepLinkHelper {
     fun parseUri(uri: Uri?): DeepLinkDestination? = parse(uri)
 
     /**
-     * Parses a deep link URL string into a [DeepLinkDestination].
-     * Compatible with pure JVM execution (no Android framework needed for testing).
+     * Turns site-relative paths (`/duas/ayat-al-kursi`, `lens/2/255`) into absolute https URLs.
      */
+    fun toAbsoluteUrl(urlString: String): String {
+        val trimmed = urlString.trim()
+        if (trimmed.contains("://")) return trimmed
+        if (trimmed.startsWith("//")) return "https:$trimmed"
+
+        val hostPrefix = trimmed.substringBefore('/').substringBefore('?').substringBefore('#')
+        if (hostPrefix.equals(WEB_HOST, ignoreCase = true) ||
+            hostPrefix.equals("www.$WEB_HOST", ignoreCase = true)
+        ) {
+            return "https://$trimmed"
+        }
+
+        return "$BASE_WEB_URL/${trimmed.trimStart('/')}"
+    }
+
+    /**
+     * An http(s) address that does not map to an in-app screen.
+     * Returns null for app paths such as /duas or /lens/2/255.
+     */
+    fun externalWebUrl(urlString: String?): String? {
+        if (urlString.isNullOrBlank()) return null
+        if (parse(urlString) != null) return null
+
+        val absolute = toAbsoluteUrl(urlString)
+        val lower = absolute.lowercase()
+        if (!lower.startsWith("https://") && !lower.startsWith("http://")) return null
+        return absolute
+    }
+
     fun parse(urlString: String?): DeepLinkDestination? {
         if (urlString.isNullOrBlank()) return null
 
-        val trimmed = urlString.trim()
+        val trimmed = toAbsoluteUrl(urlString)
         val withoutQuery = trimmed.substringBefore('?').substringBefore('#')
 
         val (isSupported, pathString) = when {

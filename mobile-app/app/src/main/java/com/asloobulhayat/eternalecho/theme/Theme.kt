@@ -1,8 +1,14 @@
 package com.asloobulhayat.eternalecho.theme
 
+import android.app.Activity
 import android.content.Context
+import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
@@ -145,5 +151,25 @@ fun EternalEchoMobileTheme(
         }
     }
 
+    val view = LocalView.current
+    val lightSystemBars = colorScheme.background.luminance() >= 0.5f
+    if (!view.isInEditMode) {
+        SideEffect {
+            val activity = view.context.findActivity() ?: return@SideEffect
+            val controller = WindowCompat.getInsetsController(activity.window, view)
+            controller.isAppearanceLightStatusBars = lightSystemBars
+            controller.isAppearanceLightNavigationBars = lightSystemBars
+        }
+    }
+
     MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+}
+
+private fun Context.findActivity(): Activity? {
+    var current: Context = this
+    while (current is ContextWrapper) {
+        if (current is Activity) return current
+        current = current.baseContext
+    }
+    return null
 }

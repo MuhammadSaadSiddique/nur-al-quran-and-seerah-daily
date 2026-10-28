@@ -12,14 +12,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Native Android uses /api/* and mobile.php (no CSRF). Web forms must send @csrf.
         $middleware->validateCsrfTokens(except: [
-            'app-feedback',
             'api/*',
-            'donate/notify',
         ]);
         $middleware->alias([
             'admin' => \App\Http\Middleware\IsAdmin::class,
             'researcher' => \App\Http\Middleware\IsResearcher::class,
+            'researcher.pledge' => \App\Http\Middleware\EnsureResearcherPledged::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

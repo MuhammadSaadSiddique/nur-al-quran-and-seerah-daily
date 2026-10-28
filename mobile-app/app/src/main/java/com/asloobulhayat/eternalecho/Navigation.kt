@@ -19,6 +19,7 @@ import com.asloobulhayat.eternalecho.ui.auth.*
 import com.asloobulhayat.eternalecho.ui.onboarding.OnboardingScreen
 import com.asloobulhayat.eternalecho.ui.duas.DuasScreen
 import com.asloobulhayat.eternalecho.ui.duas.DuaDetailScreen
+import com.asloobulhayat.eternalecho.ui.insights.InsightQuizScreen
 import com.asloobulhayat.eternalecho.data.SurahNavKey
 import com.asloobulhayat.eternalecho.security.SecurePreferences
 
@@ -26,12 +27,14 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
+import com.asloobulhayat.eternalecho.analytics.ScreenAnalytics
 import com.asloobulhayat.eternalecho.util.DeepLinkDestination
 
 @Composable
 fun MainNavigation(
     deepLinkDestination: DeepLinkDestination? = null,
-    onDeepLinkHandled: () -> Unit = {}
+    onDeepLinkHandled: () -> Unit = {},
+    announcementsRequest: Int = 0
 ) {
   val context = LocalContext.current
   val prefs = remember { SecurePreferences.getInstance(context) }
@@ -40,63 +43,68 @@ fun MainNavigation(
   val initialKey = if (hasCompletedOnboarding) Main else OnboardingRoute
   val backStack = rememberNavBackStack(initialKey)
   var mainTab by remember { mutableIntStateOf(0) }
+  var tabRequestId by remember { mutableIntStateOf(0) }
+
+  fun ensureMainUnderneath() {
+    if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
+      backStack.clear()
+      backStack.add(Main)
+    }
+  }
+
+  fun showMainTab(tab: Int) {
+    if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
+      backStack.clear()
+      backStack.add(Main)
+    } else {
+      while (backStack.size > 1) {
+        backStack.removeLastOrNull()
+      }
+    }
+    mainTab = tab
+    tabRequestId += 1
+  }
 
   LaunchedEffect(deepLinkDestination) {
     deepLinkDestination?.let { destination ->
       when (destination) {
         is DeepLinkDestination.Surah -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           backStack.add(SurahNavKey(destination.surahNumber, destination.verseNumber))
         }
         is DeepLinkDestination.Duas -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           backStack.add(DuasRoute)
         }
         is DeepLinkDestination.DuaDetail -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           val numId = destination.idOrSlug.toIntOrNull() ?: 0
           val slug = if (numId == 0) destination.idOrSlug else ""
           backStack.add(DuaDetailRoute(numId, slug))
         }
         is DeepLinkDestination.Quiz -> {
-          if (backStack.isEmpty() || backStack.lastOrNull() == OnboardingRoute) {
-            backStack.clear()
-            backStack.add(Main)
-          }
+          ensureMainUnderneath()
           backStack.add(ThemeQuizSelection)
         }
-        is DeepLinkDestination.Seerah -> {
-          mainTab = 2
-          backStack.clear()
-          backStack.add(Main)
-        }
-        is DeepLinkDestination.History -> {
-          mainTab = 3
-          backStack.clear()
-          backStack.add(Main)
-        }
-        is DeepLinkDestination.Leaderboard -> {
-          mainTab = 1
-          backStack.clear()
-          backStack.add(Main)
-        }
-        is DeepLinkDestination.Home -> {
-          mainTab = 0
-          backStack.clear()
-          backStack.add(Main)
-        }
+        is DeepLinkDestination.Seerah -> showMainTab(2)
+        is DeepLinkDestination.History -> showMainTab(3)
+        is DeepLinkDestination.Leaderboard -> showMainTab(1)
+        is DeepLinkDestination.Home -> showMainTab(0)
       }
       onDeepLinkHandled()
     }
+  }
+
+  // When returning to Main from Surah / Quiz / Insight / Dua, force home stats to reload.
+  val topRoute = backStack.lastOrNull()
+  LaunchedEffect(topRoute) {
+    if (topRoute == Main) {
+      com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
+    }
+  }
+
+  LaunchedEffect(topRoute, mainTab) {
+    ScreenAnalytics.logVisibleScreen(context, topRoute, mainTab)
   }
 
   NavDisplay(
@@ -116,7 +124,9 @@ fun MainNavigation(
           MainScreen(
             onItemClick = { navKey -> backStack.add(navKey) },
             initialTab = mainTab,
+            tabRequestId = tabRequestId,
             onTabSelected = { mainTab = it },
+            announcementsRequest = announcementsRequest,
             modifier = Modifier
           )
         }
@@ -156,6 +166,7 @@ fun MainNavigation(
             surahNumber = surahNumber,
             initialVerseNumber = verseNumber,
             onBackClick = { backStack.removeLastOrNull() },
+            onAuthClick = { backStack.add(AuthRoute) },
             modifier = Modifier.safeDrawingPadding().padding(4.dp)
           )
         }
@@ -188,7 +199,19 @@ fun MainNavigation(
         entry<AuthRoute> {
           AuthScreen(
             onBackClick = { backStack.removeLastOrNull() },
-            modifier = Modifier.safeDrawingPadding().padding(16.dp)
+            modifier = Modifier.padding(horizontal = 16.dp)
+          )
+        }
+        entry<InsightQuizRoute> { key ->
+          InsightQuizScreen(
+            markType = key.markType,
+            questionId = key.questionId,
+            insightTitle = key.insightTitle,
+            questionText = key.questionText,
+            options = key.options,
+            onBackClick = { backStack.removeLastOrNull() },
+            onAuthClick = { backStack.add(AuthRoute) },
+            modifier = Modifier.safeDrawingPadding()
           )
         }
       },

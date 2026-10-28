@@ -42,16 +42,7 @@ class SitemapController extends Controller
             'priority' => '0.9',
         ];
 
-        // 4. Dynamic Themes (Active ones only with 5 or more questions)
-        $themes = Theme::where('is_active', true)->has('questions', '>=', 5)->get();
-        foreach ($themes as $theme) {
-            $urls[] = [
-                'loc' => route('themes.show', $theme->slug),
-                'lastmod' => ($theme->updated_at ?? $theme->created_at ?? now())->toAtomString(),
-                'changefreq' => 'weekly',
-                'priority' => '0.8',
-            ];
-        }
+       
 
         // 5. Sadaqah Jariyah & Support
         if (Route::has('donate')) {
@@ -192,7 +183,16 @@ class SitemapController extends Controller
                 }
             } catch (\Exception $e) {}
         }
-
+ // 4. Dynamic Themes (Active ones only with 5 or more questions)
+        $themes = Theme::where('is_active', true)->has('questions', '>=', 5)->get();
+        foreach ($themes as $theme) {
+            $urls[] = [
+                'loc' => route('themes.show', $theme->slug),
+                'lastmod' => ($theme->updated_at ?? $theme->created_at ?? now())->toAtomString(),
+                'changefreq' => 'weekly',
+                'priority' => '0.8',
+            ];
+        }
         // 16. Leaderboard page
         $urls[] = [
             'loc' => route('leaderboard'),

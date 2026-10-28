@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\ResearcherOnboarding;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -39,6 +40,7 @@ class QuranicLensRoleTest extends TestCase
             'is_admin' => false,
             'is_researcher' => true,
         ]);
+        ResearcherOnboarding::acceptFor($researcher);
 
         // Access approvals
         $response = $this->actingAs($researcher)->get(route('admin.lens.approvals.index'));
@@ -80,7 +82,7 @@ class QuranicLensRoleTest extends TestCase
         $response->assertRedirect(route('login'));
     }
 
-    public function test_logged_in_user_can_join_researchers_team(): void
+    public function test_logged_in_user_cannot_self_grant_researcher_access(): void
     {
         $user = User::create([
             'name' => 'Regular User',
@@ -91,10 +93,10 @@ class QuranicLensRoleTest extends TestCase
         ]);
 
         $response = $this->actingAs($user)->post(route('researchers.join'));
-        $response->assertRedirect(route('researchers.index'));
+        $response->assertRedirect(route('researchers.onboarding'));
 
         $user->refresh();
-        $this->assertTrue($user->is_researcher);
+        $this->assertFalse((bool) $user->is_researcher);
     }
 
     public function test_researcher_expert_category_restriction_on_approvals_page(): void
@@ -113,6 +115,7 @@ class QuranicLensRoleTest extends TestCase
             'is_researcher' => true,
             'expert_category_id' => $category->id,
         ]);
+        ResearcherOnboarding::acceptFor($researcher);
 
         // Create a matching tag (Geology)
         \App\Models\QuranicLensVerseTag::create([

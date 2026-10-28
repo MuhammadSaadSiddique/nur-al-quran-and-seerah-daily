@@ -172,21 +172,12 @@ fun DuaDetailScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = currentDua?.title ?: "Dua Detail",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
+                title = "Dua",
+                onBackClick = onBackClick,
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 actions = {
                     currentDua?.let { dua ->
                         IconButton(onClick = { playArabicSpeech(dua.arabicText) }) {
@@ -210,20 +201,18 @@ fun DuaDetailScreen(
                                 title = dua.title,
                                 arabicText = dua.arabicText,
                                 translation = trans,
-                                reference = dua.quranReference ?: dua.hadithReference
+                                reference = dua.quranReference ?: dua.hadithReference,
+                                idOrSlug = dua.slug.ifBlank { dua.id.toString() }
                             )
                         }) {
                             Icon(Icons.Default.Share, contentDescription = "Share Dua")
                         }
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         }
     ) { paddingValues ->
+        com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
         Box(
             modifier = modifier
                 .fillMaxSize()
@@ -267,76 +256,70 @@ fun DuaDetailScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    // Header Badges & Language Switcher
-                    Row(
+                    FlowRow(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Row(
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                        Surface(
+                            color = MaterialTheme.colorScheme.primaryContainer,
+                            shape = RoundedCornerShape(8.dp)
                         ) {
+                            Text(
+                                text = dua.category,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                maxLines = 1,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                            )
+                        }
+
+                        if (dua.sourceType == "quran" || dua.sourceType == "both") {
                             Surface(
-                                color = MaterialTheme.colorScheme.primaryContainer,
+                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
                                 shape = RoundedCornerShape(8.dp)
                             ) {
                                 Text(
-                                    text = dua.category,
+                                    text = "Quran",
                                     style = MaterialTheme.typography.labelSmall,
                                     fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    color = MaterialTheme.colorScheme.primary,
                                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                                 )
                             }
+                        }
 
-                            if (dua.sourceType == "quran" || dua.sourceType == "both") {
-                                Surface(
-                                    color = Color(0xFFE6F4EA),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = "📖 Quran",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFF137333),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
-                            }
-
-                            if (dua.sourceType == "hadith" || dua.sourceType == "both") {
-                                Surface(
-                                    color = Color(0xFFFEF7E0),
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = "📜 Hadith",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = Color(0xFFB06000),
-                                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                                    )
-                                }
-                            }
-
-                            if (!dua.hadithGrading.isNullOrBlank()) {
-                                Surface(
-                                    color = MaterialTheme.colorScheme.surfaceVariant,
-                                    shape = RoundedCornerShape(8.dp)
-                                ) {
-                                    Text(
-                                        text = dua.hadithGrading,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 4.dp)
-                                    )
-                                }
+                        if (dua.sourceType == "hadith" || dua.sourceType == "both") {
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.18f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = "Hadith",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.tertiary,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
                             }
                         }
 
-                        // Language Toggle: English / Urdu
+                        if (!dua.hadithGrading.isNullOrBlank()) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = dua.hadithGrading,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
                         Row(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(12.dp))
@@ -566,7 +549,7 @@ fun DuaDetailScreen(
                                 verticalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 Text(
-                                    text = "💡 Spiritual Insights & Divine Wisdom",
+                                    text = "Spiritual insights",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.onSurface
@@ -644,7 +627,7 @@ fun DuaDetailScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "📿 Sunnah Tasbih Counter",
+                                    text = "Sunnah counter",
                                     style = MaterialTheme.typography.titleSmall,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -671,7 +654,7 @@ fun DuaDetailScreen(
                                     },
                                     shape = RoundedCornerShape(16.dp),
                                     colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (tasbihCount >= dua.repeatCount) Color(0xFF137333) else MaterialTheme.colorScheme.primary
+                                        containerColor = MaterialTheme.colorScheme.primary
                                     ),
                                     contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
                                 ) {
@@ -707,16 +690,16 @@ fun DuaDetailScreen(
                                     .fillMaxWidth()
                                     .height(6.dp)
                                     .clip(RoundedCornerShape(3.dp)),
-                                color = if (tasbihCount >= dua.repeatCount) Color(0xFF137333) else MaterialTheme.colorScheme.primary,
+                                color = MaterialTheme.colorScheme.primary,
                                 trackColor = MaterialTheme.colorScheme.surfaceVariant
                             )
 
                             if (tasbihCount >= dua.repeatCount) {
                                 Text(
-                                    text = "✨ MashaAllah! Supplication goal completed.",
+                                    text = "MashaAllah — goal completed.",
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color(0xFF137333)
+                                    color = MaterialTheme.colorScheme.primary
                                 )
                             }
                         }
@@ -734,7 +717,7 @@ fun DuaDetailScreen(
                             verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
                             Text(
-                                text = "📜 Scriptural Citations & Authority",
+                                text = "Citations",
                                 style = MaterialTheme.typography.labelLarge,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -747,7 +730,7 @@ fun DuaDetailScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = "📖 ${dua.quranReference}",
+                                        text = dua.quranReference,
                                         style = MaterialTheme.typography.bodyMedium,
                                         fontWeight = FontWeight.SemiBold,
                                         color = MaterialTheme.colorScheme.primary
@@ -756,7 +739,7 @@ fun DuaDetailScreen(
                                         TextButton(onClick = {
                                             onSurahClick(dua.surahNumber, dua.verseNumber)
                                         }) {
-                                            Text("Read Ayah →", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Text("Read ayah →", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -764,10 +747,10 @@ fun DuaDetailScreen(
 
                             if (!dua.hadithReference.isNullOrBlank()) {
                                 Text(
-                                    text = "📜 ${dua.hadithReference}",
+                                    text = dua.hadithReference,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFB06000)
+                                    color = MaterialTheme.colorScheme.tertiary
                                 )
                             }
                         }
@@ -807,6 +790,7 @@ fun DuaDetailScreen(
                     }
                 }
             }
+        }
         }
     }
 }

@@ -6,6 +6,8 @@ import kotlinx.coroutines.flow.flow
 interface DataRepository {
     suspend fun getSurahs(): List<Surah>
     suspend fun getVerses(surahNumber: Int): List<Verse>
+    suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> = verses
+    suspend fun getVerseTranslations(surahNumber: Int, verseNumber: Int): List<VerseTranslation> = emptyList()
     suspend fun getConnections(surahNumber: Int, verseNumber: Int): ConnectionsData
     suspend fun getAllConnections(
         category: String = "all",
@@ -16,21 +18,27 @@ interface DataRepository {
     ): AllConnectionsResponse
     suspend fun getLeaderboard(): List<LeaderboardUser>
     suspend fun getInsights(
-        seerahPage: Int = 1,
-        historyPage: Int = 1,
+        seerahPage: Int = 0,
+        historyPage: Int = 0,
         seerahCategory: String = "",
         historyCategory: String = ""
     ): InsightsData
     suspend fun getThemes(): List<Theme>
-    suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): List<QuizQuestion>
-    suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): List<QuizQuestion>
+    suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int = 20): QuizSession
+    suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int = 20): QuizSession
     suspend fun login(email: String, password: String): UserSession
     suspend fun register(name: String, email: String, password: String): UserSession
     suspend fun requestOtp(email: String): Boolean
     suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse
     suspend fun setPassword(userId: Int, password: String): Boolean
-    suspend fun changePassword(userId: Int, password: String): Boolean
-    suspend fun deleteAccount(userId: Int): Boolean = true
+    suspend fun changePassword(userId: Int, password: String, currentPassword: String = ""): Boolean
+    suspend fun logout(): Boolean = true
+    suspend fun deleteAccount(userId: Int, currentPassword: String = "", confirmDeletion: Boolean = false): Boolean = true
+    suspend fun checkAnswer(
+        questionId: String,
+        selectedIndex: Int,
+        options: List<String> = emptyList()
+    ): AnswerReveal? = null
     suspend fun submitQuiz(
         userId: Int,
         type: String,
@@ -39,7 +47,8 @@ interface DataRepository {
         totalQuestions: Int,
         difficulty: String,
         questionsJson: String,
-        userAnswersJson: String
+        userAnswersJson: String,
+        attemptToken: String = ""
     ): Boolean
     suspend fun getDuas(category: String = "", search: String = "", sourceType: String = ""): List<Dua>
     suspend fun getDua(id: Int = 0, slug: String = ""): Dua? = null
@@ -58,6 +67,11 @@ interface DataRepository {
     ): Result<String> = Result.success("Dua submitted successfully for review.")
     suspend fun getStreakStatus(userId: Int): Result<StreakData> = Result.success(StreakData())
     suspend fun checkInDailyStreak(userId: Int): Result<StreakData> = Result.success(StreakData())
+    suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> = Result.success(DailyEngagement())
+    suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> = Result.success(DailyEngagement())
+    suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> = Result.success(null)
+    suspend fun toggleSurahRead(userId: Int, surah: Int): Result<ApiClient.SurahReadResult> =
+        Result.success(ApiClient.SurahReadResult(isRead = false, engagement = null))
     suspend fun getResearchContributions(
         tab: String = "published",
         category: String = "all",
@@ -107,6 +121,22 @@ class DefaultDataRepository : DataRepository {
         return ApiClient.fetchVerses(surahNumber)
     }
 
+    override suspend fun getVerseTranslations(surahNumber: Int, verseNumber: Int): List<VerseTranslation> {
+        return ApiClient.fetchVerseTranslations(surahNumber, verseNumber)
+    }
+
+    override suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> {
+        if (verses.isEmpty() || verses.any { it.translations.isNotEmpty() }) {
+            return verses
+        }
+        val byVerse = ApiClient.fetchWebTranslations(surahNumber)
+        if (byVerse.isEmpty()) return verses
+        return verses.map { verse ->
+            val translations = byVerse[verse.verseNumber].orEmpty()
+            if (translations.isEmpty()) verse else verse.copy(translations = translations)
+        }
+    }
+
     override suspend fun getConnections(surahNumber: Int, verseNumber: Int): ConnectionsData {
         return ApiClient.fetchConnections(surahNumber, verseNumber)
     }
@@ -138,11 +168,11 @@ class DefaultDataRepository : DataRepository {
         return ApiClient.fetchThemes()
     }
 
-    override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> {
+    override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): QuizSession {
         return ApiClient.fetchThemeQuiz(themeId, difficulty, quantity)
     }
 
-    override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> {
+    override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): QuizSession {
         return ApiClient.fetchGrandQuiz(quizType, difficulty, quantity)
     }
 
@@ -166,12 +196,24 @@ class DefaultDataRepository : DataRepository {
         return ApiClient.setPassword(userId, password)
     }
 
-    override suspend fun changePassword(userId: Int, password: String): Boolean {
-        return ApiClient.changePassword(userId, password)
+    override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean {
+        return ApiClient.changePassword(userId, password, currentPassword)
     }
 
-    override suspend fun deleteAccount(userId: Int): Boolean {
-        return ApiClient.deleteAccount(userId)
+    override suspend fun logout(): Boolean {
+        return ApiClient.logout()
+    }
+
+    override suspend fun deleteAccount(userId: Int, currentPassword: String, confirmDeletion: Boolean): Boolean {
+        return ApiClient.deleteAccount(userId, currentPassword, confirmDeletion)
+    }
+
+    override suspend fun checkAnswer(
+        questionId: String,
+        selectedIndex: Int,
+        options: List<String>
+    ): AnswerReveal? {
+        return ApiClient.checkAnswer(questionId, selectedIndex, options)
     }
 
     override suspend fun submitQuiz(
@@ -182,9 +224,21 @@ class DefaultDataRepository : DataRepository {
         totalQuestions: Int,
         difficulty: String,
         questionsJson: String,
-        userAnswersJson: String
+        userAnswersJson: String,
+        attemptToken: String
     ): Boolean {
-        return ApiClient.submitQuiz(userId, type, title, score, totalQuestions, difficulty, questionsJson, userAnswersJson)
+        // Habit checklist updates immediately; score sync may still be pending offline.
+        DailyEngagementStore.markLocal("quiz")
+        val ok = ApiClient.submitQuiz(
+            userId, type, title, score, totalQuestions, difficulty,
+            questionsJson, userAnswersJson, attemptToken
+        )
+        if (ok) {
+            ApiClient.getDailyEngagement(userId).getOrNull()?.let {
+                DailyEngagementStore.applyServer(it)
+            }
+        }
+        return ok
     }
 
     override suspend fun getDuas(category: String, search: String, sourceType: String): List<Dua> {
@@ -213,6 +267,55 @@ class DefaultDataRepository : DataRepository {
 
     override suspend fun checkInDailyStreak(userId: Int): Result<StreakData> {
         return ApiClient.checkInDailyStreak(userId)
+    }
+
+    override suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> {
+        val cached = DailyEngagementStore.snapshot()
+        val remote = ApiClient.getDailyEngagement(userId)
+        return remote.fold(
+            onSuccess = { Result.success(DailyEngagementStore.applyServer(it)) },
+            onFailure = { Result.success(cached) }
+        )
+    }
+
+    override suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> {
+        val local = DailyEngagementStore.markLocal(activity)
+        val remote = ApiClient.markEngagement(userId, activity)
+        return remote.fold(
+            onSuccess = { Result.success(DailyEngagementStore.applyServer(it)) },
+            onFailure = { Result.success(local) }
+        )
+    }
+
+    override suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> {
+        val local = DailyEngagementStore.markLocal("insight")
+        val remote = ApiClient.markInsight(userId, type, insightId)
+        return remote.fold(
+            onSuccess = { engagement ->
+                Result.success(engagement?.let { DailyEngagementStore.applyServer(it) } ?: local)
+            },
+            onFailure = { Result.success(local) }
+        )
+    }
+
+    override suspend fun toggleSurahRead(userId: Int, surah: Int): Result<ApiClient.SurahReadResult> {
+        // Optimistic read habit — Home updates even if the network call fails.
+        DailyEngagementStore.markLocal("read")
+        val remote = ApiClient.toggleSurahRead(userId, surah)
+        return remote.fold(
+            onSuccess = { result ->
+                result.engagement?.let { DailyEngagementStore.applyServer(it) }
+                Result.success(result)
+            },
+            onFailure = {
+                Result.success(
+                    ApiClient.SurahReadResult(
+                        isRead = true,
+                        engagement = DailyEngagementStore.snapshot()
+                    )
+                )
+            }
+        )
     }
 
     private fun getFallbackDuas(category: String, search: String, sourceType: String): List<Dua> {

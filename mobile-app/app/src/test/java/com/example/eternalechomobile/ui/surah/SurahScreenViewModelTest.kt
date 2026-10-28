@@ -1,5 +1,6 @@
 package com.asloobulhayat.eternalecho.ui.surah
 
+import com.asloobulhayat.eternalecho.data.QuizSession
 import com.asloobulhayat.eternalecho.data.*
 import junit.framework.TestCase.assertEquals
 import junit.framework.TestCase.assertTrue
@@ -104,15 +105,16 @@ class SurahScreenViewModelTest {
         override suspend fun getInsights(seerahPage: Int, historyPage: Int, seerahCategory: String, historyCategory: String): InsightsData =
             InsightsData(emptyList(), emptyList(), 1, 1, 1, 1, emptyList(), emptyList())
         override suspend fun getThemes(): List<Theme> = emptyList()
-        override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
-        override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
+        override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
+        override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
         override suspend fun login(email: String, password: String): UserSession = UserSession(0, "", "", 0)
         override suspend fun register(name: String, email: String, password: String): UserSession = UserSession(0, "", "", 0)
         override suspend fun requestOtp(email: String): Boolean = true
         override suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse =
             UserSessionOtpResponse(UserSession(0, "", "", 0), true)
         override suspend fun setPassword(userId: Int, password: String): Boolean = true
-        override suspend fun changePassword(userId: Int, password: String): Boolean = true
+        override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean = true
+        override suspend fun logout(): Boolean = true
         override suspend fun submitQuiz(
             userId: Int,
             type: String,
@@ -137,6 +139,37 @@ class SurahScreenViewModelTest {
         assertEquals(1, verses.size)
         assertEquals(1, verses[0].verseNumber)
         assertEquals("96:1", verses[0].verseKey)
+    }
+
+    @Test
+    fun testWebTranslationsReplaceEmptyApiTranslations() = runTest(testDispatcher) {
+        val repo = object : DataRepository by fakeRepo {
+            override suspend fun withWebTranslations(surahNumber: Int, verses: List<Verse>): List<Verse> {
+                return verses.map { verse ->
+                    verse.copy(
+                        translations = listOf(
+                            VerseTranslation(
+                                id = "en.sahih",
+                                name = "Saheeh International",
+                                language = "en",
+                                text = "Read in the name of your Lord who created",
+                                direction = "ltr"
+                            )
+                        )
+                    )
+                }
+            }
+        }
+
+        val viewModel = SurahScreenViewModel(96, repo)
+        advanceUntilIdle()
+
+        val state = viewModel.versesState.value
+        assertTrue(state is VersesUiState.Success)
+        val verse = (state as VersesUiState.Success).data.first()
+        assertEquals("en.sahih", verse.translationFor("en.sahih")?.id)
+        assertEquals("Read in the name of your Lord who created", verse.translationFor("en.sahih")?.text)
+        assertEquals(false, viewModel.translationsLoading.value)
     }
 
     @Test

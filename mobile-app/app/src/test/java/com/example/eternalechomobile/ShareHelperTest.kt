@@ -64,6 +64,14 @@ class ShareHelperTest {
         assertTrue(text.contains("Abu Dawood 5068"))
         assertTrue(text.contains(ShareHelper.APP_URL))
         assertTrue(text.contains("https://theeternalecho.asloobulhayat.com/duas"))
+
+        val detail = ShareHelper.buildDuaShareText(
+            title = "Morning Protection",
+            arabicText = "اللَّهُمَّ بِكَ أَصْبَحْنَا",
+            translation = "O Allah, by You we enter the morning",
+            idOrSlug = "morning-protection"
+        )
+        assertTrue(detail.contains("https://theeternalecho.asloobulhayat.com/duas/morning-protection"))
     }
 
     @Test

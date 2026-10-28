@@ -7,6 +7,8 @@ use App\Models\GeneratedQuestion;
 use App\Models\Quiz;
 use App\Models\Theme;
 use App\Services\GeminiService;
+use App\Services\QuizCompletionService;
+use App\Services\QuizScoringService;
 use App\Services\QuranApiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -57,22 +59,7 @@ class QuizController extends Controller
         $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
-        if ($dbQuestions->count() >= $quantity) {
-            foreach ($dbQuestions as $q) {
-                $questions[] = [
-                    'id' => $q->question_id,
-                    'dbId' => $q->id,
-                    'text' => $q->text,
-                    'options' => $q->options,
-                    'correctAnswerIndex' => $q->correct_answer_index,
-                    'explanation' => $q->explanation,
-                    'theme' => $q->theme,
-                    'difficulty' => $q->difficulty,
-                    'reference' => $q->reference,
-                    'source_info' => $q->source_info,
-                ];
-            }
-        } else {
+        if ($dbQuestions->count() < $quantity) {
             $needed = $quantity - $dbQuestions->count();
             $generated = $gemini->generateParaQuestions($request->para, $request->difficulty, $needed + 5);
 
@@ -119,35 +106,15 @@ class QuizController extends Controller
                     ->get();
                 $dbQuestions = $dbQuestions->concat($generalSupplement);
             }
-
-            foreach ($dbQuestions as $q) {
-                $questions[] = [
-                    'id' => $q->question_id,
-                    'dbId' => $q->id,
-                    'text' => $q->text,
-                    'options' => $q->options,
-                    'correctAnswerIndex' => $q->correct_answer_index,
-                    'explanation' => $q->explanation,
-                    'theme' => $q->theme,
-                    'difficulty' => $q->difficulty,
-                    'reference' => $q->reference,
-                    'source_info' => $q->source_info,
-                ];
-            }
         }
+
+        $questions = QuizCompletionService::clientQuestions($dbQuestions);
 
         if (empty($questions)) {
             return back()->with('error', 'Failed to generate quiz. Please try again.');
         }
 
-        return view('quiz', [
-            'questions' => $questions,
-            'type' => 'PARA',
-            'title' => "Para {$request->para}",
-            'paraNumber' => $request->para,
-            'difficulty' => $request->difficulty,
-            'theme' => 'General Study',
-        ]);
+        return $this->quizView($questions, 'PARA', "Para {$request->para}", $request->difficulty, 'General Study', $request->para);
     }
 
     public function startSeerahQuiz(Request $request, GeminiService $gemini)
@@ -165,22 +132,7 @@ class QuizController extends Controller
         $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
-        if ($dbQuestions->count() >= $quantity) {
-            foreach ($dbQuestions as $q) {
-                $questions[] = [
-                    'id' => $q->question_id,
-                    'dbId' => $q->id,
-                    'text' => $q->text,
-                    'options' => $q->options,
-                    'correctAnswerIndex' => $q->correct_answer_index,
-                    'explanation' => $q->explanation,
-                    'theme' => $q->theme,
-                    'difficulty' => $q->difficulty,
-                    'reference' => $q->reference,
-                    'source_info' => $q->source_info,
-                ];
-            }
-        } else {
+        if ($dbQuestions->count() < $quantity) {
             $needed = $quantity - $dbQuestions->count();
             $generated = $gemini->generateSeerahQuizQuestions($request->difficulty, $needed + 5);
 
@@ -191,35 +143,15 @@ class QuizController extends Controller
             $dbQuestions = GeneratedQuestion::where('type', 'SEERAH')
                 ->where('difficulty', $request->difficulty)
                 ->inRandomOrder()->limit($quantity)->get();
-
-            foreach ($dbQuestions as $q) {
-                $questions[] = [
-                    'id' => $q->question_id,
-                    'dbId' => $q->id,
-                    'text' => $q->text,
-                    'options' => $q->options,
-                    'correctAnswerIndex' => $q->correct_answer_index,
-                    'explanation' => $q->explanation,
-                    'theme' => $q->theme,
-                    'difficulty' => $q->difficulty,
-                    'reference' => $q->reference,
-                    'source_info' => $q->source_info,
-                ];
-            }
         }
+
+        $questions = QuizCompletionService::clientQuestions($dbQuestions);
 
         if (empty($questions)) {
             return back()->with('error', 'Failed to generate Seerah quiz. Please try again.');
         }
 
-        return view('quiz', [
-            'questions' => $questions,
-            'type' => 'SEERAH',
-            'title' => 'Seerah Knowledge Journey',
-            'paraNumber' => null,
-            'difficulty' => $request->difficulty,
-            'theme' => 'General Study',
-        ]);
+        return $this->quizView($questions, 'SEERAH', 'Seerah Knowledge Journey', $request->difficulty, 'General Study');
     }
 
     public function startThemeQuiz(Request $request, GeminiService $gemini)
@@ -242,22 +174,7 @@ class QuizController extends Controller
         $dbQuestions = $dbQuery->inRandomOrder()->limit($quantity)->get();
         $questions = [];
 
-        if ($dbQuestions->count() >= $quantity) {
-            foreach ($dbQuestions as $q) {
-                $questions[] = [
-                    'id' => $q->question_id,
-                    'dbId' => $q->id,
-                    'text' => $q->text,
-                    'options' => $q->options,
-                    'correctAnswerIndex' => $q->correct_answer_index,
-                    'explanation' => $q->explanation,
-                    'theme' => $q->theme,
-                    'difficulty' => $q->difficulty,
-                    'reference' => $q->reference,
-                    'source_info' => $q->source_info,
-                ];
-            }
-        } else {
+        if ($dbQuestions->count() < $quantity) {
             $needed = $quantity - $dbQuestions->count();
             // Full scope generation
             $generated = $gemini->generateThemeQuestions($theme->type, $theme->name, $request->difficulty, $needed + 5);
@@ -269,35 +186,15 @@ class QuizController extends Controller
             $dbQuestions = GeneratedQuestion::where('theme_id', $theme->id)
                 ->where('difficulty', $request->difficulty)
                 ->inRandomOrder()->limit($quantity)->get();
-
-            foreach ($dbQuestions as $q) {
-                $questions[] = [
-                    'id' => $q->question_id,
-                    'dbId' => $q->id,
-                    'text' => $q->text,
-                    'options' => $q->options,
-                    'correctAnswerIndex' => $q->correct_answer_index,
-                    'explanation' => $q->explanation,
-                    'theme' => $q->theme,
-                    'difficulty' => $q->difficulty,
-                    'reference' => $q->reference,
-                    'source_info' => $q->source_info,
-                ];
-            }
         }
+
+        $questions = QuizCompletionService::clientQuestions($dbQuestions);
 
         if (empty($questions)) {
             return back()->with('error', 'Failed to load theme quiz. Please try again.');
         }
 
-        return view('quiz', [
-            'questions' => $questions,
-            'type' => $theme->type,
-            'title' => $theme->name,
-            'paraNumber' => null,
-            'difficulty' => $request->difficulty,
-            'theme' => $theme->name,
-        ]);
+        return $this->quizView($questions, $theme->type, $theme->name, $request->difficulty, $theme->name);
     }
 
     public function finishQuiz(Request $request)
@@ -306,15 +203,43 @@ class QuizController extends Controller
             'type' => 'required|in:PARA,SEERAH',
             'title' => 'required|string',
             'difficulty' => 'required|string',
-            'score' => 'required|integer',
-            'totalQuestions' => 'required|integer',
+            'score' => 'nullable|integer',
+            'totalQuestions' => 'nullable|integer',
             'questions' => 'required',
             'userAnswers' => 'required',
             'paraNumber' => 'nullable|integer',
+            'attemptToken' => 'required|string|min:20|max:80',
         ]);
 
         $user = Auth::user();
         $quizId = 'quiz_' . time() . '_' . substr(md5(uniqid()), 0, 9);
+
+        $questions = json_decode($request->questions, true) ?: [];
+        $answers = json_decode($request->userAnswers, true) ?: [];
+        $computed = QuizScoringService::recompute($questions, $answers, $request->difficulty);
+        $score = $computed['score'];
+        $totalQuestions = $computed['total_questions'];
+
+        if ($totalQuestions <= 0) {
+            return response()->json([
+                'success' => false,
+                'error' => 'No valid quiz questions found to score.',
+            ], 422);
+        }
+
+        if (!QuizCompletionService::consumeAttempt((int) $user->id, $request->attemptToken, $questions)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Invalid or expired quiz attempt. Please start a new quiz.',
+            ], 422);
+        }
+
+        if (!QuizCompletionService::claimAttempt((int) $user->id, $questions)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'This quiz set was already submitted recently. Try a new quiz.',
+            ], 429);
+        }
 
         // Save quiz
         Quiz::create([
@@ -322,53 +247,28 @@ class QuizController extends Controller
             'user_id' => $user->id,
             'type' => $request->type,
             'title' => $request->title,
-            'score' => $request->score,
-            'total_questions' => $request->totalQuestions,
+            'score' => $score,
+            'total_questions' => $totalQuestions,
             'difficulty' => $request->difficulty,
             'details' => [
-                'questions' => json_decode($request->questions, true),
-                'userAnswers' => json_decode($request->userAnswers, true),
+                'questions' => $questions,
+                'userAnswers' => $answers,
             ],
         ]);
 
-        // Update user stats
-        $user->total_score += $request->score;
-        $user->total_questions += $request->totalQuestions;
-
-        if ($request->type === 'PARA' && $request->paraNumber) {
-            $completed = $user->completed_paras ?? [];
-            if (!in_array($request->paraNumber, $completed)) {
-                $completed[] = $request->paraNumber;
-                $user->completed_paras = $completed;
-            }
-        }
-
-        if ($request->type === 'SEERAH') {
-            $user->seerah_quiz_count += 1;
-        }
-
-        // Update difficulty stats + per-question answer tracking
-        $questions = json_decode($request->questions, true);
-        $answers = json_decode($request->userAnswers, true);
-        $diffStats = $user->difficulty_stats ?? ['correct' => [], 'total' => []];
-        foreach ($questions as $i => $q) {
-            $diff = $q['difficulty'] ?? $request->difficulty;
-            $diffStats['total'][$diff] = ($diffStats['total'][$diff] ?? 0) + 1;
-            $isCorrect = isset($answers[$i]) && $answers[$i] == $q['correctAnswerIndex'];
-            if ($isCorrect) {
-                $diffStats['correct'][$diff] = ($diffStats['correct'][$diff] ?? 0) + 1;
-            }
-
-            // Update generated_questions answer stats
-            if (isset($q['id'])) {
-                GeneratedQuestion::where('question_id', $q['id'])->increment('times_answered');
-                if ($isCorrect) {
-                    GeneratedQuestion::where('question_id', $q['id'])->increment('times_correct');
-                }
-            }
-        }
-        $user->difficulty_stats = $diffStats;
+        // Update user stats from server-computed score only
+        $user->total_score += $score;
+        $user->total_questions += $totalQuestions;
         $user->save();
+
+        $engagement = QuizCompletionService::applyProgress(
+            $user->fresh(),
+            $questions,
+            $answers,
+            $request->type,
+            $request->paraNumber ? (int) $request->paraNumber : null,
+            $request->difficulty
+        );
 
         // Push reading session to Quran API if linked
         if (!empty($user->quran_access_token)) {
@@ -376,14 +276,47 @@ class QuizController extends Controller
             $quranApi->postUserData('/reading_sessions', [
                 'type' => $request->type,
                 'title' => $request->title,
-                'score' => $request->score,
-                'total_questions' => $request->totalQuestions,
+                'score' => $score,
+                'total_questions' => $totalQuestions,
             ], $user);
         }
 
         return response()->json([
             'success' => true,
             'redirect' => route('stats'),
+            'engagement' => $engagement,
+        ]);
+    }
+
+    public function checkAnswer(Request $request)
+    {
+        $request->validate([
+            'question_id' => 'required|string',
+            'selected_index' => 'required|integer|min:0',
+            'options' => 'nullable|array',
+        ]);
+
+        $payload = [
+            'id' => $request->question_id,
+            'options' => $request->options,
+        ];
+        $dbQuestion = QuizScoringService::resolveQuestion($payload);
+        if (!$dbQuestion) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Question not found.',
+            ], 404);
+        }
+
+        $selected = (int) $request->selected_index;
+        $isCorrect = QuizScoringService::isCorrect($dbQuestion, $payload, $selected);
+
+        return response()->json([
+            'success' => true,
+            'correct' => $isCorrect,
+            'correctAnswerIndex' => (int) $dbQuestion->correct_answer_index,
+            'explanation' => (string) ($dbQuestion->explanation ?? ''),
+            'question_id' => (string) $dbQuestion->question_id,
         ]);
     }
 
@@ -410,21 +343,7 @@ class QuizController extends Controller
             ->limit($quantity)
             ->get();
 
-        $questions = [];
-        foreach ($dbQuestions as $q) {
-            $questions[] = [
-                'id' => $q->question_id,
-                'dbId' => $q->id,
-                'text' => $q->text,
-                'options' => $q->options,
-                'correctAnswerIndex' => $q->correct_answer_index,
-                'explanation' => $q->explanation,
-                'theme' => $q->theme,
-                'difficulty' => $q->difficulty,
-                'reference' => $q->reference,
-                'source_info' => $q->source_info,
-            ];
-        }
+        $questions = QuizCompletionService::clientQuestions($dbQuestions);
 
         if (empty($questions)) {
             return back()->with('error', 'Not enough questions for Grand Quiz. Complete more regular quizzes first!');
@@ -432,13 +351,30 @@ class QuizController extends Controller
 
         $title = $request->quiz_type === 'QURAN' ? 'Grand Quran Quiz' : 'Grand Seerah Quiz';
 
+        return $this->quizView($questions, $type, $title, $request->difficulty, 'Grand Quiz');
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $questions
+     */
+    protected function quizView(
+        array $questions,
+        string $type,
+        string $title,
+        string $difficulty,
+        string $theme,
+        $paraNumber = null
+    ) {
+        $attemptToken = QuizCompletionService::issueAttempt((int) Auth::id(), $questions);
+
         return view('quiz', [
             'questions' => $questions,
             'type' => $type,
             'title' => $title,
-            'paraNumber' => null,
-            'difficulty' => $request->difficulty,
-            'theme' => 'Grand Quiz',
+            'paraNumber' => $paraNumber,
+            'difficulty' => $difficulty,
+            'theme' => $theme,
+            'attemptToken' => $attemptToken,
         ]);
     }
 

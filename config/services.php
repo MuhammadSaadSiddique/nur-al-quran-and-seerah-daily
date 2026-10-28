@@ -25,9 +25,24 @@ return [
     'quran' => [
         'client_id' => env('QURAN_CLIENT_ID'),
         'client_secret' => env('QURAN_CLIENT_SECRET'),
-        'redirect_uri' => env('QURAN_REDIRECT_URI', 'http://localhost/auth/quran/callback'),
+        'redirect_uri' => env('QURAN_REDIRECT_URI', env('APP_URL', 'http://localhost') . '/oauth/callback'),
         'auth_url' => env('Quran_Endpoint', 'https://oauth2.quran.foundation'),
         'api_url' => env('Quran_API_Endpoint', 'https://apis.quran.foundation'),
+    ],
+
+    'quran_translations' => [
+        'base_url' => env('QURAN_TRANSLATIONS_URL', 'https://api.quran.com/api/v4'),
+        'ca_bundle' => env('QURAN_TRANSLATIONS_CA_BUNDLE'),
+    ],
+
+    'bulk_api_token' => env('BULK_API_TOKEN'),
+
+    'firebase' => [
+        'project_id' => env('FIREBASE_PROJECT_ID'),
+        'client_email' => env('FIREBASE_CLIENT_EMAIL'),
+        'private_key' => env('FIREBASE_PRIVATE_KEY'),
+        'server_key' => env('FIREBASE_SERVER_KEY', env('FCM_SERVER_KEY')),
+        'credentials' => env('FIREBASE_CREDENTIALS'),
     ],
 
     'ses' => [

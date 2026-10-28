@@ -30,7 +30,8 @@ class CategoryManagementTest extends TestCase
             'name' => 'Parents & Elders',
             'slug' => 'parents-elders',
             'type' => Category::TYPE_DUA,
-            'is_active' => true,
+            'is_active' => false,
+            'status' => 'pending',
         ]);
 
         // 2. User adds a Quran Research category
@@ -46,14 +47,17 @@ class CategoryManagementTest extends TestCase
             'name' => 'Linguistic Miracles',
             'slug' => 'linguistic-miracles',
             'type' => Category::TYPE_QURAN_RESEARCH,
-            'is_active' => true,
+            'is_active' => false,
+            'status' => 'pending',
         ]);
     }
 
     public function test_submitting_dua_or_research_with_custom_category_registers_category(): void
     {
+        $user = User::factory()->create();
+
         // Submit Dua with a new category
-        $this->post(route('duas.store'), [
+        $this->actingAs($user)->post(route('duas.store'), [
             'title' => 'Dua for Righteous Offspring',
             'category' => 'Righteous Offspring',
             'arabic_text' => 'رَبِّ هَبْ لِي مِنَ الصَّالِحِينَ',
@@ -68,7 +72,7 @@ class CategoryManagementTest extends TestCase
         ]);
 
         // Submit Quran Research contribution with custom_category
-        $this->post(route('research.contributions.store'), [
+        $this->actingAs($user)->post(route('research.contributions.store'), [
             'category' => 'custom',
             'custom_category' => 'Numerical Harmonies',
             'category_emoji' => '🔢',
@@ -155,7 +159,9 @@ class CategoryManagementTest extends TestCase
 
     public function test_api_categories_endpoints_list_and_create_categories(): void
     {
-        $postRes = $this->postJson('/api/categories', [
+        $user = User::factory()->create(['is_admin' => true]);
+
+        $postRes = $this->actingAs($user, 'sanctum')->postJson('/api/categories', [
             'name' => 'Astronomy & Cosmology',
             'type' => 'quran_research',
             'emoji' => '🌌',
@@ -168,5 +174,13 @@ class CategoryManagementTest extends TestCase
         $getRes = $this->getJson('/api/categories?type=quran_research');
         $getRes->assertStatus(200)
             ->assertJsonPath('status', 'success');
+    }
+
+    public function test_api_categories_create_requires_authentication(): void
+    {
+        $this->postJson('/api/categories', [
+            'name' => 'Unauthorized Category',
+            'type' => 'dua',
+        ])->assertStatus(401);
     }
 }

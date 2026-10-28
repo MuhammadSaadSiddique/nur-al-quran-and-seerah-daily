@@ -51,35 +51,31 @@ fun QuranResearchScreen(
     var showContributeSheet by remember { mutableStateOf(false) }
 
     Scaffold(
+        containerColor = androidx.compose.ui.graphics.Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Quran Research & Videos", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
+            com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
+                title = "Quran Research",
+                onBackClick = onBackClick,
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 actions = {
                     IconButton(onClick = { showContributeSheet = true }) {
                         Icon(Icons.Default.Add, contentDescription = "Contribute")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                }
             )
         },
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = { showContributeSheet = true },
                 icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text("Add Video / Research") },
+                text = { Text("Contribute") },
                 containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(16.dp)
             )
         }
     ) { paddingValues ->
+        com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
         QuranResearchContent(
             repository = repository,
             isLoggedIn = isLoggedIn,
@@ -98,6 +94,7 @@ fun QuranResearchScreen(
                 userEmail = prefs.getString("user_email", "") ?: "",
                 onDismiss = { showContributeSheet = false }
             )
+        }
         }
     }
 }
@@ -165,12 +162,13 @@ fun QuranResearchContent(
                 FilterChip(
                     selected = selectedTab == "published",
                     onClick = { selectedTab = "published" },
-                    label = { Text("🌟 Published") },
+                    label = { Text("Published", fontWeight = FontWeight.SemiBold) },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.primary,
                         selectedLabelColor = MaterialTheme.colorScheme.onPrimary
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(20.dp)
                 )
 
                 FilterChip(
@@ -183,25 +181,28 @@ fun QuranResearchContent(
                         }
                     },
                     label = {
-                        Text(if (isLoggedIn) "⏳ Pending Review" else "🔒 Pending (Login)")
+                        Text(
+                            if (isLoggedIn) "Pending review" else "Pending · Login",
+                            fontWeight = FontWeight.SemiBold
+                        )
                     },
                     colors = FilterChipDefaults.filterChipColors(
                         selectedContainerColor = MaterialTheme.colorScheme.tertiary,
                         selectedLabelColor = MaterialTheme.colorScheme.onTertiary
                     ),
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(20.dp)
                 )
             }
         }
 
-        // Category Filter Chips (Including "video" category)
         val categories = listOf(
-            "all" to "🌐 All",
-            "video" to "🎬 Videos",
-            "science" to "🔬 Science",
-            "seerah" to "🕌 Seerah",
-            "hadith" to "📚 Hadith",
-            "history" to "🏛️ History"
+            "all" to "All",
+            "video" to "Videos",
+            "science" to "Science",
+            "seerah" to "Seerah",
+            "hadith" to "Hadith",
+            "history" to "History"
         )
 
         LazyRow(
@@ -372,93 +373,95 @@ fun ContributionCard(
     onWatchVideo: (String) -> Unit,
     onVerifyClick: () -> Unit
 ) {
+    val isPublished = item.status == "published"
+    val scopeLabel = item.scopeLabel.ifBlank {
+        when {
+            !item.surahNumbers.isNullOrEmpty() && item.surahNumbers.size > 1 ->
+                "Surahs ${item.surahNumbers.joinToString(", ")}"
+            item.endSurahNumber != null && item.endSurahNumber > item.surahNumber ->
+                "Surahs ${item.surahNumber}–${item.endSurahNumber}"
+            item.isFullSurah ->
+                "Surah ${item.surahNumber} · Full"
+            item.endVerseNumber != null && item.endVerseNumber > item.verseNumber ->
+                "${item.surahNumber}:${item.verseNumber}–${item.endVerseNumber}"
+            else ->
+                "${item.surahNumber}:${item.verseNumber}"
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f)
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            // Header Row: Surah coordinate / Scope + Platform + Status
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                    val computedLabel = item.scopeLabel.ifBlank {
-                        when {
-                            !item.surahNumbers.isNullOrEmpty() && item.surahNumbers.size > 1 ->
-                                "Surahs ${item.surahNumbers.joinToString(", ")}"
-                            item.endSurahNumber != null && item.endSurahNumber > item.surahNumber ->
-                                "Surahs ${item.surahNumber}–${item.endSurahNumber}"
-                            item.isFullSurah ->
-                                "Surah ${item.surahNumber} (Full Surah)"
-                            item.endVerseNumber != null && item.endVerseNumber > item.verseNumber ->
-                                "Surah ${item.surahNumber}:${item.verseNumber}–${item.endVerseNumber}"
-                            else ->
-                                "Surah ${item.surahNumber}:${item.verseNumber}"
-                        }
-                    }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
                     Surface(
-                        color = MaterialTheme.colorScheme.primaryContainer,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
-                            text = computedLabel,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            text = scopeLabel,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
-
                     if (!item.videoPlatform.isNullOrBlank()) {
                         Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
                             shape = RoundedCornerShape(8.dp)
                         ) {
                             Text(
-                                text = "🎬 ${item.videoPlatform.uppercase()}",
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                                text = item.videoPlatform.replaceFirstChar { it.uppercase() },
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
                                 style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
+                                fontWeight = FontWeight.SemiBold,
                                 color = MaterialTheme.colorScheme.onSecondaryContainer
                             )
                         }
                     }
                 }
 
-                if (item.status == "published") {
-                    Surface(
-                        color = Color(0xFFD1FAE5),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "✅ Published",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF065F46)
-                        )
-                    }
-                } else {
-                    Surface(
-                        color = Color(0xFFFEF3C7),
-                        shape = RoundedCornerShape(8.dp)
-                    ) {
-                        Text(
-                            text = "⏳ Pending (${item.approvalsCount}/5)",
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF92400E)
-                        )
-                    }
+                Surface(
+                    color = if (isPublished)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                    else
+                        MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Text(
+                        text = if (isPublished) "Published" else "${item.approvalsCount}/5 pending",
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isPublished)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.onTertiaryContainer
+                    )
                 }
             }
 
-            // Title
             Text(
                 text = item.title,
                 style = MaterialTheme.typography.titleMedium,
@@ -466,87 +469,88 @@ fun ContributionCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            // Description
             if (!item.description.isNullOrBlank()) {
                 Text(
                     text = item.description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 3,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    lineHeight = 18.sp
                 )
             }
 
-            // Submitter & Approval Counts
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "By: ${item.submitterName ?: "Contributor"}",
+                    text = item.submitterName ?: "Contributor",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.outline
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        text = "👍 ${item.approvalsCount}",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF059669)
-                    )
-                    Text(
-                        text = "👎 ${item.downvotesCount}",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFFE11D48)
-                    )
-                }
+                Text(
+                    text = "${item.approvalsCount} approve · ${item.downvotesCount} down",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
 
-            // Actions row: Watch Video + Verify / Vote
+            // Mobile-friendly progress for pending
+            if (!isPublished) {
+                LinearProgressIndicator(
+                    progress = { (item.approvalsCount.coerceIn(0, 5) / 5f) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(6.dp)
+                        .clip(RoundedCornerShape(3.dp)),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+            }
+
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 4.dp),
+                modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 if (!item.videoUrl.isNullOrBlank()) {
                     Button(
                         onClick = { onWatchVideo(item.videoUrl) },
                         modifier = Modifier.weight(1f),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        shape = RoundedCornerShape(12.dp)
                     ) {
                         Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = if (!item.videoPlatform.isNullOrBlank()) "Watch (${item.videoPlatform.replaceFirstChar { it.uppercase() }})" else "Watch Video",
-                            fontSize = 12.sp
-                        )
+                        Text("Watch", fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
                 OutlinedButton(
                     onClick = onVerifyClick,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(12.dp)
                 ) {
-                    Text(if (isLoggedIn) "⚖️ Verify / Vote" else "Login to Verify", fontSize = 12.sp)
+                    Text(
+                        text = if (isLoggedIn) "Review" else "Login to review",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
-            // User's previous review if available
             if (item.myVote != null) {
+                val voteLabel = if (item.myVote == "approve") "Approved" else "Downvoted"
+                val feedbackSuffix = if (!item.myFeedback.isNullOrBlank()) " — ${item.myFeedback}" else ""
                 Surface(
-                    color = MaterialTheme.colorScheme.surface,
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Your vote: ${if (item.myVote == "approve") "Approved 👍" else "Downvoted 👎"}" +
-                                if (!item.myFeedback.isNullOrBlank()) " — \"${item.myFeedback}\"" else "",
-                        modifier = Modifier.padding(8.dp),
+                        text = "Your review: $voteLabel$feedbackSuffix",
+                        modifier = Modifier.padding(10.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -566,35 +570,46 @@ fun VerificationDialog(
     var feedback by remember { mutableStateOf("") }
 
     AlertDialog(
+        modifier = Modifier.imePadding(),
         onDismissRequest = onDismiss,
-        title = { Text("Peer Verification") },
+        title = {
+            Text("Peer review", fontWeight = FontWeight.Bold)
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
-                    text = "Evaluate: \"${item.title}\"",
+                    text = item.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = "Help the community decide whether this should be published.",
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Bold
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Text("Your verdict:", style = MaterialTheme.typography.labelMedium)
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     FilterChip(
                         selected = vote == "approve",
                         onClick = { vote = "approve" },
-                        label = { Text("Approve 👍") },
+                        label = { Text("Approve") },
+                        modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFFD1FAE5),
-                            selectedLabelColor = Color(0xFF065F46)
+                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     )
                     FilterChip(
                         selected = vote == "downvote",
                         onClick = { vote = "downvote" },
-                        label = { Text("Downvote 👎") },
+                        label = { Text("Downvote") },
+                        modifier = Modifier.weight(1f),
                         colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Color(0xFFFFE4E6),
-                            selectedLabelColor = Color(0xFF9F1239)
+                            selectedContainerColor = MaterialTheme.colorScheme.errorContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onErrorContainer
                         )
                     )
                 }
@@ -602,15 +617,20 @@ fun VerificationDialog(
                 OutlinedTextField(
                     value = feedback,
                     onValueChange = { feedback = it },
-                    label = { Text("Feedback / Scholarly remarks (Optional)") },
+                    label = { Text("Optional notes") },
+                    placeholder = { Text("Why approve or downvote?") },
                     modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
                     maxLines = 3
                 )
             }
         },
         confirmButton = {
-            Button(onClick = { onSubmitVerdict(vote, feedback) }) {
-                Text("Submit Verdict")
+            Button(
+                onClick = { onSubmitVerdict(vote, feedback) },
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Text("Submit review")
             }
         },
         dismissButton = {
@@ -659,18 +679,20 @@ fun ContributeResearchBottomSheet(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 20.dp, vertical = 10.dp)
-                .verticalScroll(rememberScrollState()),
+                .verticalScroll(rememberScrollState())
+                .imePadding(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Text(
-                text = "Contribute Quran Research / Video",
-                style = MaterialTheme.typography.titleMedium,
+                text = "Contribute research",
+                style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
             Text(
-                text = "Add a single verse, verse range, full Surah (start to end), or multiple Surahs, and link videos from any platform.",
+                text = "Link a video or note to an ayah, range, or Surah. Peer review publishes at 5 approvals.",
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                lineHeight = 18.sp
             )
 
             if (errorMessage != null) {
@@ -678,36 +700,48 @@ fun ContributeResearchBottomSheet(
             }
 
             if (successMessage != null) {
-                Text(successMessage!!, color = Color(0xFF059669), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+                Text(
+                    successMessage!!,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold
+                )
             }
 
-            // Category choice
-            val categories = listOf("video" to "🎬 Video", "science" to "🔬 Science", "seerah" to "🕌 Seerah", "hadith" to "📚 Hadith", "history" to "🏛️ History")
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("Category", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
+            val categories = listOf(
+                "video" to "Video",
+                "science" to "Science",
+                "seerah" to "Seerah",
+                "hadith" to "Hadith",
+                "history" to "History"
+            )
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(categories) { (key, label) ->
                     FilterChip(
                         selected = category == key,
                         onClick = { category = key },
-                        label = { Text(label, fontSize = 12.sp) }
+                        label = { Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                        shape = RoundedCornerShape(20.dp)
                     )
                 }
             }
 
-            // Scope Mode selector
+            Text("Scope", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold)
             val scopeModes = listOf(
-                "single" to "📍 Single Ayah",
-                "verse_range" to "📏 Ayah Range",
-                "full_surah" to "📖 Full Surah (Start–End)",
-                "surah_range" to "📚 Surah Range",
-                "multiple_surahs" to "🗂️ Multiple Surahs"
+                "single" to "Single ayah",
+                "verse_range" to "Ayah range",
+                "full_surah" to "Full Surah",
+                "surah_range" to "Surah range",
+                "multiple_surahs" to "Multiple Surahs"
             )
-            Text("Surah / Verse Scope", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold)
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(scopeModes) { (modeKey, modeLabel) ->
                     FilterChip(
                         selected = scopeMode == modeKey,
                         onClick = { scopeMode = modeKey },
-                        label = { Text(modeLabel, fontSize = 11.sp) }
+                        label = { Text(modeLabel, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) },
+                        shape = RoundedCornerShape(20.dp)
                     )
                 }
             }
@@ -796,36 +830,37 @@ fun ContributeResearchBottomSheet(
                 }
             }
 
-            // Title
             OutlinedTextField(
                 value = title,
                 onValueChange = { title = it },
-                label = { Text("Title *") },
-                placeholder = { Text("e.g. Complete Tafsir / Scientific Miracle Analysis") },
+                label = { Text("Title") },
+                placeholder = { Text("Short clear title") },
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
 
-            // Video URL (Every Platform)
             OutlinedTextField(
                 value = videoUrl,
                 onValueChange = { videoUrl = it },
-                label = { Text("Video URL (Any Platform: YouTube, Vimeo, TikTok, FB, IG, X, MP4...)") },
-                placeholder = { Text("https://www.youtube.com/watch?v=... or any video link") },
+                label = { Text(if (category == "video") "Video URL" else "Optional video URL") },
+                placeholder = { Text("YouTube, Vimeo, or any video link") },
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
                 singleLine = true
             )
 
-            // Description
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
-                label = { Text("Description / Research Notes") },
+                label = { Text("Notes") },
+                placeholder = { Text("What does this research show?") },
                 modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp),
                 maxLines = 4
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             Button(
                 onClick = {
@@ -834,11 +869,15 @@ fun ContributeResearchBottomSheet(
                         return@Button
                     }
                     if (category == "video" && videoUrl.isBlank()) {
-                        errorMessage = "Video URL is required for video category."
+                        errorMessage = "Video URL is required for the video category."
                         return@Button
                     }
                     val surahNum = surahNumberText.toIntOrNull() ?: 1
-                    val verseNum = if (scopeMode == "full_surah" || scopeMode == "surah_range" || scopeMode == "multiple_surahs") 1 else (verseNumberText.toIntOrNull() ?: 1)
+                    val verseNum = if (scopeMode == "full_surah" || scopeMode == "surah_range" || scopeMode == "multiple_surahs") {
+                        1
+                    } else {
+                        verseNumberText.toIntOrNull() ?: 1
+                    }
                     val endVerseNum = if (scopeMode == "verse_range") endVerseNumberText.toIntOrNull() else null
                     val endSurahNum = if (scopeMode == "surah_range") endSurahNumberText.toIntOrNull() else null
                     val surahNumsStr = if (scopeMode == "multiple_surahs") multipleSurahsText.trim() else ""
@@ -864,7 +903,7 @@ fun ContributeResearchBottomSheet(
                         )
                         isSubmitting = false
                         if (res.isSuccess) {
-                            successMessage = "JazakAllah Khair! Contribution submitted for peer review."
+                            successMessage = "JazakAllah Khair — submitted for peer review."
                             title = ""
                             videoUrl = ""
                             description = ""
@@ -873,17 +912,24 @@ fun ContributeResearchBottomSheet(
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSubmitting
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                enabled = !isSubmitting,
+                shape = RoundedCornerShape(14.dp)
             ) {
                 if (isSubmitting) {
-                    CircularProgressIndicator(modifier = Modifier.size(18.dp), color = MaterialTheme.colorScheme.onPrimary)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        strokeWidth = 2.dp
+                    )
                 } else {
-                    Text("Submit Contribution")
+                    Text("Submit for review", fontWeight = FontWeight.SemiBold)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

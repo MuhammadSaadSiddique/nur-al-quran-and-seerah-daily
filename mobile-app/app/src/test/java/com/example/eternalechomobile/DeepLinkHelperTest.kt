@@ -150,6 +150,26 @@ class DeepLinkHelperTest {
     }
 
     @Test
+    fun testRelativeAndHostOnlyPaths() {
+        assertEquals(
+            DeepLinkDestination.DuaDetail("ayat-al-kursi"),
+            DeepLinkHelper.parse("/duas/ayat-al-kursi")
+        )
+        assertEquals(
+            DeepLinkDestination.Surah(2, 255),
+            DeepLinkHelper.parse("lens/2/255")
+        )
+        assertEquals(
+            DeepLinkDestination.Seerah,
+            DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/seerah")
+        )
+        assertEquals(
+            "https://theeternalecho.asloobulhayat.com/duas/ayat-al-kursi",
+            DeepLinkHelper.toAbsoluteUrl("/duas/ayat-al-kursi")
+        )
+    }
+
+    @Test
     fun testInvalidOrUnsupportedUrls() {
         assertNull(DeepLinkHelper.parse(null as String?))
         assertNull(DeepLinkHelper.parse(null as android.net.Uri?))
@@ -158,5 +178,11 @@ class DeepLinkHelperTest {
         assertNull(DeepLinkHelper.parse("   "))
         assertNull(DeepLinkHelper.parse("https://google.com/lens/2/255"))
         assertNull(DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/invalid_page_here"))
+        assertNull(DeepLinkHelper.externalWebUrl("/duas"))
+        assertNull(DeepLinkHelper.externalWebUrl("https://theeternalecho.asloobulhayat.com/lens/2/255"))
+        assertEquals(
+            "https://example.com/article",
+            DeepLinkHelper.externalWebUrl("https://example.com/article")
+        )
     }
 }

@@ -16,14 +16,29 @@ data class Surah(
 )
 
 @Serializable
+data class VerseTranslation(
+    val id: String,
+    val name: String,
+    val language: String,
+    val text: String,
+    val direction: String = "ltr"
+)
+
+@Serializable
 data class Verse(
     val id: Int,
     val verseNumber: Int,
     val verseKey: String,
     val juzNumber: Int,
     val textArabic: String,
-    val textTransliteration: String
-)
+    val textTransliteration: String,
+    val translations: List<VerseTranslation> = emptyList()
+) {
+    fun translationFor(editionId: String): VerseTranslation? {
+        if (translations.isEmpty()) return null
+        return translations.firstOrNull { it.id == editionId } ?: translations.first()
+    }
+}
 
 @Serializable
 data class Connection(
@@ -139,10 +154,12 @@ data class SeerahEvent(
     val title: String,
     val description: String,
     val category: String,
+    val questionId: String = "",
     val questionText: String = "",
     val options: List<String> = emptyList(),
-    val correctAnswerIndex: Int = 0,
-    val explanation: String = ""
+    val correctAnswerIndex: Int = -1,
+    val explanation: String = "",
+    val isRead: Boolean = false
 )
 
 @Serializable
@@ -151,10 +168,12 @@ data class HistoryEvent(
     val title: String,
     val description: String,
     val category: String = "",
+    val questionId: String = "",
     val questionText: String = "",
     val options: List<String> = emptyList(),
-    val correctAnswerIndex: Int = 0,
-    val explanation: String = ""
+    val correctAnswerIndex: Int = -1,
+    val explanation: String = "",
+    val isRead: Boolean = false
 )
 
 @Serializable
@@ -181,16 +200,41 @@ data class Theme(
 )
 
 @Serializable
+data class QuizSession(
+    val questions: List<QuizQuestion>,
+    val attemptToken: String = ""
+)
+
+@Serializable
 data class QuizQuestion(
     val id: Int,
     val questionId: String = "",
     val text: String,
     val options: List<String>,
-    val correctAnswerIndex: Int,
+    val correctAnswerIndex: Int = -1,
     val explanation: String? = "",
     val difficulty: String = "",
     val reference: String? = "",
-    val sourceInfo: String? = ""
+    val sourceInfo: String? = "",
+    /** Original server option order — used to map shuffled selections back for scoring. */
+    val originalOptions: List<String> = emptyList()
+) {
+    fun scoringId(): String = questionId.ifBlank { id.toString() }
+
+    fun toOriginalAnswerIndex(shuffledIndex: Int?): Int {
+        if (shuffledIndex == null || shuffledIndex < 0) return -1
+        val selectedText = options.getOrNull(shuffledIndex) ?: return shuffledIndex
+        val originals = originalOptions.ifEmpty { options }
+        val mapped = originals.indexOf(selectedText)
+        return if (mapped >= 0) mapped else shuffledIndex
+    }
+}
+
+data class AnswerReveal(
+    val correct: Boolean,
+    val correctAnswerIndex: Int,
+    val explanation: String = "",
+    val questionId: String = ""
 )
 
 @Serializable
@@ -198,7 +242,8 @@ data class UserSession(
     val userId: Int,
     val name: String,
     val email: String,
-    val totalScore: Int
+    val totalScore: Int,
+    val token: String = ""
 )
 
 @Serializable
@@ -262,6 +307,24 @@ data class StreakData(
 )
 
 @Serializable
+data class EngagementActivity(
+    val key: String,
+    val done: Boolean = false,
+    val label: String = "",
+    val href: String = ""
+)
+
+@Serializable
+data class DailyEngagement(
+    val date: String = "",
+    val activities: List<EngagementActivity> = emptyList(),
+    val completedCount: Int = 0,
+    val total: Int = 4,
+    val progressPercent: Int = 0,
+    val streak: StreakData = StreakData()
+)
+
+@Serializable
 data class ResearchContribution(
     val id: Int,
     val userId: Int? = null,
@@ -288,6 +351,37 @@ data class ResearchContribution(
     val createdAt: String? = null
 )
 
+@Serializable
+data class DifficultyStat(
+    val total: Int = 0,
+    val correct: Int = 0,
+    val accuracy: Int = 0
+)
 
+@Serializable
+data class DifficultyStatsGroup(
+    val easy: DifficultyStat = DifficultyStat(),
+    val medium: DifficultyStat = DifficultyStat(),
+    val hard: DifficultyStat = DifficultyStat()
+)
 
-
+@Serializable
+data class UserProfileStats(
+    val userId: Int,
+    val name: String,
+    val email: String,
+    val spiritualLevel: String = "Novice",
+    val totalScore: Int = 0,
+    val maxPossibleScore: Int = 0,
+    val totalQuestions: Int = 0,
+    val accuracy: Int = 0,
+    val surahsCompletedCount: Int = 0,
+    val parasCompletedCount: Int = 0,
+    val seerahReadCount: Int = 0,
+    val quranHistoryReadCount: Int = 0,
+    val bookmarksCount: Int = 0,
+    val streak: StreakData = StreakData(),
+    val engagement: DailyEngagement? = null,
+    val difficulty: DifficultyStatsGroup = DifficultyStatsGroup(),
+    val hasPassword: Boolean = false
+)

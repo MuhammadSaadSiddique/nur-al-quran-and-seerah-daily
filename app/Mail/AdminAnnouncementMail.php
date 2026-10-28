@@ -16,15 +16,17 @@ class AdminAnnouncementMail extends Mailable
     public string $announcementSubject;
     public string $announcementContent;
     public User $user;
+    public ?string $actionUrl;
 
     /**
      * Create a new message instance.
      */
-    public function __construct(string $subject, string $content, User $user)
+    public function __construct(string $subject, string $content, User $user, ?string $actionUrl = null)
     {
         $this->announcementSubject = $subject;
         $this->announcementContent = $content;
         $this->user = $user;
+        $this->actionUrl = $actionUrl;
     }
 
     /**

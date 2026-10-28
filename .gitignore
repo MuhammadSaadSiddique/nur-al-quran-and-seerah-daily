@@ -27,4 +27,9 @@ scratch/*
 scratch/migrate_question_themes.php
 quraniclens_mysql_dump.sql
 /mobile-app/android/app/google-services.json
+/mobile-app/app/google-services.json
+/storage/app/firebase-service.json
+/storage/app/firebase-service-account.json
 /mobile-app/*
+!mobile-app/app/
+!mobile-app/app/src/**

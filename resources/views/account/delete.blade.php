@@ -129,7 +129,8 @@
                     <div id="emailStep" class="space-y-4">
                         <div class="space-y-2">
                             <label class="text-xs font-black uppercase text-slate-600">Your Registered Email Address</label>
-                            <input type="email" id="deleteEmail" placeholder="you@example.com"
+                            <input type="email" id="deleteEmail" placeholder="you@example.com" enterkeyhint="send"
+                                autocomplete="email" inputmode="email"
                                 class="w-full p-4 rounded-xl border-2 border-slate-200 font-bold text-slate-800 focus:border-rose-500 outline-none transition-all">
                         </div>
                         <button type="button" id="btnRequestOtp"
@@ -145,7 +146,8 @@
                         </div>
                         <div class="space-y-2">
                             <label class="text-xs font-black uppercase text-slate-600">Enter 6-Digit Verification Code</label>
-                            <input type="text" id="deleteOtp" maxlength="6" placeholder="123456"
+                            <input type="text" id="deleteOtp" maxlength="6" placeholder="123456" inputmode="numeric"
+                                autocomplete="one-time-code" enterkeyhint="done"
                                 class="w-full p-4 rounded-xl border-2 border-slate-200 font-bold text-slate-800 tracking-widest text-center text-xl focus:border-rose-500 outline-none transition-all">
                         </div>
                         <button type="button" id="btnConfirmDeleteOtp"

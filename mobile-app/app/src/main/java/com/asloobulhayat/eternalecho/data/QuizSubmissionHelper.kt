@@ -13,6 +13,7 @@ object QuizSubmissionHelper {
     const val KEY_PENDING_DIFFICULTY = "pending_quiz_difficulty"
     const val KEY_PENDING_QUESTIONS = "pending_quiz_questions"
     const val KEY_PENDING_ANSWERS = "pending_quiz_answers"
+    const val KEY_PENDING_ATTEMPT_TOKEN = "pending_quiz_attempt_token"
 
     fun savePendingQuiz(
         prefs: SecurePreferences,
@@ -22,23 +23,26 @@ object QuizSubmissionHelper {
         totalQuestions: Int,
         difficulty: String,
         questions: List<QuizQuestion>,
-        userAnswers: List<Int?>
+        userAnswers: List<Int?>,
+        attemptToken: String = ""
     ) {
         val questionsArray = JSONArray()
         questions.forEach { q ->
             val obj = JSONObject()
-            obj.put("id", q.id)
+            obj.put("id", q.scoringId())
             obj.put("text", q.text)
-            obj.put("correctAnswerIndex", q.correctAnswerIndex)
             obj.put("difficulty", q.difficulty)
             val opts = JSONArray()
-            q.options.forEach { opts.put(it) }
+            val originals = q.originalOptions.ifEmpty { q.options }
+            originals.forEach { opts.put(it) }
             obj.put("options", opts)
             questionsArray.put(obj)
         }
 
         val answersArray = JSONArray()
-        userAnswers.forEach { answersArray.put(it ?: -1) }
+        questions.forEachIndexed { index, q ->
+            answersArray.put(q.toOriginalAnswerIndex(userAnswers.getOrNull(index)))
+        }
 
         savePendingRawQuiz(
             prefs = prefs,
@@ -48,7 +52,8 @@ object QuizSubmissionHelper {
             totalQuestions = totalQuestions,
             difficulty = difficulty,
             questionsJson = questionsArray.toString(),
-            userAnswersJson = answersArray.toString()
+            userAnswersJson = answersArray.toString(),
+            attemptToken = attemptToken
         )
     }
 
@@ -60,7 +65,8 @@ object QuizSubmissionHelper {
         totalQuestions: Int,
         difficulty: String,
         questionsJson: String,
-        userAnswersJson: String
+        userAnswersJson: String,
+        attemptToken: String = ""
     ) {
         prefs.putBoolean(KEY_HAS_PENDING, true)
         prefs.putString(KEY_PENDING_TYPE, type)
@@ -70,6 +76,7 @@ object QuizSubmissionHelper {
         prefs.putString(KEY_PENDING_DIFFICULTY, difficulty)
         prefs.putString(KEY_PENDING_QUESTIONS, questionsJson)
         prefs.putString(KEY_PENDING_ANSWERS, userAnswersJson)
+        prefs.putString(KEY_PENDING_ATTEMPT_TOKEN, attemptToken)
     }
 
     fun hasPendingQuiz(prefs: SecurePreferences): Boolean {
@@ -91,6 +98,7 @@ object QuizSubmissionHelper {
         prefs.remove(KEY_PENDING_DIFFICULTY)
         prefs.remove(KEY_PENDING_QUESTIONS)
         prefs.remove(KEY_PENDING_ANSWERS)
+        prefs.remove(KEY_PENDING_ATTEMPT_TOKEN)
     }
 
     suspend fun submitPendingQuizIfAny(
@@ -106,6 +114,7 @@ object QuizSubmissionHelper {
         val difficulty = prefs.getString(KEY_PENDING_DIFFICULTY, "Medium") ?: "Medium"
         val questionsJson = prefs.getString(KEY_PENDING_QUESTIONS, "[]") ?: "[]"
         val answersJson = prefs.getString(KEY_PENDING_ANSWERS, "[]") ?: "[]"
+        val attemptToken = prefs.getString(KEY_PENDING_ATTEMPT_TOKEN, "") ?: ""
 
         return try {
             val success = repository.submitQuiz(
@@ -116,7 +125,8 @@ object QuizSubmissionHelper {
                 totalQuestions = total,
                 difficulty = difficulty,
                 questionsJson = questionsJson,
-                userAnswersJson = answersJson
+                userAnswersJson = answersJson,
+                attemptToken = attemptToken
             )
             if (success) {
                 clearPendingQuiz(prefs)

@@ -4,7 +4,7 @@
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"
-        x-data="quizApp({{ json_encode($questions) }}, '{{ $type }}', '{{ $title }}', '{{ $difficulty }}', '{{ $theme }}', {{ $paraNumber ?? 'null' }})">
+        x-data="quizApp({{ json_encode($questions) }}, '{{ $type }}', '{{ $title }}', '{{ $difficulty }}', '{{ $theme }}', {{ $paraNumber ?? 'null' }}, {{ json_encode($attemptToken ?? '') }})">
 
         {{-- Header --}}
         <div class="flex justify-between items-center px-2">
@@ -346,7 +346,7 @@
 
 @push('scripts')
     <script>
-        function quizApp(questions, type, title, difficulty, theme, paraNumber) {
+        function quizApp(questions, type, title, difficulty, theme, paraNumber, attemptToken) {
             return {
                 questions,
                 type,
@@ -354,6 +354,7 @@
                 difficulty,
                 theme,
                 paraNumber,
+                attemptToken: attemptToken || '',
                 currentIndex: 0,
                 score: 0,
                 selectedAnswer: null,
@@ -381,18 +382,40 @@
 
                 get currentQuestion() { return this.questions[this.currentIndex]; },
 
-                selectAnswer(idx) {
+                async selectAnswer(idx) {
                     if (this.answered) return;
                     this.selectedAnswer = idx;
                     this.answered = true;
-                    if (idx === this.currentQuestion.correctAnswerIndex) {
-                        const difficulty = this.currentQuestion.difficulty || this.difficulty;
-                        let points = 5;
-                        if (difficulty === 'Medium') points = 10;
-                        if (difficulty === 'Hard') points = 15;
-                        this.score += points;
-                    }
                     this.userAnswers.push(idx);
+                    try {
+                        const res = await fetch('{{ route("quiz.check-answer") }}', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                                'Accept': 'application/json',
+                            },
+                            body: JSON.stringify({
+                                question_id: this.currentQuestion.id,
+                                selected_index: idx,
+                                options: this.currentQuestion.options,
+                            }),
+                        });
+                        const data = await res.json();
+                        if (data.success) {
+                            this.currentQuestion.correctAnswerIndex = data.correctAnswerIndex;
+                            this.currentQuestion.explanation = data.explanation || '';
+                            if (data.correct) {
+                                const difficulty = this.currentQuestion.difficulty || this.difficulty;
+                                let points = 5;
+                                if (difficulty === 'Medium') points = 10;
+                                if (difficulty === 'Hard') points = 15;
+                                this.score += points;
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Failed to check answer', e);
+                    }
                 },
 
                 get maxScore() {
@@ -487,6 +510,7 @@
                                 questions: JSON.stringify(this.questions),
                                 userAnswers: JSON.stringify(this.userAnswers),
                                 paraNumber: this.paraNumber,
+                                attemptToken: this.attemptToken,
                             }),
                         });
                         const data = await res.json();

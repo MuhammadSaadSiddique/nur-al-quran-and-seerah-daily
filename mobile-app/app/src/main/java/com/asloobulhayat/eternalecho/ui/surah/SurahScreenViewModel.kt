@@ -20,6 +20,9 @@ class SurahScreenViewModel(
     private val _connectionsState = MutableStateFlow<ConnectionsUiState>(ConnectionsUiState.Idle)
     val connectionsState: StateFlow<ConnectionsUiState> = _connectionsState.asStateFlow()
 
+    private val _translationsLoading = MutableStateFlow(false)
+    val translationsLoading: StateFlow<Boolean> = _translationsLoading.asStateFlow()
+
     init {
         loadVerses()
     }
@@ -27,10 +30,19 @@ class SurahScreenViewModel(
     fun loadVerses() {
         viewModelScope.launch {
             _versesState.value = VersesUiState.Loading
+            _translationsLoading.value = false
             try {
                 val data = dataRepository.getVerses(surahNumber)
+                val needsWebTranslations = data.isNotEmpty() && data.none { it.translations.isNotEmpty() }
                 _versesState.value = VersesUiState.Success(data)
+                if (needsWebTranslations) {
+                    _translationsLoading.value = true
+                    val translated = dataRepository.withWebTranslations(surahNumber, data)
+                    _versesState.value = VersesUiState.Success(translated)
+                    _translationsLoading.value = false
+                }
             } catch (t: Throwable) {
+                _translationsLoading.value = false
                 _versesState.value = VersesUiState.Error(t)
             }
         }

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppFeedback;
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -51,22 +50,15 @@ class AppFeedbackController extends Controller
             'user_name' => 'nullable|string|max:100',
             'user_email' => 'nullable|email|max:150',
             'device_info' => 'nullable|string|max:255',
-            'user_id' => 'nullable|integer',
         ]);
 
-        $userId = Auth::id();
+        // Never trust client-supplied user_id — only bind authenticated sessions.
+        $user = Auth::guard('sanctum')->user() ?: Auth::user();
+        $userId = $user?->id;
         $userName = $validated['user_name'] ?? null;
         $userEmail = $validated['user_email'] ?? null;
 
-        if (!$userId && !empty($validated['user_id'])) {
-            $existingUser = User::find($validated['user_id']);
-            if ($existingUser) {
-                $userId = $existingUser->id;
-                $userName = $userName ?: ($existingUser->display_name ?: $existingUser->name);
-                $userEmail = $userEmail ?: $existingUser->email;
-            }
-        } elseif ($userId) {
-            $user = Auth::user();
+        if ($user) {
             $userName = $userName ?: ($user->display_name ?: $user->name);
             $userEmail = $userEmail ?: $user->email;
         }

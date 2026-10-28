@@ -41,6 +41,7 @@ class NotificationFeatureTest extends TestCase
             'platform' => 'android',
             'device_name' => 'Pixel 8 Pro',
             'app_version' => '1.0',
+            'user_id' => 99999,
         ]);
 
         $response->assertStatus(200)
@@ -49,6 +50,25 @@ class NotificationFeatureTest extends TestCase
         $this->assertDatabaseHas('device_tokens', [
             'token' => 'sample-test-fcm-token-1234567890',
             'platform' => 'android',
+            'user_id' => null,
+        ]);
+    }
+
+    public function test_authenticated_device_token_binds_to_sanctum_user_only(): void
+    {
+        $user = User::factory()->create();
+        $other = User::factory()->create();
+
+        $response = $this->actingAs($user, 'sanctum')->postJson('/api/device-token', [
+            'token' => 'bound-token-xyz',
+            'platform' => 'android',
+            'user_id' => $other->id,
+        ]);
+
+        $response->assertStatus(200);
+        $this->assertDatabaseHas('device_tokens', [
+            'token' => 'bound-token-xyz',
+            'user_id' => $user->id,
         ]);
     }
 

@@ -5,17 +5,23 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Auth;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
 {
     use HasApiTokens, HasFactory, Notifiable;
 
-    protected $fillable = [
-        'name',
-        'display_name',
-        'email',
-        'password',
+    /**
+     * Attributes set via forceFill on create (never mass-assignable from request fill).
+     */
+    private const FORCE_FILL_ON_CREATE = [
+        'is_admin',
+        'is_researcher',
+        'quran_access_token',
+        'quran_refresh_token',
+        'expert_category_id',
         'total_score',
         'total_questions',
         'seerah_read_count',
@@ -26,22 +32,67 @@ class User extends Authenticatable
         'difficulty_stats',
         'bookmarked_questions',
         'seerah_quiz_best_score',
-        'quran_user_id',
-        'quran_access_token',
-        'quran_refresh_token',
-        'is_admin',
-        'is_researcher',
-        'expert_category_id',
         'streak_count',
         'longest_streak',
         'last_streak_date',
         'streak_history',
     ];
 
+    /**
+     * Create a user, applying non-fillable fields via forceFill.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public static function create(array $attributes = []): static
+    {
+        $forced = Arr::only($attributes, self::FORCE_FILL_ON_CREATE);
+        $attributes = Arr::except($attributes, self::FORCE_FILL_ON_CREATE);
+
+        /** @var static $user */
+        $user = static::query()->create($attributes);
+
+        if ($forced !== []) {
+            $user->forceFill($forced)->save();
+        }
+
+        return $user;
+    }
+
+    protected $fillable = [
+        'name',
+        'display_name',
+        'email',
+        'password',
+        'quran_user_id',
+        // Role flags, tokens, scores, and expert category are NOT fillable.
+    ];
+
     protected $hidden = [
         'password',
         'remember_token',
+        'quran_access_token',
+        'quran_refresh_token',
     ];
+
+    protected static function booted(): void
+    {
+        static::saving(function (User $user) {
+            if (!$user->isDirty('is_admin') && !$user->isDirty('is_researcher')) {
+                return;
+            }
+
+            // Allow factories, seeders, artisan, and tests to set roles.
+            if (app()->runningInConsole() || app()->runningUnitTests()) {
+                return;
+            }
+
+            $actor = Auth::user();
+            if (!$actor || !$actor->is_admin) {
+                $user->is_admin = (bool) $user->getOriginal('is_admin');
+                $user->is_researcher = (bool) $user->getOriginal('is_researcher');
+            }
+        });
+    }
 
     protected function casts(): array
     {
@@ -65,9 +116,32 @@ class User extends Authenticatable
         return $this->hasMany(Quiz::class)->orderBy('created_at', 'desc');
     }
 
+    public function dailyEngagements()
+    {
+        return $this->hasMany(UserDailyEngagement::class);
+    }
+
     public function expertCategory()
     {
         return $this->belongsTo(ScienceCategory::class, 'expert_category_id');
+    }
+
+    public function researcherOnboarding()
+    {
+        return $this->hasOne(ResearcherOnboarding::class);
+    }
+
+    /**
+     * True after the user has submitted onboarding and accepted the authenticity pledge.
+     * This does not by itself grant researcher access.
+     */
+    public function hasAcceptedResearcherPledge(): bool
+    {
+        if ($this->relationLoaded('researcherOnboarding')) {
+            return $this->researcherOnboarding !== null && $this->researcherOnboarding->pledged_at !== null;
+        }
+
+        return $this->researcherOnboarding()->whereNotNull('pledged_at')->exists();
     }
 
     public function researchContributions()
@@ -231,12 +305,15 @@ class User extends Authenticatable
             $surahs[] = $surahNumber;
             sort($surahs);
             $status = 'marked';
-            $this->checkInStreak();
         }
 
         $mastery['completed_surahs'] = $surahs;
         $this->para_mastery = $mastery;
         $this->save();
+
+        if ($status === 'marked') {
+            app(\App\Services\DailyEngagementService::class)->record($this, UserDailyEngagement::ACTIVITY_READ);
+        }
 
         return [
             'status' => $status,
@@ -261,11 +338,14 @@ class User extends Authenticatable
             $completed[] = $paraNumber;
             sort($completed);
             $status = 'marked';
-            $this->checkInStreak();
         }
 
         $this->completed_paras = $completed;
         $this->save();
+
+        if ($status === 'marked') {
+            app(\App\Services\DailyEngagementService::class)->record($this, UserDailyEngagement::ACTIVITY_READ);
+        }
 
         return [
             'status' => $status,
@@ -277,20 +357,31 @@ class User extends Authenticatable
 
     /**
      * Mark an insight (Seerah or Quran History) as read.
+     * Requires a stable insight_id so counts cannot be farmed with empty IDs.
      */
     public function markInsightRead(string $type, ?string $insightId = null): array
     {
+        $insightId = is_string($insightId) ? trim($insightId) : '';
+        if ($insightId === '') {
+            return [
+                'success' => false,
+                'already_read' => false,
+                'type' => $type,
+                'seerah_read_count' => (int) $this->seerah_read_count,
+                'quran_history_read_count' => (int) $this->quran_history_read_count,
+                'error' => 'insight_id is required.',
+            ];
+        }
+
         $mastery = is_array($this->para_mastery) ? $this->para_mastery : [];
         $readInsights = $mastery['read_insights'] ?? [];
-        $key = strtoupper($type) . ($insightId ? ':' . $insightId : '');
-        $alreadyRead = in_array($key, $readInsights);
+        $key = strtoupper($type) . ':' . $insightId;
+        $alreadyRead = in_array($key, $readInsights, true);
 
         if (!$alreadyRead) {
-            if ($insightId) {
-                $readInsights[] = $key;
-                $mastery['read_insights'] = $readInsights;
-                $this->para_mastery = $mastery;
-            }
+            $readInsights[] = $key;
+            $mastery['read_insights'] = $readInsights;
+            $this->para_mastery = $mastery;
 
             if (strtoupper($type) === 'SEERAH') {
                 $this->seerah_read_count = (int) ($this->seerah_read_count ?? 0) + 1;
@@ -298,8 +389,8 @@ class User extends Authenticatable
                 $this->quran_history_read_count = (int) ($this->quran_history_read_count ?? 0) + 1;
             }
 
-            $this->checkInStreak();
             $this->save();
+            app(\App\Services\DailyEngagementService::class)->record($this, UserDailyEngagement::ACTIVITY_INSIGHT);
         }
 
         return [

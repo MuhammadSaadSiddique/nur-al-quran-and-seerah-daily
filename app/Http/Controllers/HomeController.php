@@ -2,12 +2,16 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
+use App\Services\DailyEngagementService;
 use Illuminate\Support\Facades\Auth;
-use App\Models\GeneratedQuestion;
 
 class HomeController extends Controller
 {
+    public function __construct(
+        private DailyEngagementService $engagementService
+    ) {
+    }
+
     public function index()
     {
         $user = Auth::user();
@@ -26,6 +30,8 @@ class HomeController extends Controller
             ->orderBy('name')
             ->get();
 
-        return view('home', compact('user', 'quranThemes', 'seerahThemes'));
+        $engagement = $this->engagementService->todayStatus($user);
+
+        return view('home', compact('user', 'quranThemes', 'seerahThemes', 'engagement'));
     }
 }

@@ -14,16 +14,26 @@ class PushNotificationService
      */
     public static function registerToken(string $token, string $platform = 'android', ?string $deviceName = null, ?int $userId = null, ?string $appVersion = null): DeviceToken
     {
+        $existing = DeviceToken::where('token', $token)->first();
+
+        $attributes = [
+            'platform' => $platform,
+            'device_name' => $deviceName,
+            'app_version' => $appVersion,
+            'is_active' => true,
+            'last_active_at' => now(),
+        ];
+
+        // Never unbind an existing user_id via anonymous registration; only set when authenticated.
+        if ($userId !== null) {
+            $attributes['user_id'] = $userId;
+        } elseif (!$existing) {
+            $attributes['user_id'] = null;
+        }
+
         return DeviceToken::updateOrCreate(
             ['token' => $token],
-            [
-                'user_id' => $userId,
-                'platform' => $platform,
-                'device_name' => $deviceName,
-                'app_version' => $appVersion,
-                'is_active' => true,
-                'last_active_at' => now(),
-            ]
+            $attributes
         );
     }
 
@@ -44,7 +54,7 @@ class PushNotificationService
         $serviceAccount = self::loadServiceAccountCredentials();
         if ($serviceAccount) {
             $accessToken = self::fetchGoogleAccessToken($serviceAccount);
-            $projectId = $serviceAccount['project_id'] ?? env('FIREBASE_PROJECT_ID', 'studio-3025898103-60d3d');
+            $projectId = $serviceAccount['project_id'] ?? config('services.firebase.project_id');
 
             if ($accessToken && $projectId) {
                 return self::broadcastFcmV1($notification, $tokens, $projectId, $accessToken);
@@ -52,7 +62,7 @@ class PushNotificationService
         }
 
         // 2. Fallback to Legacy FCM Server Key if present
-        $serverKey = env('FIREBASE_SERVER_KEY') ?: env('FCM_SERVER_KEY');
+        $serverKey = config('services.firebase.server_key');
         if (empty($serverKey)) {
             Log::info("PushNotificationService: FCM credentials not configured. Notification ID {$notification->id} saved for polling & background worker sync.");
             $notification->update(['delivered_devices_count' => count($tokens)]);
@@ -69,12 +79,6 @@ class PushNotificationService
                     'Content-Type' => 'application/json',
                 ])->timeout(10)->post('https://fcm.googleapis.com/fcm/send', [
                     'registration_ids' => $chunk,
-                    'notification' => [
-                        'title' => $notification->title,
-                        'body' => $notification->message,
-                        'sound' => 'default',
-                        'click_action' => 'OPEN_MAIN_ACTIVITY',
-                    ],
                     'data' => [
                         'notification_id' => (string)$notification->id,
                         'title' => $notification->title,
@@ -128,10 +132,6 @@ class PushNotificationService
                     ->post($endpoint, [
                         'message' => [
                             'token' => $token,
-                            'notification' => [
-                                'title' => $notification->title,
-                                'body' => $notification->message,
-                            ],
                             'data' => [
                                 'notification_id' => (string)$notification->id,
                                 'title' => $notification->title,
@@ -142,10 +142,6 @@ class PushNotificationService
                             ],
                             'android' => [
                                 'priority' => 'HIGH',
-                                'notification' => [
-                                    'channel_id' => 'eternal_echo_announcements',
-                                    'sound' => 'default',
-                                ],
                             ],
                         ],
                     ]);
@@ -178,12 +174,12 @@ class PushNotificationService
      */
     protected static function loadServiceAccountCredentials(): ?array
     {
-        // Option 1: Direct .env variables (no separate JSON file needed on server)
-        $clientEmail = env('FIREBASE_CLIENT_EMAIL');
-        $privateKey = env('FIREBASE_PRIVATE_KEY');
+        // Option 1: Config / .env variables (no separate JSON file needed on server)
+        $clientEmail = config('services.firebase.client_email');
+        $privateKey = config('services.firebase.private_key');
         if (!empty($clientEmail) && !empty($privateKey)) {
             return [
-                'project_id' => env('FIREBASE_PROJECT_ID', 'studio-3025898103-60d3d'),
+                'project_id' => config('services.firebase.project_id'),
                 'client_email' => $clientEmail,
                 'private_key' => str_replace('\n', "\n", $privateKey),
                 'token_uri' => 'https://oauth2.googleapis.com/token',
@@ -191,11 +187,12 @@ class PushNotificationService
         }
 
         // Option 2: Service Account JSON file in storage/app/ (outside public/ web root)
-        $configuredPath = env('FIREBASE_CREDENTIALS');
+        $configuredPath = config('services.firebase.credentials');
         $candidates = array_filter([
             $configuredPath,
             $configuredPath ? base_path($configuredPath) : null,
             storage_path('app/firebase-service-account.json'),
+            storage_path('app/firebase-service.json'),
         ]);
 
         foreach ($candidates as $path) {

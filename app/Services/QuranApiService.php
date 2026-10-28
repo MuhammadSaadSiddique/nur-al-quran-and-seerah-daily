@@ -3,7 +3,6 @@
 namespace App\Services;
 
 use App\Models\User;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class QuranApiService
@@ -21,7 +20,7 @@ class QuranApiService
     public function getUserData(string $endpoint, string $accessToken): ?array
     {
         try {
-            $response = Http::withHeaders([
+            $response = QuranHttp::pending()->withHeaders([
                 'x-auth-token' => $accessToken,
                 'x-client-id' => config('services.quran.client_id'),
             ])->get("{$this->baseUrl}{$endpoint}");
@@ -53,13 +52,17 @@ class QuranApiService
         }
 
         try {
-            $authUrl = config('services.quran.auth_url');
-            $response = Http::asForm()->post("{$authUrl}/oauth2/token", [
-                'grant_type' => 'refresh_token',
-                'client_id' => config('services.quran.client_id'),
-                'client_secret' => config('services.quran.client_secret'),
-                'refresh_token' => $user->quran_refresh_token,
-            ]);
+            $authUrl = rtrim((string) config('services.quran.auth_url'), '/');
+            $response = QuranHttp::pending()
+                ->withBasicAuth(
+                    (string) config('services.quran.client_id'),
+                    (string) config('services.quran.client_secret')
+                )
+                ->asForm()
+                ->post("{$authUrl}/oauth2/token", [
+                    'grant_type' => 'refresh_token',
+                    'refresh_token' => $user->quran_refresh_token,
+                ]);
 
             if ($response->successful()) {
                 $data = $response->json();
@@ -93,7 +96,7 @@ class QuranApiService
         }
 
         try {
-            $response = Http::withHeaders([
+            $response = QuranHttp::pending()->withHeaders([
                 'x-auth-token' => $user->quran_access_token,
                 'x-client-id' => config('services.quran.client_id'),
             ])->post("{$this->baseUrl}{$endpoint}", $data);

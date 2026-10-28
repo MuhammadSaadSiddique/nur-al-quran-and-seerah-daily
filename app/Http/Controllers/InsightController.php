@@ -109,12 +109,6 @@ class InsightController extends Controller
                 $record->touch();
             }
 
-            $user = Auth::user();
-            if ($user) {
-                $user->seerah_read_count += 1;
-                $user->save();
-            }
-
             if ($request->has('generate')) {
                 return redirect()->route('seerah', ['difficulty' => $difficulty]);
             }
@@ -134,8 +128,9 @@ class InsightController extends Controller
                 'id' => $insightItem->question_id,
                 'text' => $insightItem->text,
                 'options' => $insightItem->options,
-                'correctAnswerIndex' => $insightItem->correct_answer_index,
-                'explanation' => $insightItem->explanation,
+                // Reveal only after answer via insight.answer / quiz.check-answer.
+                'correctAnswerIndex' => -1,
+                'explanation' => null,
                 'theme' => $insightItem->theme,
                 'reference' => $insightItem->reference,
                 'difficulty' => $insightItem->difficulty,
@@ -196,12 +191,6 @@ class InsightController extends Controller
                 $record->touch();
             }
 
-            $user = Auth::user();
-            if ($user) {
-                $user->quran_history_read_count += 1;
-                $user->save();
-            }
-
             if ($request->has('generate')) {
                 return redirect()->route('quran.history', ['difficulty' => $difficulty]);
             }
@@ -221,8 +210,9 @@ class InsightController extends Controller
                 'id' => $insightItem->question_id,
                 'text' => $insightItem->text,
                 'options' => $insightItem->options,
-                'correctAnswerIndex' => $insightItem->correct_answer_index,
-                'explanation' => $insightItem->explanation,
+                // Reveal only after answer via insight.answer / quiz.check-answer.
+                'correctAnswerIndex' => -1,
+                'explanation' => null,
                 'theme' => $insightItem->theme,
                 'reference' => $insightItem->reference,
                 'difficulty' => $insightItem->difficulty,
@@ -244,27 +234,55 @@ class InsightController extends Controller
     public function submitInsightAnswer(Request $request)
     {
         $request->validate([
-            'correct' => 'required|boolean',
-            'questionId' => 'nullable|string',
+            'questionId' => 'required|string',
+            'selectedIndex' => 'required|integer|min:0',
+            'correct' => 'nullable|boolean', // ignored — kept for older clients
         ]);
 
         $user = Auth::user();
-        if ($user) {
+        if (!$user) {
+            return response()->json(['success' => false, 'error' => 'Login required to record insight progress.'], 401);
+        }
+
+        $question = GeneratedQuestion::where('question_id', $request->questionId)->first();
+        if (!$question) {
+            return response()->json(['success' => false, 'error' => 'Question not found.'], 404);
+        }
+
+        $isCorrect = (int) $request->selectedIndex === (int) $question->correct_answer_index;
+
+        $mastery = is_array($user->para_mastery) ? $user->para_mastery : [];
+        $answered = $mastery['answered_insights'] ?? [];
+        $answerKey = (string) $request->questionId;
+        $alreadyAnswered = in_array($answerKey, $answered, true);
+
+        if (!$alreadyAnswered) {
+            $answered[] = $answerKey;
+            // Cap stored IDs to avoid unbounded JSON growth.
+            if (count($answered) > 500) {
+                $answered = array_slice($answered, -500);
+            }
+            $mastery['answered_insights'] = $answered;
+            $user->para_mastery = $mastery;
+
             $user->total_questions += 1;
-            if ($request->correct) {
+            if ($isCorrect) {
                 $user->total_score += 1;
             }
             $user->save();
-        }
 
-        // Update generated question stats
-        if ($request->questionId) {
-            GeneratedQuestion::where('question_id', $request->questionId)->increment('times_answered');
-            if ($request->correct) {
-                GeneratedQuestion::where('question_id', $request->questionId)->increment('times_correct');
+            $question->increment('times_answered');
+            if ($isCorrect) {
+                $question->increment('times_correct');
             }
         }
 
-        return response()->json(['success' => true]);
+        return response()->json([
+            'success' => true,
+            'correct' => $isCorrect,
+            'already_answered' => $alreadyAnswered,
+            'correctAnswerIndex' => (int) $question->correct_answer_index,
+            'explanation' => (string) ($question->explanation ?? ''),
+        ]);
     }
 }

@@ -161,6 +161,7 @@ class DuaController extends Controller
 
     /**
      * Daily featured Dua redirection / quick view.
+     * Authenticated users get the "dua" engagement activity marked for today.
      */
     public function daily()
     {
@@ -177,6 +178,11 @@ class DuaController extends Controller
 
         if (!$dailyDua) {
             $dailyDua = Dua::approved()->first();
+        }
+
+        if (auth()->check()) {
+            app(\App\Services\DailyEngagementService::class)
+                ->record(auth()->user(), \App\Models\UserDailyEngagement::ACTIVITY_DUA);
         }
 
         return redirect()->route('duas.show', $dailyDua->slug);
@@ -232,6 +238,14 @@ class DuaController extends Controller
      */
     public function apiStore(Request $request)
     {
+        $user = Auth::guard('sanctum')->user() ?: Auth::user();
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized. Please log in to submit a dua.',
+            ], 401);
+        }
+
         if ($request->filled('custom_category')) {
             $request->merge(['category' => trim($request->input('custom_category'))]);
         }
@@ -245,15 +259,9 @@ class DuaController extends Controller
         $dua->status = 'pending';
         $dua->is_featured = false;
         $dua->order = 999;
-
-        if (Auth::check()) {
-            $dua->submitted_by_user_id = Auth::id();
-            $dua->submitter_name = Auth::user()->name;
-            $dua->submitter_email = Auth::user()->email;
-        } else {
-            $dua->submitter_name = $request->input('submitter_name', 'Mobile App Contributor');
-            $dua->submitter_email = $request->input('submitter_email');
-        }
+        $dua->submitted_by_user_id = $user->id;
+        $dua->submitter_name = $user->name;
+        $dua->submitter_email = $user->email;
 
         $dua->save();
 

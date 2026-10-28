@@ -13,35 +13,38 @@ class InsightPaginationTest extends TestCase
     use RefreshDatabase;
 
     /** @test */
-    public function it_generates_insight_if_none_exists()
+    public function it_seeds_curated_insights_if_none_exist()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create([
+            'seerah_read_count' => 0,
+        ]);
 
         $this->mock(GeminiService::class, function ($mock) {
-            $mock->shouldReceive('generateSeerahInsight')
+            $mock->shouldReceive('getCuratedSeerahInsights')
                 ->once()
-                ->with('Medium')
                 ->andReturn([
-                    'title' => 'Test Seerah Title',
-                    'content' => 'Test Seerah Content',
-                    'question' => [
-                        'id' => 'q-seerah-test-1',
-                        'text' => 'Who was the first prophet?',
-                        'options' => ['Adam', 'Nuh', 'Ibrahim', 'Musa'],
-                        'correctAnswerIndex' => 0,
-                        'explanation' => 'Adam is the first prophet.',
-                        'theme' => 'Early Life',
-                        'reference' => 'History books',
-                        'difficulty' => 'Medium',
-                    ]
+                    [
+                        'title' => 'Test Seerah Title',
+                        'content' => 'Test Seerah Content',
+                        'question' => [
+                            'id' => 'q-seerah-test-1',
+                            'text' => 'Who was the first prophet?',
+                            'options' => ['Adam', 'Nuh', 'Ibrahim', 'Musa'],
+                            'correctAnswerIndex' => 0,
+                            'explanation' => 'Adam is the first prophet.',
+                            'theme' => 'Early Life',
+                            'reference' => 'History books',
+                            'difficulty' => 'Medium',
+                        ],
+                    ],
                 ]);
+            $mock->shouldNotReceive('generateSeerahInsight');
         });
 
         $response = $this->actingAs($user)->get(route('seerah'));
 
-        // Since it generates, it will redirect back to the page without ?generate
-        $response->assertStatus(302);
-        $response->assertRedirect(route('seerah', ['difficulty' => 'Medium']));
+        $response->assertStatus(200);
+        $response->assertViewHas('insight');
 
         $this->assertDatabaseHas('generated_questions', [
             'type' => 'SEERAH_INSIGHT',
@@ -51,7 +54,8 @@ class InsightPaginationTest extends TestCase
         ]);
 
         $user->refresh();
-        $this->assertEquals(1, $user->seerah_read_count);
+        // Viewing the page must not farm read counts.
+        $this->assertEquals(0, $user->seerah_read_count);
     }
 
     /** @test */
@@ -73,6 +77,7 @@ class InsightPaginationTest extends TestCase
         ]);
 
         $this->mock(GeminiService::class, function ($mock) {
+            $mock->shouldNotReceive('getCuratedSeerahInsights');
             $mock->shouldNotReceive('generateSeerahInsight');
         });
 
@@ -85,5 +90,38 @@ class InsightPaginationTest extends TestCase
         $viewData = $response->viewData('insight');
         $this->assertEquals('Saved Seerah Title', $viewData['title']);
         $this->assertEquals('Saved Seerah Content', $viewData['content']);
+        // Answer keys must not be embedded in the page payload.
+        $this->assertSame(-1, $viewData['question']['correctAnswerIndex']);
+        $this->assertNull($viewData['question']['explanation']);
+    }
+
+    /** @test */
+    public function insight_answer_reveals_key_only_after_selection(): void
+    {
+        $user = User::factory()->create();
+
+        GeneratedQuestion::create([
+            'question_id' => 'q-seerah-reveal-1',
+            'type' => 'SEERAH_INSIGHT',
+            'source_info' => 'Seerah Insight',
+            'difficulty' => 'Medium',
+            'insight_title' => 'Reveal Title',
+            'insight_content' => 'Reveal Content',
+            'text' => 'Reveal question?',
+            'options' => ['A', 'B', 'C', 'D'],
+            'correct_answer_index' => 2,
+            'explanation' => 'Because C',
+        ]);
+
+        $response = $this->actingAs($user)->postJson(route('insight.answer'), [
+            'questionId' => 'q-seerah-reveal-1',
+            'selectedIndex' => 1,
+        ]);
+
+        $response->assertStatus(200)
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('correct', false)
+            ->assertJsonPath('correctAnswerIndex', 2)
+            ->assertJsonPath('explanation', 'Because C');
     }
 }

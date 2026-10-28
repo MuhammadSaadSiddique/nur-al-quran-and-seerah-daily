@@ -7,7 +7,7 @@
 @push('schema')
 <script type="application/ld+json">
 {
-    "@context": "https://schema.org",
+    "@@context": "https://schema.org",
     "@type": "QAPage",
     "mainEntity": {
         "@type": "Question",
@@ -32,6 +32,7 @@
     }
 @endphp
 
+@section('content')
 <div class="max-w-4xl mx-auto space-y-8 pb-16 animate-fadeIn"
      x-data="{
          selectedOption: null,

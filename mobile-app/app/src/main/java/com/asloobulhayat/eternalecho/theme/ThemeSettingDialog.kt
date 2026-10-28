@@ -3,12 +3,14 @@ package com.asloobulhayat.eternalecho.theme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -25,10 +27,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 /**
- * Interactive Dialog to configure the application theme:
- * - App Theme (Dark Green): Signature deep Islamic emerald green
- * - System Theme: Follows system light/dark & dynamic settings
+ * Mobile-friendly theme picker as a bottom sheet so options never clip on small screens.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ThemeSettingDialog(
     onDismiss: () -> Unit
@@ -36,163 +37,149 @@ fun ThemeSettingDialog(
     val context = LocalContext.current
     val currentMode by ThemeManager.themeMode.collectAsState()
 
-    AlertDialog(
+    ModalBottomSheet(
         onDismissRequest = onDismiss,
-        title = {
+        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        containerColor = MaterialTheme.colorScheme.surface,
+        dragHandle = { BottomSheetDefaults.DragHandle() }
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+                .padding(horizontal = 20.dp)
+                .padding(bottom = 20.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primaryContainer),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Settings,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-                Column {
-                    Text(
-                        text = "Appearance & Theme",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        text = "Customize how the app looks",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        },
-        text = {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                // Option 1: App Theme (Dark Green)
-                ThemeOptionCard(
-                    title = "App Theme (Dark Green)",
-                    description = "Signature deep Islamic emerald & forest green theme",
-                    isSelected = currentMode == ThemeMode.APP_THEME,
-                    badgeText = "Recommended",
-                    swatchContent = {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(DarkGreenBackground)
-                                .border(1.5.dp, DarkGreenPrimary, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .clip(CircleShape)
-                                    .background(DarkGreenPrimary),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(DarkGreenTertiary)
-                                )
-                            }
-                        }
-                    },
-                    onClick = {
-                        ThemeManager.setThemeMode(context, ThemeMode.APP_THEME)
-                    }
-                )
-
-                // Option 2: Light Theme
-                ThemeOptionCard(
-                    title = "Light Theme",
-                    description = "Clean, bright light emerald & slate theme for daytime reading",
-                    isSelected = currentMode == ThemeMode.LIGHT,
-                    badgeText = "Light",
-                    swatchContent = {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(Slate50)
-                                .border(1.5.dp, Emerald600, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(16.dp)
-                                    .clip(CircleShape)
-                                    .background(Emerald600),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Color.White)
-                                )
-                            }
-                        }
-                    },
-                    onClick = {
-                        ThemeManager.setThemeMode(context, ThemeMode.LIGHT)
-                    }
-                )
-
-                // Option 3: System Theme
-                ThemeOptionCard(
-                    title = "System Theme",
-                    description = "Automatically adapts to your device light/dark mode and system palette",
-                    isSelected = currentMode == ThemeMode.SYSTEM,
-                    badgeText = "Auto",
-                    swatchContent = {
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    brush = Brush.linearGradient(
-                                        colors = listOf(
-                                            Color(0xFF0F172A),
-                                            Color(0xFFF8FAFC)
-                                        )
-                                    )
-                                )
-                                .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "⚙️",
-                                fontSize = 14.sp
+                    Surface(
+                        shape = CircleShape,
+                        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Icon(
+                                imageVector = Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                    },
-                    onClick = {
-                        ThemeManager.setThemeMode(context, ThemeMode.SYSTEM)
                     }
-                )
+                    Column {
+                        Text(
+                            text = "Theme",
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Choose how the app looks",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.Default.Close, contentDescription = "Close")
+                }
             }
-        },
-        confirmButton = {
+
+            ThemeOptionCard(
+                title = "Dark Green",
+                description = "Signature emerald reading theme",
+                isSelected = currentMode == ThemeMode.APP_THEME,
+                badgeText = "Default",
+                swatchContent = {
+                    ThemeSwatch(
+                        background = DarkGreenBackground,
+                        ring = DarkGreenPrimary,
+                        accent = DarkGreenTertiary
+                    )
+                },
+                onClick = { ThemeManager.setThemeMode(context, ThemeMode.APP_THEME) }
+            )
+
+            ThemeOptionCard(
+                title = "Light",
+                description = "Bright emerald & slate for daytime",
+                isSelected = currentMode == ThemeMode.LIGHT,
+                badgeText = "Day",
+                swatchContent = {
+                    ThemeSwatch(
+                        background = Color.White,
+                        ring = Emerald600,
+                        accent = Emerald600
+                    )
+                },
+                onClick = { ThemeManager.setThemeMode(context, ThemeMode.LIGHT) }
+            )
+
+            ThemeOptionCard(
+                title = "System",
+                description = "Follow device light / dark mode",
+                isSelected = currentMode == ThemeMode.SYSTEM,
+                badgeText = "Auto",
+                swatchContent = {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(Color(0xFF0F172A), Color(0xFFF8FAFC))
+                                )
+                            )
+                            .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
+                    )
+                },
+                onClick = { ThemeManager.setThemeMode(context, ThemeMode.SYSTEM) }
+            )
+
             Button(
                 onClick = onDismiss,
-                shape = RoundedCornerShape(10.dp)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp)
             ) {
-                Text("Done")
+                Text("Done", fontWeight = FontWeight.SemiBold)
             }
+
+            Spacer(modifier = Modifier.height(8.dp))
         }
-    )
+    }
+}
+
+@Composable
+private fun ThemeSwatch(
+    background: Color,
+    ring: Color,
+    accent: Color
+) {
+    Box(
+        modifier = Modifier
+            .size(40.dp)
+            .clip(CircleShape)
+            .background(background)
+            .border(1.5.dp, ring, CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(14.dp)
+                .clip(CircleShape)
+                .background(accent)
+        )
+    }
 }
 
 @Composable
@@ -207,27 +194,26 @@ private fun ThemeOptionCard(
     val borderColor = if (isSelected) {
         MaterialTheme.colorScheme.primary
     } else {
-        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)
     }
 
     val containerColor = if (isSelected) {
-        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
     } else {
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
     }
 
-    Card(
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = containerColor),
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = containerColor,
         border = BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
+        modifier = Modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(14.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -235,28 +221,36 @@ private fun ThemeOptionCard(
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(3.dp)
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Text(
                         text = title,
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
+                        fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Surface(
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(6.dp)
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        },
+                        shape = RoundedCornerShape(8.dp)
                     ) {
                         Text(
                             text = badgeText,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            color = if (isSelected) {
+                                MaterialTheme.colorScheme.primary
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            },
+                            modifier = Modifier.padding(horizontal = 7.dp, vertical = 2.dp)
                         )
                     }
                 }
@@ -268,13 +262,28 @@ private fun ThemeOptionCard(
                 )
             }
 
-            RadioButton(
-                selected = isSelected,
-                onClick = onClick,
-                colors = RadioButtonDefaults.colors(
-                    selectedColor = MaterialTheme.colorScheme.primary
+            if (isSelected) {
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Icon(
+                            imageVector = Icons.Default.Check,
+                            contentDescription = "Selected",
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                }
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(24.dp)
+                        .border(1.5.dp, MaterialTheme.colorScheme.outlineVariant, CircleShape)
                 )
-            )
+            }
         }
     }
 }

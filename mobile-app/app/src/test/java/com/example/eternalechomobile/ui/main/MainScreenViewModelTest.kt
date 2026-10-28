@@ -1,5 +1,6 @@
 package com.asloobulhayat.eternalecho.ui.main
 
+import com.asloobulhayat.eternalecho.data.QuizSession
 import com.asloobulhayat.eternalecho.data.*
 import junit.framework.TestCase.assertEquals
 import kotlinx.coroutines.test.runTest
@@ -50,15 +51,16 @@ private class FakeMyModelRepository : DataRepository {
     return InsightsData(emptyList(), emptyList(), seerahPage, 1, historyPage, 1, emptyList(), emptyList())
   }
   override suspend fun getThemes(): List<Theme> = emptyList()
-  override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
-  override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): List<QuizQuestion> = emptyList()
+  override suspend fun getThemeQuiz(themeId: Int, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
+  override suspend fun getGrandQuiz(quizType: String, difficulty: String, quantity: Int): QuizSession = QuizSession(emptyList())
   override suspend fun login(email: String, password: String): UserSession = UserSession(0, "", "", 0)
   override suspend fun register(name: String, email: String, password: String): UserSession = UserSession(0, "", "", 0)
   override suspend fun requestOtp(email: String): Boolean = true
   override suspend fun verifyOtp(email: String, otp: String): UserSessionOtpResponse =
     UserSessionOtpResponse(UserSession(0, "", "", 0), true)
   override suspend fun setPassword(userId: Int, password: String): Boolean = true
-  override suspend fun changePassword(userId: Int, password: String): Boolean = true
+  override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean = true
+  override suspend fun logout(): Boolean = true
   override suspend fun submitQuiz(
       userId: Int,
       type: String,
@@ -67,7 +69,8 @@ private class FakeMyModelRepository : DataRepository {
       totalQuestions: Int,
       difficulty: String,
       questionsJson: String,
-      userAnswersJson: String
+      userAnswersJson: String,
+      attemptToken: String
   ): Boolean = true
   override suspend fun getDuas(category: String, search: String, sourceType: String): List<Dua> = emptyList()
 }

@@ -10,6 +10,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
+import com.asloobulhayat.eternalecho.analytics.ScreenAnalytics
 import com.asloobulhayat.eternalecho.util.ShareHelper
 import androidx.compose.runtime.*
 import androidx.compose.animation.core.animateFloatAsState
@@ -104,6 +105,7 @@ class PlayThemeQuizViewModel(
     var isScoreSubmitted by mutableStateOf(false)
     var isSubmittingScore by mutableStateOf(false)
     var submissionError by mutableStateOf<String?>(null)
+    var attemptToken by mutableStateOf("")
 
     init {
         loadQuiz()
@@ -114,18 +116,23 @@ class PlayThemeQuizViewModel(
             _state.value = PlayQuizUiState.Loading
             try {
                 val isGrand = quizType.startsWith("GRAND")
-                val rawQuestions = if (isGrand) {
+                val session = if (isGrand) {
                     val grandType = if (quizType.contains("SEERAH", ignoreCase = true)) "SEERAH" else "QURAN"
                     repository.getGrandQuiz(grandType, difficulty, quantity)
                 } else {
                     repository.getThemeQuiz(themeId, difficulty, quantity)
                 }
-                // Shuffle options for each question so that Option A isn't always the correct answer
-                val shuffledQuestions = rawQuestions.map { q ->
-                    val correctText = q.options.getOrNull(q.correctAnswerIndex) ?: ""
-                    val shuffled = q.options.shuffled()
-                    val newCorrectIndex = shuffled.indexOf(correctText).coerceAtLeast(0)
-                    q.copy(options = shuffled, correctAnswerIndex = newCorrectIndex)
+                attemptToken = session.attemptToken
+                // Shuffle display order; keep originalOptions for server scoring (answers are not in fetch).
+                val shuffledQuestions = session.questions.map { q ->
+                    val originals = q.options
+                    val shuffled = originals.shuffled()
+                    q.copy(
+                        options = shuffled,
+                        originalOptions = originals,
+                        correctAnswerIndex = -1,
+                        explanation = ""
+                    )
                 }
                 _state.value = PlayQuizUiState.Success(shuffledQuestions)
             } catch (t: Throwable) {
@@ -140,16 +147,52 @@ class PlayThemeQuizViewModel(
         }
     }
 
-    fun confirmAnswer(correctAnswerIndex: Int) {
+    fun confirmAnswer(correctAnswerIndex: Int = -1) {
         if (isAnswerConfirmed) return
         isAnswerConfirmed = true
         userAnswers.add(selectedOptionIndex)
-        if (selectedOptionIndex == correctAnswerIndex) {
+        val state = _state.value
+        if (state is PlayQuizUiState.Success) {
+            val q = state.questions.getOrNull(currentQuestionIndex)
+            val selected = selectedOptionIndex
+            if (q != null && selected != null) {
+                viewModelScope.launch {
+                    try {
+                        val reveal = repository.checkAnswer(
+                            questionId = q.scoringId(),
+                            selectedIndex = selected,
+                            options = q.options
+                        )
+                        if (reveal != null) {
+                            val originals = q.originalOptions.ifEmpty { q.options }
+                            val revealedShuffledIndex = q.options.indexOf(
+                                originals.getOrNull(reveal.correctAnswerIndex) ?: ""
+                            ).coerceAtLeast(0)
+                            val updated = state.questions.toMutableList()
+                            updated[currentQuestionIndex] = q.copy(
+                                correctAnswerIndex = revealedShuffledIndex,
+                                explanation = reveal.explanation
+                            )
+                            _state.value = PlayQuizUiState.Success(updated)
+                            if (reveal.correct) {
+                                score++
+                            }
+                        } else if (correctAnswerIndex >= 0 && selected == correctAnswerIndex) {
+                            score++
+                        }
+                    } catch (_: Exception) {
+                        if (correctAnswerIndex >= 0 && selected == correctAnswerIndex) {
+                            score++
+                        }
+                    }
+                }
+            }
+        } else if (correctAnswerIndex >= 0 && selectedOptionIndex == correctAnswerIndex) {
             score++
         }
     }
 
-    fun submitAnswer(index: Int, correctAnswerIndex: Int) {
+    fun submitAnswer(index: Int, correctAnswerIndex: Int = -1) {
         selectOption(index)
         confirmAnswer(correctAnswerIndex)
     }
@@ -194,18 +237,20 @@ class PlayThemeQuizViewModel(
                 val questionsArray = org.json.JSONArray()
                 questions.forEach { q ->
                     val obj = org.json.JSONObject()
-                    obj.put("id", q.id)
+                    obj.put("id", q.scoringId())
                     obj.put("text", q.text)
-                    obj.put("correctAnswerIndex", q.correctAnswerIndex)
                     obj.put("difficulty", q.difficulty)
                     val opts = org.json.JSONArray()
-                    q.options.forEach { opts.put(it) }
+                    val originals = q.originalOptions.ifEmpty { q.options }
+                    originals.forEach { opts.put(it) }
                     obj.put("options", opts)
                     questionsArray.put(obj)
                 }
 
                 val answersArray = org.json.JSONArray()
-                userAnswers.forEach { answersArray.put(it ?: -1) }
+                questions.forEachIndexed { index, q ->
+                    answersArray.put(q.toOriginalAnswerIndex(userAnswers.getOrNull(index)))
+                }
 
                 val submissionType = if (quizType.startsWith("GRAND")) "GRAND" else "THEME"
                 val success = repository.submitQuiz(
@@ -216,17 +261,25 @@ class PlayThemeQuizViewModel(
                     totalQuestions = questions.size,
                     difficulty = difficulty,
                     questionsJson = questionsArray.toString(),
-                    userAnswersJson = answersArray.toString()
+                    userAnswersJson = answersArray.toString(),
+                    attemptToken = attemptToken
                 )
                 if (success) {
                     isScoreSubmitted = true
+                    // submitQuiz already marks quiz locally; nudge Home to re-read store.
+                    com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
                     onComplete?.invoke(true)
                 } else {
+                    // Score may be queued offline — still count the quiz habit locally.
+                    com.asloobulhayat.eternalecho.data.EngagementBus.markLocal("quiz")
+                    com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
                     submissionError = "Could not record score. Please try again."
                     onComplete?.invoke(false)
                 }
             } catch (e: Exception) {
                 android.util.Log.e("PlayThemeQuizViewModel", "Failed to submit quiz score", e)
+                com.asloobulhayat.eternalecho.data.EngagementBus.markLocal("quiz")
+                com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
                 submissionError = e.message ?: "Failed to submit quiz score"
                 onComplete?.invoke(false)
             } finally {
@@ -263,6 +316,10 @@ fun ThemeSelectionScreen(
     val prefs = remember { SecurePreferences.getInstance(context) }
     var showLimitDialog by remember { mutableStateOf(false) }
 
+    LaunchedEffect(selectedTab) {
+        ScreenAnalytics.logQuizThemeTab(context, selectedTab)
+    }
+
     fun checkAndLaunch(action: () -> Unit) {
         val currentIsLoggedIn = prefs.getInt("user_id", -1) != -1
         val currentCompleted = prefs.getInt("completed_quizzes", 0)
@@ -295,86 +352,51 @@ fun ThemeSelectionScreen(
     }
 
     Scaffold(
+        containerColor = Color.Transparent,
         topBar = {
-            TopAppBar(
-                title = { Text("Thematic & Grand Quizzes", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBackClick) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+            com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
+                title = "Quizzes",
+                onBackClick = onBackClick,
+                navigationIcon = Icons.AutoMirrored.Filled.ArrowBack
             )
         }
     ) { paddingValues ->
+        com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
         Column(
             modifier = modifier
                 .fillMaxSize()
-               // .padding(paddingValues)
+                .padding(paddingValues)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            // Quiz Quantity Selector (same as web: 20, 50, 100)
-            Text(
-                text = "Quiz Quantity",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
+            com.asloobulhayat.eternalecho.ui.components.EchoSectionLabel(text = "Questions")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf(20, 50, 100).forEach { qty ->
                     val isSelected = selectedQuantity == qty
-                    Surface(
+                    com.asloobulhayat.eternalecho.ui.components.EchoChip(
+                        label = "$qty",
+                        selected = isSelected,
                         onClick = { selectedQuantity = qty },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = "$qty Qs",
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    )
                 }
             }
 
-            // Difficulty Selector (Easy, Medium, Hard)
-            Text(
-                text = "Select Difficulty",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(bottom = 6.dp)
-            )
+            com.asloobulhayat.eternalecho.ui.components.EchoSectionLabel(text = "Difficulty")
             Row(
                 modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 listOf("Easy", "Medium", "Hard").forEach { diff ->
                     val isSelected = selectedDifficulty == diff
-                    Surface(
+                    com.asloobulhayat.eternalecho.ui.components.EchoChip(
+                        label = diff,
+                        selected = isSelected,
                         onClick = { selectedDifficulty = diff },
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = diff,
-                            modifier = Modifier.padding(vertical = 10.dp),
-                            textAlign = TextAlign.Center,
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                    )
                 }
             }
 
@@ -689,6 +711,7 @@ fun ThemeSelectionScreen(
                 }
             }
         }
+        }
     }
 }
 
@@ -895,7 +918,8 @@ fun PlayThemeQuizScreen(
                                     totalQuestions = questions.size,
                                     difficulty = difficulty,
                                     questions = questions,
-                                    userAnswers = viewModel.userAnswers
+                                    userAnswers = viewModel.userAnswers,
+                                    attemptToken = viewModel.attemptToken
                                 )
                             } else {
                                 if (!viewModel.isScoreSubmitted && !viewModel.isSubmittingScore) {
@@ -1471,11 +1495,13 @@ fun QuizQuestionCard(
     questionText: String,
     modifier: Modifier = Modifier
 ) {
+    val scheme = MaterialTheme.colorScheme
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        colors = CardDefaults.cardColors(containerColor = scheme.surface),
+        border = BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.6f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Box(
             modifier = Modifier
@@ -1483,13 +1509,12 @@ fun QuizQuestionCard(
                 .padding(22.dp),
             contentAlignment = Alignment.Center
         ) {
-            // Delicate Islamic Rosette Watermarks in the corners
             IslamicGeometricRosette(
                 modifier = Modifier
                     .size(80.dp)
                     .align(Alignment.TopStart)
                     .offset(x = (-24).dp, y = (-24).dp),
-                strokeColor = Color(0xFF065F46).copy(alpha = 0.08f),
+                strokeColor = scheme.primary.copy(alpha = 0.12f),
                 strokeWidth = 1.dp
             )
             IslamicGeometricRosette(
@@ -1497,16 +1522,16 @@ fun QuizQuestionCard(
                     .size(80.dp)
                     .align(Alignment.BottomEnd)
                     .offset(x = 24.dp, y = 24.dp),
-                strokeColor = Color(0xFF065F46).copy(alpha = 0.08f),
+                strokeColor = scheme.primary.copy(alpha = 0.12f),
                 strokeWidth = 1.dp
             )
 
             Text(
                 text = questionText,
-                color = Color(0xFF0F172A),
+                color = scheme.onSurface,
                 style = MaterialTheme.typography.titleMedium.copy(
                     fontWeight = FontWeight.Bold,
-                    fontSize = 18.5.sp,
+                    fontSize = 18.sp,
                     lineHeight = 26.sp,
                     textAlign = TextAlign.Center
                 ),
@@ -1532,30 +1557,30 @@ fun QuizOptionsList(
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         options.forEachIndexed { index, option ->
+            val scheme = MaterialTheme.colorScheme
             val letter = ('A'.code + index).toChar()
             val isSelected = selectedOptionIndex == index
             val isCorrect = index == correctAnswerIndex
 
-            // Color scheme matching mockup: unselected is clean light pill, selected is emerald with checkmark
             val containerColor = when {
-                !isConfirmed -> if (isSelected) Color(0xFF07452E) else Color.White
-                isCorrect -> Color(0xFF07452E)
-                isSelected && !isCorrect -> Color(0xFF7F1D1D)
-                else -> Color(0xFFF8FAFC).copy(alpha = 0.8f)
+                !isConfirmed -> if (isSelected) scheme.primary else scheme.surface
+                isCorrect -> scheme.primary
+                isSelected && !isCorrect -> scheme.error
+                else -> scheme.surfaceVariant.copy(alpha = 0.45f)
             }
 
             val textColor = when {
-                !isConfirmed -> if (isSelected) Color.White else Color(0xFF0F172A)
-                isCorrect -> Color.White
-                isSelected && !isCorrect -> Color.White
-                else -> Color(0xFF64748B)
+                !isConfirmed -> if (isSelected) scheme.onPrimary else scheme.onSurface
+                isCorrect -> scheme.onPrimary
+                isSelected && !isCorrect -> scheme.onError
+                else -> scheme.onSurfaceVariant
             }
 
             val borderStroke = when {
-                !isConfirmed -> if (isSelected) BorderStroke(2.dp, Color(0xFF10B981)) else BorderStroke(1.dp, Color(0xFFE2E8F0))
-                isCorrect -> BorderStroke(2.dp, Color(0xFF10B981))
-                isSelected && !isCorrect -> BorderStroke(2.dp, Color(0xFFEF4444))
-                else -> BorderStroke(1.dp, Color(0xFFE2E8F0))
+                !isConfirmed -> if (isSelected) BorderStroke(2.dp, scheme.primary) else BorderStroke(1.dp, scheme.outlineVariant)
+                isCorrect -> BorderStroke(2.dp, scheme.primary)
+                isSelected && !isCorrect -> BorderStroke(2.dp, scheme.error)
+                else -> BorderStroke(1.dp, scheme.outlineVariant.copy(alpha = 0.5f))
             }
 
             Surface(
@@ -1573,7 +1598,8 @@ fun QuizOptionsList(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 15.dp),
+                        .padding(horizontal = 18.dp, vertical = 16.dp)
+                        .defaultMinSize(minHeight = 52.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {

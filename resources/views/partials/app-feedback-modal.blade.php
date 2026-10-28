@@ -39,7 +39,7 @@
              x-transition:leave="transition ease-in duration-200"
              x-transition:leave-start="opacity-100 translate-y-0 sm:scale-100"
              x-transition:leave-end="opacity-0 translate-y-8 sm:scale-95"
-             class="relative w-full max-w-lg bg-slate-900 border border-emerald-500/30 rounded-3xl shadow-2xl overflow-hidden p-6 sm:p-8 text-white z-10"
+             class="relative w-full max-w-lg max-h-full bg-slate-900 border border-emerald-500/30 rounded-3xl shadow-2xl overflow-y-auto p-6 sm:p-8 text-white z-10"
              @click.stop>
 
             {{-- Decorative Header Glow --}}
@@ -127,8 +127,11 @@
                         <label class="block text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">Your thoughts or suggestions (Optional)</label>
                         <textarea x-model="message"
                                   rows="3"
-                                  placeholder="Share what you like or how we can make your Quranic learning experience even better..."
+                                  :placeholder="rating >= 4 ? 'Write a short review. We will copy it so you can paste it on Google Play.' : 'Share what you like or how we can make your Quranic learning experience even better...'"
                                   class="w-full bg-slate-800/80 border border-slate-700/80 rounded-2xl px-4 py-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-colors resize-none"></textarea>
+                        <p x-show="rating >= 4" class="mt-2 text-[11px] text-emerald-300/90">
+                            A 4 or 5 star note is copied for you, ready to paste on Google Play.
+                        </p>
                     </div>
 
                     {{-- Name & Email for Guests (hidden if already logged in) --}}
@@ -177,10 +180,28 @@
                     ✨
                 </div>
                 <h4 class="text-2xl font-black text-white">JazakAllahu Khairan!</h4>
-                <p class="text-sm text-slate-300 max-w-sm mx-auto leading-relaxed">
-                    Thank you for taking the time to share your feedback. May Allah bless you in your quest for sacred knowledge.
-                </p>
-                <div class="pt-2">
+                <p class="text-sm text-slate-300 max-w-sm mx-auto leading-relaxed" x-text="successMessage()"></p>
+                <div x-show="rating >= 4 && reviewText() !== ''" class="pt-1">
+                    <button type="button"
+                            @click="copyReview()"
+                            class="px-6 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-white/10 transition-all">
+                        <span x-text="reviewCopied ? 'Review copied' : 'Copy review'"></span>
+                    </button>
+                </div>
+                <div x-show="rating >= 4" class="pt-1 flex flex-col items-center gap-2">
+                    <a :href="playStoreUrl"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all">
+                        Open Google Play
+                    </a>
+                    <button type="button"
+                            @click="isOpen = false"
+                            class="px-6 py-2 text-xs font-bold text-slate-400 hover:text-white transition-colors">
+                        Close
+                    </button>
+                </div>
+                <div x-show="rating < 4" class="pt-2">
                     <button type="button"
                             @click="isOpen = false"
                             class="px-6 py-2 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-lg transition-all">
@@ -201,6 +222,8 @@ function appFeedbackModal() {
         hasScrolledEnough: false,
         isSubmitted: false,
         submitting: false,
+        reviewCopied: false,
+        playStoreUrl: 'https://play.google.com/store/apps/details?id=com.asloobulhayat.eternalecho',
         rating: 5,
         hoverRating: 0,
         category: 'app_experience',
@@ -267,6 +290,41 @@ function appFeedbackModal() {
             }
         },
 
+        reviewText() {
+            return (this.message || '').trim();
+        },
+
+        successMessage() {
+            if (this.rating >= 4 && this.reviewText() !== '') {
+                return 'Your review is copied. Open Google Play and paste it.';
+            }
+            if (this.rating >= 4) {
+                return 'A rating on Google Play helps others find The Eternal Echo.';
+            }
+            return 'Thank you for taking the time to share your feedback. May Allah bless you in your quest for sacred knowledge.';
+        },
+
+        async copyReview() {
+            const text = this.reviewText();
+            if (!text) {
+                return;
+            }
+            try {
+                await navigator.clipboard.writeText(text);
+            } catch (e) {
+                const area = document.createElement('textarea');
+                area.value = text;
+                area.setAttribute('readonly', '');
+                area.style.position = 'fixed';
+                area.style.left = '-9999px';
+                document.body.appendChild(area);
+                area.select();
+                document.execCommand('copy');
+                document.body.removeChild(area);
+            }
+            this.reviewCopied = true;
+        },
+
         async submitFeedback() {
             this.submitting = true;
             this.errorMessage = '';
@@ -313,9 +371,14 @@ function appFeedbackModal() {
                         success = true;
                         this.isSubmitted = true;
                         localStorage.setItem('the_eternal_echo_feedback_submitted', 'true');
-                        setTimeout(() => {
-                            this.isOpen = false;
-                        }, 3000);
+                        if (this.rating >= 4 && this.reviewText() !== '') {
+                            await this.copyReview();
+                        }
+                        if (this.rating < 4) {
+                            setTimeout(() => {
+                                this.isOpen = false;
+                            }, 3000);
+                        }
                         break;
                     } else if (data.message) {
                         lastErrorMessage = data.message;

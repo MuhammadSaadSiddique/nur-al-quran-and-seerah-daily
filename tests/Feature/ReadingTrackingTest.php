@@ -152,6 +152,14 @@ class ReadingTrackingTest extends TestCase
         $user->refresh();
         $this->assertEquals(1, $user->quran_history_read_count);
         $this->assertTrue($user->isInsightRead('QURAN_HISTORY', 'q-qh-202'));
+
+        // Missing insight_id must not farm read counts
+        $responseMissingId = $this->postJson(route('reading.mark-insight'), [
+            'type' => 'SEERAH',
+        ]);
+        $responseMissingId->assertStatus(422);
+        $user->refresh();
+        $this->assertEquals(1, $user->seerah_read_count);
     }
 
     public function test_guest_cannot_toggle_reading_status(): void

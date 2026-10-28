@@ -14,6 +14,16 @@ class CategoryController extends Controller
      */
     public function store(Request $request)
     {
+        if (!Auth::check()) {
+            if ($request->wantsJson() || $request->ajax()) {
+                return response()->json([
+                    'status' => 'error',
+                    'message' => 'Unauthorized. Please log in to add a category.',
+                ], 401);
+            }
+            return redirect()->route('login');
+        }
+
         $validated = $request->validate([
             'name' => 'required|string|max:100',
             'type' => 'required|string|in:dua,quran_research',
@@ -23,9 +33,7 @@ class CategoryController extends Controller
         ]);
 
         $userId = Auth::id();
-        $submitterName = Auth::check()
-            ? Auth::user()->name
-            : ($validated['submitter_name'] ?? 'Community Contributor');
+        $submitterName = Auth::user()->name;
 
         $category = Category::ensureCategory(
             $validated['name'],
@@ -36,9 +44,14 @@ class CategoryController extends Controller
             $submitterName
         );
 
-        if ($category && !$category->is_active) {
+        // Only admins auto-approve; community suggestions stay pending for moderation.
+        if ($category && Auth::user()->is_admin && !$category->is_active) {
             $category->is_active = true;
             $category->status = 'approved';
+            $category->save();
+        } elseif ($category && !Auth::user()->is_admin) {
+            $category->is_active = false;
+            $category->status = 'pending';
             $category->save();
         }
 
@@ -82,6 +95,14 @@ class CategoryController extends Controller
      */
     public function apiStore(Request $request)
     {
+        $user = Auth::guard('sanctum')->user() ?: Auth::user();
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized. Please log in to add a category.',
+            ], 401);
+        }
+
         $validator = Validator::make($request->all(), [
             'name' => 'required|string|max:100',
             'type' => 'required|string|in:dua,quran_research',
@@ -97,22 +118,26 @@ class CategoryController extends Controller
             ], 422);
         }
 
-        $user = Auth::guard('sanctum')->user() ?: Auth::user();
-        $userId = $user ? $user->id : null;
-        $submitterName = $user ? $user->name : ($request->input('submitter_name') ?: 'Community Contributor');
-
         $category = Category::ensureCategory(
             $request->input('name'),
             $request->input('type'),
             $request->input('emoji'),
             $request->input('description'),
-            $userId,
-            $submitterName
+            $user->id,
+            $user->name
         );
+
+        if ($category && $user->is_admin) {
+            $category->is_active = true;
+            $category->status = 'approved';
+            $category->save();
+        }
 
         return response()->json([
             'status' => 'success',
-            'message' => "Category '{$category->name}' added successfully.",
+            'message' => $user->is_admin
+                ? "Category '{$category->name}' added successfully."
+                : "Category '{$category->name}' submitted for review.",
             'data' => $category,
         ], 201);
     }

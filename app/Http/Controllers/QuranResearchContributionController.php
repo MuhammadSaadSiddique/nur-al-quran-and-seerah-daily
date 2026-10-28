@@ -11,6 +11,45 @@ use Illuminate\Support\Facades\DB;
 class QuranResearchContributionController extends Controller
 {
     /**
+     * Block brand-new OTP sockpuppets from swinging publish votes.
+     * Require a set password OR an account at least 24 hours old.
+     */
+    protected function voterEligibilityError($user): ?string
+    {
+        if (!$user) {
+            return 'Login required to vote.';
+        }
+
+        $createdAt = $user->created_at;
+        $isNew = $createdAt && $createdAt->gt(now()->subDay());
+        $hasPassword = !empty($user->password);
+
+        if ($isNew && !$hasPassword) {
+            return 'New accounts must set a password (or wait 24 hours) before voting on research.';
+        }
+
+        if ($createdAt && $createdAt->gt(now()->subHours(1))) {
+            return 'Accounts must be at least 1 hour old before voting.';
+        }
+
+        // Soft rate limit: max 20 research votes per user per day.
+        $dayKey = 'research_vote:'.$user->id.':'.now()->toDateString();
+        $used = (int) \Illuminate\Support\Facades\Cache::get($dayKey, 0);
+        if ($used >= 20) {
+            return 'Daily research vote limit reached. Please try again tomorrow.';
+        }
+
+        return null;
+    }
+
+    protected function markVoterUsed($user): void
+    {
+        $dayKey = 'research_vote:'.$user->id.':'.now()->toDateString();
+        $used = (int) \Illuminate\Support\Facades\Cache::get($dayKey, 0);
+        \Illuminate\Support\Facades\Cache::put($dayKey, $used + 1, now()->endOfDay());
+    }
+
+    /**
      * Normalize Surah & Verse scope inputs (single verse, verse range, full surah, surah range, or multiple surahs).
      */
     protected function extractScopeData(Request $request): array
@@ -248,12 +287,29 @@ class QuranResearchContributionController extends Controller
             'feedback' => 'nullable|string|max:2000',
         ]);
 
+        $user = Auth::user();
+        if ($eligibilityError = $this->voterEligibilityError($user)) {
+            return back()->withErrors(['vote' => $eligibilityError]);
+        }
+
         $contribution = QuranResearchContribution::findOrFail($id);
 
-        $review = QuranResearchReview::updateOrCreate(
+        if ((int) $contribution->user_id === (int) $user->id) {
+            return back()->withErrors(['vote' => 'You cannot vote on your own contribution.']);
+        }
+
+        $existing = QuranResearchReview::where('contribution_id', $contribution->id)
+            ->where('user_id', $user->id)
+            ->first();
+        if ($existing && $existing->updated_at && $existing->updated_at->gt(now()->subDay())
+            && $existing->vote !== $request->vote) {
+            return back()->withErrors(['vote' => 'You can change your vote at most once per 24 hours.']);
+        }
+
+        QuranResearchReview::updateOrCreate(
             [
                 'contribution_id' => $contribution->id,
-                'user_id' => Auth::id(),
+                'user_id' => $user->id,
             ],
             [
                 'vote' => $request->vote,
@@ -261,6 +317,7 @@ class QuranResearchContributionController extends Controller
             ]
         );
 
+        $this->markVoterUsed($user);
         $contribution->recalculateStatus();
 
         $actionWord = $request->vote === 'approve' ? 'approved' : 'downvoted';
@@ -281,7 +338,7 @@ class QuranResearchContributionController extends Controller
         $surahNumber = $request->input('surah_number');
         $search = $request->input('search');
 
-        $query = QuranResearchContribution::with(['user:id,name,display_name,email', 'reviews.user:id,name,display_name'])
+        $query = QuranResearchContribution::with(['user:id,name,display_name', 'reviews.user:id,name,display_name'])
             ->withCount([
                 'reviews as approvals_count' => function ($q) {
                     $q->where('vote', 'approve');
@@ -323,9 +380,14 @@ class QuranResearchContributionController extends Controller
         $perPage = min((int) $request->input('per_page', 20), 50);
         $contributions = $query->latest()->paginate($perPage);
 
+        $items = collect($contributions->items())->map(function ($item) {
+            $item->makeHidden(['submitter_email']);
+            return $item;
+        })->values();
+
         return response()->json([
             'status' => 'success',
-            'data' => $contributions->items(),
+            'data' => $items,
             'current_page' => $contributions->currentPage(),
             'last_page' => $contributions->lastPage(),
             'total' => $contributions->total(),
@@ -338,6 +400,12 @@ class QuranResearchContributionController extends Controller
     public function apiStore(Request $request)
     {
         $user = Auth::guard('sanctum')->user() ?: Auth::user();
+        if (!$user) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Unauthorized. Please log in to submit a contribution.',
+            ], 401);
+        }
 
         if ($request->filled('custom_category')) {
             $request->merge(['category' => trim($request->input('custom_category'))]);
@@ -362,13 +430,13 @@ class QuranResearchContributionController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
-        $submitterName = $user ? $user->name : ($request->submitter_name ?: 'Mobile Contributor');
+        $submitterName = $user->name;
         $catObj = \App\Models\Category::ensureCategory(
             $request->category,
             \App\Models\Category::TYPE_QURAN_RESEARCH,
             $request->input('category_emoji'),
             null,
-            $user ? $user->id : null,
+            $user->id,
             $submitterName
         );
         $resolvedCategory = $catObj ? $catObj->slug : \Illuminate\Support\Str::slug($request->category);
@@ -381,9 +449,9 @@ class QuranResearchContributionController extends Controller
         $parsed = QuranResearchContribution::parseVideoUrl($request->video_url);
 
         $contribution = QuranResearchContribution::create(array_merge($scopeData, [
-            'user_id' => $user ? $user->id : null,
+            'user_id' => $user->id,
             'submitter_name' => $submitterName,
-            'submitter_email' => $user ? $user->email : $request->submitter_email,
+            'submitter_email' => $user->email,
             'category' => $resolvedCategory,
             'title' => $request->title,
             'description' => $request->description,
@@ -422,7 +490,32 @@ class QuranResearchContributionController extends Controller
             return response()->json(['status' => 'error', 'errors' => $validator->errors()], 422);
         }
 
+        if ($eligibilityError = $this->voterEligibilityError($user)) {
+            return response()->json([
+                'status' => 'error',
+                'message' => $eligibilityError,
+            ], 422);
+        }
+
         $contribution = QuranResearchContribution::findOrFail($id);
+
+        if ((int) $contribution->user_id === (int) $user->id) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'You cannot vote on your own contribution.',
+            ], 422);
+        }
+
+        $existing = QuranResearchReview::where('contribution_id', $contribution->id)
+            ->where('user_id', $user->id)
+            ->first();
+        if ($existing && $existing->updated_at && $existing->updated_at->gt(now()->subDay())
+            && $existing->vote !== $request->vote) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'You can change your vote at most once per 24 hours.',
+            ], 422);
+        }
 
         QuranResearchReview::updateOrCreate(
             [
@@ -435,6 +528,7 @@ class QuranResearchContributionController extends Controller
             ]
         );
 
+        $this->markVoterUsed($user);
         $contribution->recalculateStatus();
 
         return response()->json([

@@ -10,7 +10,7 @@ class UserController extends Controller
 {
     public function index()
     {
-        $users = User::orderBy('created_at', 'desc')->paginate(20);
+        $users = User::with('researcherOnboarding')->orderBy('created_at', 'desc')->paginate(20);
         return view('admin.users.index', compact('users'));
     }
 
@@ -33,6 +33,10 @@ class UserController extends Controller
         $user->save();
 
         $status = $user->is_researcher ? 'granted researcher privileges.' : 'removed from researcher role.';
+        if ($user->is_researcher && !$user->hasAcceptedResearcherPledge()) {
+            $status .= ' They must complete onboarding and accept the authenticity pledge before they can approve content.';
+        }
+
         return back()->with('success', "User {$user->email} has been {$status}");
     }
 }

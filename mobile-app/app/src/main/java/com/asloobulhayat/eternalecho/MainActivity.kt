@@ -1,10 +1,12 @@
 package com.asloobulhayat.eternalecho
 
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -12,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -30,6 +33,7 @@ import androidx.compose.ui.semantics.testTagsAsResourceId
 class MainActivity : ComponentActivity() {
 
   private var currentDeepLink by mutableStateOf<DeepLinkDestination?>(null)
+  private var announcementsRequest by mutableIntStateOf(0)
 
   private val requestPermissionLauncher = registerForActivityResult(
     ActivityResultContracts.RequestPermission()
@@ -42,6 +46,11 @@ class MainActivity : ComponentActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    // Transparent bars on every API. The default nav-bar scrim only disappears on Android 15+.
+    enableEdgeToEdge(
+      statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+      navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
+    )
 
     // Allow user for screenshot and screen recording across the app
     AppSecurity.disableScreenSecurity(this)
@@ -65,7 +74,13 @@ class MainActivity : ComponentActivity() {
       NotificationSyncWorker.triggerImmediateSync(this)
     }
 
-    enableEdgeToEdge()
+    // Restore Sanctum token before any Compose/API work (daily engagement, streaks, etc.).
+    val savedToken = com.asloobulhayat.eternalecho.security.SecurePreferences
+      .getInstance(this)
+      .getString("api_token", null)
+    com.asloobulhayat.eternalecho.data.ApiClient.authToken = savedToken
+    com.asloobulhayat.eternalecho.data.DailyEngagementStore.init(this)
+
     setContent {
       EternalEchoMobileTheme {
         Surface(
@@ -79,7 +94,8 @@ class MainActivity : ComponentActivity() {
         ) {
           MainNavigation(
             deepLinkDestination = currentDeepLink,
-            onDeepLinkHandled = { currentDeepLink = null }
+            onDeepLinkHandled = { currentDeepLink = null },
+            announcementsRequest = announcementsRequest
           )
         }
       }
@@ -102,13 +118,24 @@ class MainActivity : ComponentActivity() {
       NotificationRepository.getInstance(this).markAsRead(notificationId)
     }
 
+    if (intent.getBooleanExtra("EXTRA_SHOW_ANNOUNCEMENTS", false)) {
+      announcementsRequest += 1
+    }
+
     // Parse deep link from intent URI or notification action URL
     val actionUrl = intent.getStringExtra("EXTRA_ACTION_URL")
       ?: intent.getStringExtra("action_url")
     val targetUri = intent.data ?: actionUrl?.takeIf { it.isNotBlank() }?.let { Uri.parse(it) }
-    targetUri?.let { uri ->
-      DeepLinkHelper.parse(uri)?.let { destination ->
-        currentDeepLink = destination
+    val destination = targetUri?.let { DeepLinkHelper.parse(it) }
+    if (destination != null) {
+      currentDeepLink = destination
+    } else {
+      val external = DeepLinkHelper.externalWebUrl(actionUrl ?: targetUri?.toString())
+      if (!external.isNullOrBlank()) {
+        try {
+          startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(external)))
+        } catch (_: Exception) {
+        }
       }
     }
   }

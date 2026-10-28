@@ -6,12 +6,14 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import com.asloobulhayat.eternalecho.MainActivity
 import com.asloobulhayat.eternalecho.R
+import com.asloobulhayat.eternalecho.util.DeepLinkHelper
 
 object NotificationHelper {
     const val CHANNEL_ID = "eternal_echo_announcements"
@@ -57,18 +59,10 @@ object NotificationHelper {
 
         createNotificationChannel(context)
 
-        val intent = Intent(context, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            actionUrl?.let { putExtra("EXTRA_ACTION_URL", it) }
-            putExtra("EXTRA_NOTIFICATION_ID", notificationId)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            context,
-            notificationId.toInt(),
-            intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
+        val hasLink = !actionUrl.isNullOrBlank()
+        val canReadMore = message.length > 120 || message.count { it == '\n' } >= 3
+        val readIntent = openAppIntent(context, notificationId, actionUrl = null, showAnnouncements = true)
+        val readPending = pendingActivity(context, notificationId.toInt(), readIntent)
 
         val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.eternal)
@@ -78,8 +72,24 @@ object NotificationHelper {
             .setPriority(NotificationCompat.PRIORITY_HIGH)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(readPending)
             .setDefaults(NotificationCompat.DEFAULT_ALL)
+
+        if (canReadMore) {
+            builder.addAction(
+                0,
+                "Read more",
+                pendingActivity(context, notificationId.toInt() xor 0x10000000, readIntent)
+            )
+        }
+        if (hasLink) {
+            val openIntent = openAppIntent(context, notificationId, actionUrl, showAnnouncements = false)
+            builder.addAction(
+                0,
+                "Open",
+                pendingActivity(context, notificationId.toInt() xor 0x20000000, openIntent)
+            )
+        }
 
         try {
             NotificationManagerCompat.from(context).notify(notificationId.toInt(), builder.build())
@@ -88,5 +98,34 @@ object NotificationHelper {
         } catch (e: Exception) {
             android.util.Log.e("NotificationHelper", "Failed to post notification: ${e.message}", e)
         }
+    }
+
+    private fun openAppIntent(
+        context: Context,
+        notificationId: Long,
+        actionUrl: String?,
+        showAnnouncements: Boolean
+    ): Intent {
+        return Intent(context, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            action = Intent.ACTION_VIEW
+            putExtra("EXTRA_NOTIFICATION_ID", notificationId)
+            if (showAnnouncements) {
+                putExtra("EXTRA_SHOW_ANNOUNCEMENTS", true)
+            }
+            actionUrl?.takeIf { it.isNotBlank() }?.let { url ->
+                putExtra("EXTRA_ACTION_URL", url)
+                data = Uri.parse(DeepLinkHelper.toAbsoluteUrl(url))
+            }
+        }
+    }
+
+    private fun pendingActivity(context: Context, requestCode: Int, intent: Intent): PendingIntent {
+        return PendingIntent.getActivity(
+            context,
+            requestCode,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
     }
 }

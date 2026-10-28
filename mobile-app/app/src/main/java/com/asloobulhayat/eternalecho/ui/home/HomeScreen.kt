@@ -1,5 +1,10 @@
 package com.asloobulhayat.eternalecho.ui.home
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
@@ -1642,6 +1647,31 @@ fun DailyStreakDialog(
 
 // ----------------- APP EXPERIENCE FEEDBACK -----------------
 
+private fun copyPlayReview(context: Context, text: String): Boolean {
+    val review = text.trim()
+    if (review.isEmpty()) return false
+    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    clipboard.setPrimaryClip(ClipData.newPlainText("Eternal Echo review", review))
+    return true
+}
+
+private fun openPlayStoreListing(context: Context) {
+    val packageName = context.packageName
+    val market = Intent(Intent.ACTION_VIEW, Uri.parse("market://details?id=$packageName")).apply {
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    try {
+        context.startActivity(market)
+    } catch (_: Exception) {
+        context.startActivity(
+            Intent(
+                Intent.ACTION_VIEW,
+                Uri.parse("https://play.google.com/store/apps/details?id=$packageName")
+            ).apply { addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
+        )
+    }
+}
+
 /**
  * In-Page Feedback Card displayed at the bottom of the home front page.
  */
@@ -1733,7 +1763,11 @@ fun AppFeedbackBottomSheet(
     var message by remember { mutableStateOf("") }
     var isSubmitting by remember { mutableStateOf(false) }
     var isSuccess by remember { mutableStateOf(false) }
+    var reviewCopied by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    val context = LocalContext.current
+    val reviewText = message.trim()
+    val goodRating = rating >= 4
 
     val categories = listOf(
         "app_experience" to "🌟 Overall App",
@@ -1750,8 +1784,10 @@ fun AppFeedbackBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp)
-                .navigationBarsPadding(),
+                .verticalScroll(rememberScrollState())
+                .imePadding()
+                .navigationBarsPadding()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             if (isSuccess) {
@@ -1766,20 +1802,57 @@ fun AppFeedbackBottomSheet(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "Thank you for your valuable feedback. May Allah bless you in your spiritual and educational journey.",
+                    text = when {
+                        goodRating && reviewText.isNotEmpty() ->
+                            "Your review is copied. Open Google Play and paste it."
+                        goodRating ->
+                            "A rating on Google Play helps others find The Eternal Echo."
+                        else ->
+                            "Thank you for your valuable feedback. May Allah bless you in your spiritual and educational journey."
+                    },
                     fontSize = 13.sp,
                     color = palette.textSecondary,
                     textAlign = TextAlign.Center,
                     lineHeight = 18.sp
                 )
                 Spacer(modifier = Modifier.height(24.dp))
-                Button(
-                    onClick = onDismiss,
-                    colors = ButtonDefaults.buttonColors(containerColor = palette.primaryButtonBg),
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("Close", color = palette.primaryButtonContent, fontWeight = FontWeight.Bold)
+                if (goodRating && reviewText.isNotEmpty()) {
+                    OutlinedButton(
+                        onClick = { reviewCopied = copyPlayReview(context, reviewText) },
+                        shape = RoundedCornerShape(12.dp),
+                        border = BorderStroke(1.dp, palette.cardBorder),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = if (reviewCopied) "Review copied" else "Copy review",
+                            color = palette.textPrimary,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+                if (goodRating) {
+                    Button(
+                        onClick = { openPlayStoreListing(context) },
+                        colors = ButtonDefaults.buttonColors(containerColor = palette.primaryButtonBg),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Open Google Play", color = palette.primaryButtonContent, fontWeight = FontWeight.Bold)
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                        Text("Close", color = palette.textMuted, fontWeight = FontWeight.Bold)
+                    }
+                } else {
+                    Button(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.buttonColors(containerColor = palette.primaryButtonBg),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("Close", color = palette.primaryButtonContent, fontWeight = FontWeight.Bold)
+                    }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
             } else {
@@ -1935,7 +2008,11 @@ fun AppFeedbackBottomSheet(
                     onValueChange = { if (it.length <= 1000) message = it },
                     placeholder = {
                         Text(
-                            "Share your thoughts, suggestions, or ideas (Optional)...",
+                            if (goodRating) {
+                                "Write a short review. We will copy it so you can paste it on Google Play."
+                            } else {
+                                "Share your thoughts, suggestions, or ideas (Optional)..."
+                            },
                             fontSize = 12.sp,
                             color = palette.textMuted
                         )
@@ -1952,6 +2029,16 @@ fun AppFeedbackBottomSheet(
                     maxLines = 4,
                     minLines = 3
                 )
+                if (goodRating) {
+                    Text(
+                        text = "A 4 or 5 star note is copied for you, ready to paste on Google Play.",
+                        fontSize = 11.sp,
+                        color = palette.primaryAccent,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 6.dp)
+                    )
+                }
 
                 if (errorMessage != null) {
                     Text(
@@ -1991,6 +2078,9 @@ fun AppFeedbackBottomSheet(
                                 message,
                                 {
                                     isSubmitting = false
+                                    if (rating >= 4 && message.trim().isNotEmpty()) {
+                                        reviewCopied = copyPlayReview(context, message)
+                                    }
                                     isSuccess = true
                                 },
                                 { err ->

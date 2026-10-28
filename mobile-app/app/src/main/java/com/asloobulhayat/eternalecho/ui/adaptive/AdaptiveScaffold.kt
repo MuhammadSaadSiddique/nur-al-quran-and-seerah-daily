@@ -49,7 +49,13 @@ fun AdaptiveNavigationScaffold(
 ) {
     if (adaptiveInfo.shouldUseNavigationRail) {
         // Landscape or Tablet / Expanded screen: Navigation Rail on the start side
-        Row(modifier = modifier.fillMaxSize()) {
+        Row(
+            modifier = modifier
+                .fillMaxSize()
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .displayCutoutPadding()
+        ) {
             NavigationRail(
                 containerColor = MaterialTheme.colorScheme.surface,
                 contentColor = MaterialTheme.colorScheme.onSurface,

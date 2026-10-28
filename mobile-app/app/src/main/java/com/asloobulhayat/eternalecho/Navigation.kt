@@ -199,7 +199,7 @@ fun MainNavigation(
         entry<AuthRoute> {
           AuthScreen(
             onBackClick = { backStack.removeLastOrNull() },
-            modifier = Modifier.safeDrawingPadding().padding(16.dp)
+            modifier = Modifier.padding(horizontal = 16.dp)
           )
         }
         entry<InsightQuizRoute> { key ->

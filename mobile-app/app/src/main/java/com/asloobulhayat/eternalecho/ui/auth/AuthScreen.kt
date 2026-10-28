@@ -1,8 +1,11 @@
 package com.asloobulhayat.eternalecho.ui.auth
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
@@ -10,8 +13,10 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -176,9 +181,96 @@ fun AuthScreen(
     val context = LocalContext.current
     val prefs = remember { com.asloobulhayat.eternalecho.security.SecurePreferences.getInstance(context) }
     val scope = rememberCoroutineScope()
+    val scrollState = rememberScrollState()
+    val imeBottom = WindowInsets.ime.getBottom(LocalDensity.current)
+    LaunchedEffect(imeBottom, method, phase, scrollState.maxValue) {
+        if (imeBottom > 0) {
+            scrollState.animateScrollTo(scrollState.maxValue)
+        }
+    }
+
+    val submitAuth: () -> Unit = {
+        val saveSessionToPrefs: (UserSession, Boolean) -> Unit = { session, hasPassword ->
+            prefs.putInt("user_id", session.userId)
+            prefs.putString("user_name", session.name)
+            prefs.putString("user_email", session.email)
+            prefs.putBoolean("has_password", hasPassword)
+            if (session.token.isNotBlank()) {
+                prefs.putString("api_token", session.token)
+                com.asloobulhayat.eternalecho.data.ApiClient.authToken = session.token
+            }
+            scope.launch {
+                com.asloobulhayat.eternalecho.data.QuizSubmissionHelper.submitPendingQuizIfAny(
+                    com.asloobulhayat.eternalecho.data.DefaultDataRepository(),
+                    prefs,
+                    session.userId
+                )
+            }
+        }
+
+        when {
+            method == "otp" && phase == "email" -> {
+                val cleanEmail = email.trim()
+                if (cleanEmail.contains("@")) {
+                    viewModel.requestOtp(cleanEmail) {
+                        phase = "otp"
+                    }
+                } else {
+                    viewModel.setError("Please enter a valid email address.")
+                }
+            }
+            method == "otp" && phase == "otp" -> {
+                val cleanEmail = email.trim()
+                val cleanOtp = otp.trim()
+                if (cleanOtp.isNotEmpty()) {
+                    viewModel.verifyOtp(cleanEmail, cleanOtp) { response ->
+                        saveSessionToPrefs(response.session, response.hasPassword)
+                        if (response.hasPassword) {
+                            onBackClick()
+                        } else {
+                            sessionForSetPassword = response.session
+                            phase = "set_password"
+                        }
+                    }
+                } else {
+                    viewModel.setError("Please enter the verification code.")
+                }
+            }
+            method == "otp" && phase == "set_password" -> {
+                if (password.length >= 6) {
+                    val uId = sessionForSetPassword?.userId ?: -1
+                    viewModel.setPassword(uId, password) {
+                        prefs.putBoolean("has_password", true)
+                        onBackClick()
+                    }
+                } else {
+                    viewModel.setError("Password must be at least 6 characters.")
+                }
+            }
+            method == "password" -> {
+                val cleanEmail = email.trim()
+                if (!cleanEmail.contains("@")) {
+                    viewModel.setError("Please enter a valid email address.")
+                } else if (password.isEmpty()) {
+                    viewModel.setError("Please enter your password.")
+                } else {
+                    viewModel.login(cleanEmail, password) { session ->
+                        saveSessionToPrefs(session, true)
+                        onBackClick()
+                    }
+                }
+            }
+        }
+    }
+    val submitFromKeyboard = KeyboardActions(
+        onDone = { submitAuth() },
+        onGo = { submitAuth() },
+        onSend = { submitAuth() }
+    )
 
     Scaffold(
         containerColor = androidx.compose.ui.graphics.Color.Transparent,
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             com.asloobulhayat.eternalecho.ui.components.EchoTopBar(
                 title = when {
@@ -193,18 +285,30 @@ fun AuthScreen(
         }
     ) { paddingValues ->
         com.asloobulhayat.eternalecho.ui.components.EchoScreenBackground {
-        Box(
+        // Button stays outside the scroll region, in the area above the keyboard.
+        Column(
             modifier = modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(24.dp)
+                .consumeWindowInsets(paddingValues)
+                .windowInsetsPadding(
+                    WindowInsets.ime.union(WindowInsets.navigationBars)
+                        .only(WindowInsetsSides.Bottom)
+                )
         ) {
+            BoxWithConstraints(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .align(Alignment.Center),
+                    .heightIn(min = maxHeight)
+                    .verticalScroll(scrollState)
+                    .padding(horizontal = 24.dp, vertical = 16.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
             ) {
                 Text(
                     text = "The Eternal Echo",
@@ -247,10 +351,15 @@ fun AuthScreen(
                 when {
                     method == "otp" && phase == "email" -> {
                         OutlinedTextField(
-                            value = email, maxLines = 1,
+                            value = email,
                             onValueChange = { email = it },
                             label = { Text("Email Address") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Send
+                            ),
+                            keyboardActions = submitFromKeyboard,
                             modifier = Modifier.fillMaxWidth().testTag("email"),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -264,9 +373,14 @@ fun AuthScreen(
                         )
                         OutlinedTextField(
                             value = otp,
-                            onValueChange = { otp = it },maxLines = 1,
+                            onValueChange = { otp = it },
                             label = { Text("Verification Code") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Number,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = submitFromKeyboard,
                             modifier = Modifier.fillMaxWidth().testTag("otp"),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -280,10 +394,15 @@ fun AuthScreen(
                         )
                         OutlinedTextField(
                             value = password,
-                            onValueChange = { password = it },maxLines = 1,
+                            onValueChange = { password = it },
                             label = { Text("Set Password") },
+                            singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = submitFromKeyboard,
                             modifier = Modifier.fillMaxWidth().testTag("password"),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -293,16 +412,25 @@ fun AuthScreen(
                             value = email,
                             onValueChange = { email = it },
                             label = { Text("Email Address") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Email,
+                                imeAction = ImeAction.Next
+                            ),
                             modifier = Modifier.fillMaxWidth().testTag("email"),
                             shape = RoundedCornerShape(12.dp)
                         )
                         OutlinedTextField(
                             value = password,
-                            onValueChange = { password = it },maxLines = 1,
+                            onValueChange = { password = it },
                             label = { Text("Password") },
+                            singleLine = true,
                             visualTransformation = PasswordVisualTransformation(),
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
+                            keyboardOptions = KeyboardOptions(
+                                keyboardType = KeyboardType.Password,
+                                imeAction = ImeAction.Done
+                            ),
+                            keyboardActions = submitFromKeyboard,
                             modifier = Modifier.fillMaxWidth().testTag("password"),
                             shape = RoundedCornerShape(12.dp)
                         )
@@ -319,84 +447,37 @@ fun AuthScreen(
                     )
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Submit Button
-                Button(
+                TextButton(
                     onClick = {
-                        val saveSessionToPrefs: (UserSession, Boolean) -> Unit = { session, hasPassword ->
-                            prefs.putInt("user_id", session.userId)
-                            prefs.putString("user_name", session.name)
-                            prefs.putString("user_email", session.email)
-                            prefs.putBoolean("has_password", hasPassword)
-                            if (session.token.isNotBlank()) {
-                                prefs.putString("api_token", session.token)
-                                com.asloobulhayat.eternalecho.data.ApiClient.authToken = session.token
-                            }
-                            scope.launch {
-                                com.asloobulhayat.eternalecho.data.QuizSubmissionHelper.submitPendingQuizIfAny(
-                                    com.asloobulhayat.eternalecho.data.DefaultDataRepository(),
-                                    prefs,
-                                    session.userId
-                                )
-                            }
-                        }
+                        try {
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse(com.asloobulhayat.eternalecho.data.ApiClient.ACCOUNT_DELETE_URL)
+                            )
+                            context.startActivity(intent)
+                        } catch (_: Exception) {}
+                    }
+                ) {
+                    Text(
+                        text = "Account Deletion & Data Policy",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                }
+            }
+            }
 
-                        when {
-                            method == "otp" && phase == "email" -> {
-                                val cleanEmail = email.trim()
-                                if (cleanEmail.contains("@")) {
-                                    viewModel.requestOtp(cleanEmail) {
-                                        phase = "otp"
-                                    }
-                                } else {
-                                    viewModel.setError("Please enter a valid email address.")
-                                }
-                            }
-                            method == "otp" && phase == "otp" -> {
-                                val cleanEmail = email.trim()
-                                val cleanOtp = otp.trim()
-                                if (cleanOtp.isNotEmpty()) {
-                                    viewModel.verifyOtp(cleanEmail, cleanOtp) { response ->
-                                        saveSessionToPrefs(response.session, response.hasPassword)
-                                        if (response.hasPassword) {
-                                            onBackClick()
-                                        } else {
-                                            sessionForSetPassword = response.session
-                                            phase = "set_password"
-                                        }
-                                    }
-                                } else {
-                                    viewModel.setError("Please enter the verification code.")
-                                }
-                            }
-                            method == "otp" && phase == "set_password" -> {
-                                if (password.length >= 6) {
-                                    val uId = sessionForSetPassword?.userId ?: -1
-                                    viewModel.setPassword(uId, password) {
-                                        prefs.putBoolean("has_password", true)
-                                        onBackClick()
-                                    }
-                                } else {
-                                    viewModel.setError("Password must be at least 6 characters.")
-                                }
-                            }
-                            method == "password" -> {
-                                val cleanEmail = email.trim()
-                                if (!cleanEmail.contains("@")) {
-                                    viewModel.setError("Please enter a valid email address.")
-                                } else if (password.isEmpty()) {
-                                    viewModel.setError("Please enter your password.")
-                                } else {
-                                    viewModel.login(cleanEmail, password) { session ->
-                                        saveSessionToPrefs(session, true)
-                                        onBackClick()
-                                    }
-                                }
-                            }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp)
+                    .padding(bottom = 8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Button(
+                    onClick = submitAuth,
+                    modifier = Modifier.fillMaxWidth().testTag("auth_submit"),
                     shape = RoundedCornerShape(12.dp),
                     enabled = uiState !is AuthUiState.Loading
                 ) {
@@ -417,7 +498,6 @@ fun AuthScreen(
                     }
                 }
 
-                // Cancel/Back/Skip buttons
                 if (method == "otp" && phase == "set_password") {
                     TextButton(
                         onClick = onBackClick,
@@ -435,26 +515,6 @@ fun AuthScreen(
                     ) {
                         Text("Back to Email Form")
                     }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-                TextButton(
-                    onClick = {
-                        try {
-                            val intent = android.content.Intent(
-                                android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse(com.asloobulhayat.eternalecho.data.ApiClient.ACCOUNT_DELETE_URL)
-                            )
-                            context.startActivity(intent)
-                        } catch (_: Exception) {}
-                    }
-                ) {
-                    Text(
-                        text = "Account Deletion & Data Policy",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        textAlign = TextAlign.Center
-                    )
                 }
             }
         }

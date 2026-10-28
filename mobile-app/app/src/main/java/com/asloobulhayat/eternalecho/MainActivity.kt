@@ -1,10 +1,12 @@
 package com.asloobulhayat.eternalecho
 
 import android.content.Intent
+import android.graphics.Color
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,6 +46,11 @@ class MainActivity : ComponentActivity() {
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    // Transparent bars on every API. The default nav-bar scrim only disappears on Android 15+.
+    enableEdgeToEdge(
+      statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT),
+      navigationBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT)
+    )
 
     // Allow user for screenshot and screen recording across the app
     AppSecurity.disableScreenSecurity(this)
@@ -74,7 +81,6 @@ class MainActivity : ComponentActivity() {
     com.asloobulhayat.eternalecho.data.ApiClient.authToken = savedToken
     com.asloobulhayat.eternalecho.data.DailyEngagementStore.init(this)
 
-    enableEdgeToEdge()
     setContent {
       EternalEchoMobileTheme {
         Surface(

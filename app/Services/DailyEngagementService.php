@@ -118,9 +118,9 @@ class DailyEngagementService
                 'label' => 'Complete a quiz',
                 'href' => $this->safeRoute('quiz.learning', '/quiz-learning'),
             ],
-            UserDailyEngagement::ACTIVITY_READ => [
-                'label' => 'Read a Surah or Para',
-                'href' => $this->safeRoute('lens.index', '/lens'),
+            UserDailyEngagement::ACTIVITY_CONTRIBUTE => [
+                'label' => 'Add a research contribution',
+                'href' => $this->safeRoute('research.contributions.create', '/quran-research/contributions/create'),
             ],
             UserDailyEngagement::ACTIVITY_INSIGHT => [
                 'label' => 'Read a Seerah or Quran insight',

@@ -47,6 +47,7 @@
                     <li>OAuth tokens linked with Quran.com or third-party providers</li>
                     <li>Push notification tokens and associated device identifiers</li>
                     <li>Feedback entries and researcher contributions submitted by your account</li>
+                    <li>Website visits recorded while you were signed in</li>
                 </ul>
             </div>
 

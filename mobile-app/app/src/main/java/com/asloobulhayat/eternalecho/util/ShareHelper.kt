@@ -2,6 +2,10 @@ package com.asloobulhayat.eternalecho.util
 
 import android.content.Context
 import android.content.Intent
+import com.asloobulhayat.eternalecho.data.Dua
+import com.asloobulhayat.eternalecho.data.GlobalConnectionItem
+import com.asloobulhayat.eternalecho.data.QuranSearchHit
+import com.asloobulhayat.eternalecho.data.Surah
 
 /**
  * Utility helper to handle sharing content (verses, duas, seerah stories,
@@ -282,5 +286,71 @@ object ShareHelper {
         category: String? = null
     ) {
         shareText(context, buildConnectionShareText(title, description, category), subject = "Quranic Linkage: $title")
+    }
+
+    private fun String.snippet(max: Int): String =
+        if (length <= max) this else take(max).trimEnd() + "…"
+
+    fun buildSearchResultsShareText(
+        query: String,
+        verses: List<QuranSearchHit> = emptyList(),
+        totalVerseMatches: Int = verses.size,
+        surahNames: Map<Int, String> = emptyMap(),
+        surahs: List<Surah> = emptyList(),
+        connections: List<GlobalConnectionItem> = emptyList(),
+        duas: List<Dua> = emptyList()
+    ): String = buildString {
+        appendLine("🔍 Word search: \"$query\"")
+        appendLine()
+
+        if (verses.isNotEmpty()) {
+            val shown = verses.take(10)
+            appendLine("📖 Ayahs ($totalVerseMatches found)")
+            shown.forEach { hit ->
+                val name = surahNames[hit.surahNumber]
+                appendLine(if (name != null) "• $name ${hit.verseKey}" else "• Ayah ${hit.verseKey}")
+                appendLine("  ${hit.translationText.ifBlank { hit.arabicText }.snippet(200)}")
+                appendLine("  ${DeepLinkHelper.getVerseUrl(hit.surahNumber, hit.verseNumber)}")
+            }
+            if (totalVerseMatches > shown.size) appendLine("  … and ${totalVerseMatches - shown.size} more")
+            appendLine()
+        }
+
+        if (surahs.isNotEmpty()) {
+            appendLine("📚 Surahs (${surahs.size})")
+            surahs.take(5).forEach { s ->
+                appendLine("• Surah ${s.number}: ${s.nameSimple} (${s.nameTranslated}) — ${DeepLinkHelper.getVerseUrl(s.number)}")
+            }
+            if (surahs.size > 5) appendLine("  … and ${surahs.size - 5} more")
+            appendLine()
+        }
+
+        if (connections.isNotEmpty()) {
+            appendLine("🔗 Quranic insights (${connections.size})")
+            connections.take(5).forEach { c ->
+                appendLine("• [${c.category.uppercase()}] ${c.title} — Ayah ${c.surahNumber}:${c.verseNumber}")
+                if (c.description.isNotBlank()) appendLine("  ${c.description.snippet(120)}")
+            }
+            if (connections.size > 5) appendLine("  … and ${connections.size - 5} more")
+            appendLine()
+        }
+
+        if (duas.isNotEmpty()) {
+            appendLine("🤲 Duas (${duas.size})")
+            duas.take(5).forEach { d ->
+                appendLine("• ${d.title} — ${DeepLinkHelper.getDuaDetailUrl(d.slug.ifBlank { d.id.toString() })}")
+            }
+            if (duas.size > 5) appendLine("  … and ${duas.size - 5} more")
+            appendLine()
+        }
+
+        appendLine("— Shared via $APP_NAME ($APP_URL)")
+    }
+
+    /**
+     * Share a word-search result list (ayahs, surahs, insights and duas).
+     */
+    fun shareSearchResults(context: Context, query: String, text: String) {
+        shareText(context, text, subject = "\"$query\" in the Holy Quran — $APP_NAME")
     }
 }

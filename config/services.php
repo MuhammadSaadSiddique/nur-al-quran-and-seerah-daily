@@ -61,4 +61,12 @@ return [
         'api_key' => env('GEMINI_API_KEY'),
     ],
 
+    // Mosque imports from OpenStreetMap. The public servers ask clients to
+    // identify themselves; set OSM_USER_AGENT to include a contact URL or email.
+    'osm' => [
+        'overpass_url' => env('OSM_OVERPASS_URL', 'https://overpass-api.de/api/interpreter'),
+        'nominatim_url' => env('OSM_NOMINATIM_URL', 'https://nominatim.openstreetmap.org/search'),
+        'user_agent' => env('OSM_USER_AGENT', 'NurAlQuranApp/1.0 (mosque-importer)'),
+    ],
+
 ];

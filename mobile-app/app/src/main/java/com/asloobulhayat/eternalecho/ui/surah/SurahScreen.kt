@@ -42,6 +42,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.asloobulhayat.eternalecho.data.Connection
 import com.asloobulhayat.eternalecho.data.ConnectionsData
 import com.asloobulhayat.eternalecho.data.DefaultDataRepository
+import com.asloobulhayat.eternalecho.data.LastReadStore
 import com.asloobulhayat.eternalecho.data.ResearchContribution
 import com.asloobulhayat.eternalecho.data.Verse
 import com.asloobulhayat.eternalecho.data.VerseTranslation
@@ -50,6 +51,8 @@ import com.asloobulhayat.eternalecho.theme.EternalEchoMobileTheme
 import com.asloobulhayat.eternalecho.ui.research.ContributeResearchBottomSheet
 import com.asloobulhayat.eternalecho.ui.research.ContributionCard
 import com.asloobulhayat.eternalecho.ui.research.VerificationDialog
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,16 +61,10 @@ fun SurahScreen(
     surahNumber: Int,
     initialVerseNumber: Int? = null,
     onBackClick: () -> Unit,
-    onAuthClick: () -> Unit = {},
     modifier: Modifier = Modifier,
     viewModel: SurahScreenViewModel = viewModel(key = "surah_$surahNumber") { SurahScreenViewModel(surahNumber, DefaultDataRepository()) }
 ) {
     val context = LocalContext.current
-    val prefs = remember { SecurePreferences.getInstance(context) }
-    val scope = rememberCoroutineScope()
-    val repository = remember { DefaultDataRepository() }
-    var isMarkedRead by remember { mutableStateOf(false) }
-    var isMarkingRead by remember { mutableStateOf(false) }
 
     Scaffold(
         containerColor = Color.Transparent,
@@ -77,55 +74,6 @@ fun SurahScreen(
                 onBackClick = onBackClick,
                 navigationIcon = Icons.AutoMirrored.Filled.ArrowBack,
                 actions = {
-                    TextButton(
-                        onClick = {
-                            val userId = prefs.getInt("user_id", -1)
-                            val token = prefs.getString("api_token", null).orEmpty()
-                            if (userId <= 0 || token.isBlank()) {
-                                onAuthClick()
-                                return@TextButton
-                            }
-                            if (isMarkedRead || isMarkingRead) return@TextButton
-                            isMarkingRead = true
-                            scope.launch {
-                                try {
-                                    com.asloobulhayat.eternalecho.data.ApiClient.authToken = token
-                                    val result = repository.toggleSurahRead(userId, surahNumber)
-                                    result.onSuccess { readResult ->
-                                        // Toggle API: if already marked, first tap unmarks — remake once.
-                                        if (!readResult.isRead) {
-                                            repository.toggleSurahRead(userId, surahNumber).onSuccess { remake ->
-                                                isMarkedRead = remake.isRead
-                                                remake.engagement?.let {
-                                                    com.asloobulhayat.eternalecho.data.EngagementBus.publish(it)
-                                                }
-                                                    ?: com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
-                                            }
-                                        } else {
-                                            isMarkedRead = true
-                                            readResult.engagement?.let {
-                                                com.asloobulhayat.eternalecho.data.EngagementBus.publish(it)
-                                            }
-                                                ?: com.asloobulhayat.eternalecho.data.EngagementBus.requestRefresh()
-                                        }
-                                    }
-                                } finally {
-                                    isMarkingRead = false
-                                }
-                            }
-                        },
-                        enabled = !isMarkedRead && !isMarkingRead
-                    ) {
-                        Text(
-                            text = when {
-                                isMarkingRead -> "Saving…"
-                                isMarkedRead -> "✓ Read"
-                                else -> "Mark Read"
-                            },
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
-                        )
-                    }
                     IconButton(onClick = {
                         ShareHelper.shareSurah(context, surahNumber)
                     }) {
@@ -139,6 +87,7 @@ fun SurahScreen(
             SurahReaderContent(
                 surahNumber = surahNumber,
                 initialVerseNumber = initialVerseNumber,
+                recordOpenPosition = true,
                 modifier = modifier
                     .fillMaxSize()
                     .padding(paddingValues),
@@ -153,6 +102,8 @@ fun SurahScreen(
 fun SurahReaderContent(
     surahNumber: Int,
     initialVerseNumber: Int? = null,
+    // Full-screen opens count as reading right away; the tablet preview pane only once the reader scrolls.
+    recordOpenPosition: Boolean = false,
     modifier: Modifier = Modifier,
     viewModel: SurahScreenViewModel = viewModel(key = "surah_$surahNumber") { SurahScreenViewModel(surahNumber, DefaultDataRepository()) }
 ) {
@@ -165,22 +116,35 @@ fun SurahReaderContent(
         mutableStateOf(prefs.getString("quran_translation_id", "en.sahih") ?: "en.sahih")
     }
 
-    var activeVerseNumber by remember { mutableStateOf<Int?>(initialVerseNumber) }
+    var activeVerseNumber by remember { mutableStateOf<Int?>(null) }
     var initialCategory by remember { mutableStateOf("all") }
-    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
 
-    LaunchedEffect(initialVerseNumber) {
-        if (initialVerseNumber != null) {
-            viewModel.loadConnections(initialVerseNumber)
-        }
+    val initialIndex = remember(surahNumber, initialVerseNumber) {
+        (initialVerseNumber?.minus(1))?.coerceAtLeast(0) ?: 0
+    }
+    val listState = key(surahNumber, initialVerseNumber) {
+        androidx.compose.foundation.lazy.rememberLazyListState(
+            initialFirstVisibleItemIndex = initialIndex
+        )
     }
 
-    LaunchedEffect(versesState, initialVerseNumber) {
+    LaunchedEffect(surahNumber, initialVerseNumber, versesState is VersesUiState.Success) {
         if (initialVerseNumber != null && versesState is VersesUiState.Success) {
             val list = (versesState as VersesUiState.Success).data
             val targetIndex = list.indexOfFirst { it.verseNumber == initialVerseNumber }
             if (targetIndex >= 0) {
-                listState.animateScrollToItem(targetIndex)
+                listState.scrollToItem(targetIndex)
+            }
+        }
+    }
+
+    LaunchedEffect(versesState, listState) {
+        val verses = (versesState as? VersesUiState.Success)?.data.orEmpty()
+        if (verses.isEmpty()) return@LaunchedEffect
+        val positions = snapshotFlow { listState.firstVisibleItemIndex }.distinctUntilChanged()
+        (if (recordOpenPosition) positions else positions.drop(1)).collect { index ->
+            verses.getOrNull(index)?.let { verse ->
+                LastReadStore.update(surahNumber, verse.verseNumber, verse.juzNumber)
             }
         }
     }
@@ -245,6 +209,7 @@ fun SurahReaderContent(
                             VerseItem(
                                 verse = verse,
                                 selectedEditionId = selectedEditionId,
+                                isHighlighted = (initialVerseNumber != null && verse.verseNumber == initialVerseNumber),
                                 onOpenCategory = { category ->
                                     activeVerseNumber = verse.verseNumber
                                     initialCategory = category
@@ -329,7 +294,8 @@ fun VerseItem(
     verse: Verse,
     onOpenCategory: (category: String) -> Unit,
     modifier: Modifier = Modifier,
-    selectedEditionId: String = "en.sahih"
+    selectedEditionId: String = "en.sahih",
+    isHighlighted: Boolean = false
 ) {
     val chosen = verse.translationFor(selectedEditionId)
     val translationText = chosen?.text?.takeIf { it.isNotBlank() } ?: verse.textTransliteration
@@ -340,9 +306,16 @@ fun VerseItem(
             .clickable { onOpenCategory("all") },
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (isHighlighted) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.surfaceVariant
+            }
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        border = if (isHighlighted) {
+            BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        } else null,
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isHighlighted) 4.dp else 1.dp)
     ) {
         Column(
             modifier = Modifier.padding(16.dp)
@@ -352,16 +325,35 @@ fun VerseItem(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Badge(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    Text(
-                        text = "Verse ${verse.verseNumber}",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    ) {
+                        Text(
+                            text = "Verse ${verse.verseNumber}",
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    if (isHighlighted) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.primary,
+                            shape = RoundedCornerShape(6.dp)
+                        ) {
+                            Text(
+                                text = "Target Ayah",
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        }
+                    }
                 }
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -687,13 +679,13 @@ fun QuranicLinkageBottomSheet(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    FilledTonalButton(
+                   /* FilledTonalButton(
                         onClick = { showContributeSheet = true },
                         contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         Text("➕ Add Video", fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                    }
+                    }*/
 
                     IconButton(
                         onClick = { if (verseNumber > 1) onNavigateVerse(verseNumber - 1) },

@@ -357,6 +357,7 @@
             <div
                 class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-[10px] uppercase font-black tracking-widest text-slate-500">
                 <a href="{{ route('donate') }}" class="text-emerald-400 hover:text-emerald-300 font-black transition-colors">🤲 Sadaqah Jariyah / Donate</a>
+                <a href="{{ route('survey.show') }}" class="text-amber-300 hover:text-amber-200 font-black transition-colors">🗳️ Shape the app: 2-min survey</a>
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
                 <a href="{{ route('terms') }}" class="hover:text-emerald-500 transition-colors">Terms of Service</a>
                 <a href="{{ route('account.delete') }}" class="hover:text-rose-400 transition-colors">Delete Account</a>

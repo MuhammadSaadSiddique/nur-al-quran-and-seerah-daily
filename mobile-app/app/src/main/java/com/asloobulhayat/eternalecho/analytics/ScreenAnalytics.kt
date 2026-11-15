@@ -11,6 +11,7 @@ import com.asloobulhayat.eternalecho.Main
 import com.asloobulhayat.eternalecho.OnboardingRoute
 import com.asloobulhayat.eternalecho.PlayThemeQuiz
 import com.asloobulhayat.eternalecho.QuranResearchRoute
+import com.asloobulhayat.eternalecho.SalahRoute
 import com.asloobulhayat.eternalecho.ThemeQuizSelection
 import com.asloobulhayat.eternalecho.data.SurahNavKey
 import com.google.firebase.analytics.FirebaseAnalytics
@@ -31,6 +32,7 @@ object ScreenAnalytics {
             is DuasRoute -> log(context, "Duas", "DuasScreen")
             is DuaDetailRoute -> log(context, "Dua Detail", "DuaDetailScreen")
             is QuranResearchRoute -> log(context, "Quran Research", "QuranResearchScreen")
+            is SalahRoute -> log(context, "Salah Times", "SalahScreen")
             is SurahNavKey -> log(
                 context,
                 "Surah",

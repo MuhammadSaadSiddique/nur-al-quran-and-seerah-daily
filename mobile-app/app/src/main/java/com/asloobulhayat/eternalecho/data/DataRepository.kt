@@ -16,6 +16,8 @@ interface DataRepository {
         limit: Int = 20,
         surahNumber: Int? = null
     ): AllConnectionsResponse
+    suspend fun searchQuran(query: String, page: Int = 1, size: Int = 20): QuranSearchPage =
+        QuranSearchPage(query, 0, 1, 1, emptyList())
     suspend fun getLeaderboard(): List<LeaderboardUser>
     suspend fun getInsights(
         seerahPage: Int = 0,
@@ -70,8 +72,6 @@ interface DataRepository {
     suspend fun getDailyEngagement(userId: Int): Result<DailyEngagement> = Result.success(DailyEngagement())
     suspend fun markEngagement(userId: Int, activity: String): Result<DailyEngagement> = Result.success(DailyEngagement())
     suspend fun markInsight(userId: Int, type: String, insightId: String): Result<DailyEngagement?> = Result.success(null)
-    suspend fun toggleSurahRead(userId: Int, surah: Int): Result<ApiClient.SurahReadResult> =
-        Result.success(ApiClient.SurahReadResult(isRead = false, engagement = null))
     suspend fun getResearchContributions(
         tab: String = "published",
         category: String = "all",
@@ -149,6 +149,10 @@ class DefaultDataRepository : DataRepository {
         surahNumber: Int?
     ): AllConnectionsResponse {
         return ApiClient.fetchAllConnections(category, search, page, limit, surahNumber)
+    }
+
+    override suspend fun searchQuran(query: String, page: Int, size: Int): QuranSearchPage {
+        return ApiClient.searchQuran(query, page, size)
     }
 
     override suspend fun getLeaderboard(): List<LeaderboardUser> {
@@ -295,26 +299,6 @@ class DefaultDataRepository : DataRepository {
                 Result.success(engagement?.let { DailyEngagementStore.applyServer(it) } ?: local)
             },
             onFailure = { Result.success(local) }
-        )
-    }
-
-    override suspend fun toggleSurahRead(userId: Int, surah: Int): Result<ApiClient.SurahReadResult> {
-        // Optimistic read habit — Home updates even if the network call fails.
-        DailyEngagementStore.markLocal("read")
-        val remote = ApiClient.toggleSurahRead(userId, surah)
-        return remote.fold(
-            onSuccess = { result ->
-                result.engagement?.let { DailyEngagementStore.applyServer(it) }
-                Result.success(result)
-            },
-            onFailure = {
-                Result.success(
-                    ApiClient.SurahReadResult(
-                        isRead = true,
-                        engagement = DailyEngagementStore.snapshot()
-                    )
-                )
-            }
         )
     }
 
@@ -474,7 +458,7 @@ class DefaultDataRepository : DataRepository {
         endVerseNumber: Int?,
         isFullSurah: Boolean
     ): Result<String> {
-        return ApiClient.submitResearchContribution(
+        val result = ApiClient.submitResearchContribution(
             title = title,
             surahNumber = surahNumber,
             verseNumber = verseNumber,
@@ -489,6 +473,12 @@ class DefaultDataRepository : DataRepository {
             endVerseNumber = endVerseNumber,
             isFullSurah = isFullSurah
         )
+        if (result.isSuccess) {
+            // Server records today's "contribute" habit; mirror it locally and pull the synced checklist.
+            DailyEngagementStore.markLocal("contribute")
+            DailyEngagementStore.requestSync()
+        }
+        return result
     }
 
     override suspend fun reviewResearchContribution(

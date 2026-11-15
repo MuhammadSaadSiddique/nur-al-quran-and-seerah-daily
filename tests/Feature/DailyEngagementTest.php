@@ -39,11 +39,11 @@ class DailyEngagementTest extends TestCase
             'last_streak_date' => null,
         ]);
 
-        $status = app(DailyEngagementService::class)->record($user, UserDailyEngagement::ACTIVITY_READ);
+        $status = app(DailyEngagementService::class)->record($user, UserDailyEngagement::ACTIVITY_CONTRIBUTE);
 
         $this->assertTrue($status['streak']['is_active_today']);
         $this->assertEquals(1, $status['streak']['current_streak']);
-        $this->assertTrue($status['activities']['read']['done']);
+        $this->assertTrue($status['activities']['contribute']['done']);
     }
 
     public function test_progress_math_across_multiple_activities(): void
@@ -60,7 +60,7 @@ class DailyEngagementTest extends TestCase
         $this->assertEquals(50, $status['progress_percent']);
         $this->assertTrue($status['activities']['quiz']['done']);
         $this->assertTrue($status['activities']['dua']['done']);
-        $this->assertFalse($status['activities']['read']['done']);
+        $this->assertFalse($status['activities']['contribute']['done']);
         $this->assertFalse($status['activities']['insight']['done']);
     }
 
@@ -94,11 +94,30 @@ class DailyEngagementTest extends TestCase
             ->assertJsonPath('data.streak.is_active_today', true);
     }
 
-    public function test_marking_surah_as_read_records_read_engagement(): void
+    public function test_submitting_research_contribution_records_contribute_engagement(): void
     {
         $user = User::factory()->create([
             'streak_count' => 0,
             'last_streak_date' => null,
+        ]);
+
+        $this->actingAs($user)->post(route('research.contributions.store'), [
+            'title' => 'Water as the origin of life',
+            'surah_number' => 21,
+            'verse_number' => 30,
+            'category' => 'science',
+            'description' => 'Modern biology on aqueous origins.',
+        ]);
+
+        $status = app(DailyEngagementService::class)->todayStatus($user->fresh());
+
+        $this->assertTrue($status['activities']['contribute']['done']);
+        $this->assertTrue($status['streak']['is_active_today']);
+    }
+
+    public function test_marking_surah_as_read_no_longer_counts_toward_devotion(): void
+    {
+        $user = User::factory()->create([
             'para_mastery' => [],
         ]);
 
@@ -107,15 +126,8 @@ class DailyEngagementTest extends TestCase
         ]);
 
         $response->assertStatus(200)
-            ->assertJsonPath('success', true)
             ->assertJsonPath('is_read', true)
-            ->assertJsonPath('engagement.activities.read.done', true);
-
-        $this->assertTrue(
-            \App\Models\UserDailyEngagement::where('user_id', $user->id)
-                ->whereDate('engagement_date', now()->toDateString())
-                ->exists()
-        );
+            ->assertJsonPath('engagement.completed_count', 0);
     }
 
     public function test_marking_insight_records_insight_engagement(): void
@@ -147,7 +159,7 @@ class DailyEngagementTest extends TestCase
         $response->assertSee('Devotion', false);
         $response->assertSee('Complete a quiz');
         $response->assertSee(route('quiz.learning'), false);
-        $response->assertSee(route('lens.index'), false);
+        $response->assertSee(route('research.contributions.create'), false);
     }
 
     public function test_activity_links_leave_the_dashboard(): void
@@ -156,10 +168,10 @@ class DailyEngagementTest extends TestCase
         $status = app(DailyEngagementService::class)->todayStatus($user);
 
         $this->assertSame(route('quiz.learning'), $status['activities']['quiz']['href']);
-        $this->assertSame(route('lens.index'), $status['activities']['read']['href']);
+        $this->assertSame(route('research.contributions.create'), $status['activities']['contribute']['href']);
         $this->assertSame(route('seerah'), $status['activities']['insight']['href']);
         $this->assertSame(route('daily.dua'), $status['activities']['dua']['href']);
-        $this->assertStringNotContainsString('/dashboard', $status['activities']['read']['href']);
+        $this->assertStringNotContainsString('/dashboard', $status['activities']['contribute']['href']);
         $this->assertStringNotContainsString('/dashboard', $status['activities']['quiz']['href']);
     }
 }

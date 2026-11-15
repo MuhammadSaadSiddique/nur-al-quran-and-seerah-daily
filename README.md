@@ -60,7 +60,7 @@
 
 ## 🛠️ Technology Stack
 
-* **Backend Web Framework**: [Laravel 12.x](file:///d:/nur-al-quran-and-seerah-daily/app) (featuring robust routing, Eloquent ORM, Sanctum APIs, and secure middleware).
+* **Backend Web Framework**: [Laravel 12.x](/nur-al-quran-and-seerah-daily/app) (featuring robust routing, Eloquent ORM, Sanctum APIs, and secure middleware).
 * **Asset Bundler & Frontend Reactive System**: Vite + Alpine.js.
 * **CSS & Styling System**: Tailwind CSS v4.0.0 (custom HSL color palette, dark mode, glassmorphism).
 * **Database**: SQLite (local development / caching) & MySQL (scalable production support).
@@ -375,6 +375,18 @@ Content-Type: application/json
   Recalculates and updates Para/Juz associations for questions depending on Surah/Ayat reference formats.
 * **`php artisan send:weekly-research-promo`**
   Assembles newly approved academic analyses from the last 7 days and delivers a promotional digest newsletter to all subscribers.
+* **`php artisan model:prune --model="App\Models\Visit"`**
+  Deletes website visits older than `VISITOR_RETENTION_DAYS` (runs daily from the scheduler).
+
+---
+
+## 📈 Website Visitor Analytics
+
+**Admin → 📈 Visitors** shows unique visitors, visits, page views, bounce rate, a daily trend, countries and cities, referring sites and channels (search, social, AI assistants, email, campaign links), landing pages, devices and a log of recent visits. Click a country, referring site, channel or landing page to filter the whole dashboard by it.
+
+* Page views on public web pages are grouped into visits (30 idle minutes, or arriving again from a new source, starts a new one). Admin accounts, bots, AJAX/JSON calls, `/admin`, `/api` and a few system paths aren't counted. The Android app's API traffic is not included.
+* Two first-party cookies identify a returning browser (`ee_vid`) and the current visit (`ee_visit`). Raw IP addresses are never stored; referrer URLs are saved without their query string.
+* Location comes from Cloudflare/CloudFront headers when the site sits behind one; otherwise the IP is looked up once with `VISITOR_GEO_DRIVER` (`ipinfo` by default, or `ipapi` / `none`) and cached for a week. Settings live in `config/visitors.php`.
 
 ---
 

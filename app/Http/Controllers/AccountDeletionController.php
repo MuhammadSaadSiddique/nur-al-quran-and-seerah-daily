@@ -199,6 +199,15 @@ class AccountDeletionController extends Controller
                 DB::table('quran_research_reviews')->where('user_id', $user->id)->delete();
             }
 
+            if (Schema::hasTable('survey_responses')) {
+                DB::table('survey_responses')->where('user_id', $user->id)->delete();
+            }
+
+            // Website visits made while signed in (Admin → Visitors analytics).
+            if (Schema::hasTable('visits')) {
+                DB::table('visits')->where('user_id', $user->id)->delete();
+            }
+
             OtpCode::where('email', $user->email)->delete();
 
             $user->delete();

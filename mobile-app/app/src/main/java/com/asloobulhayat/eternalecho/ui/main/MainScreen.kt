@@ -152,6 +152,7 @@ fun MainScreen(
         ApiClient.authToken = null
         userHasPassword = false
         DailyEngagementStore.clear()
+        LastReadStore.clear()
     }
 
     val repository = remember { DefaultDataRepository() }
@@ -162,6 +163,7 @@ fun MainScreen(
     }
     val dailyEngagement by DailyEngagementStore.engagement.collectAsStateWithLifecycle()
     val engagementSyncTick by DailyEngagementStore.syncTick.collectAsStateWithLifecycle()
+    val lastRead by LastReadStore.position.collectAsStateWithLifecycle()
     var engagementRefreshTick by remember { mutableIntStateOf(0) }
 
     val streakDays = dailyEngagement?.streak?.currentStreak
@@ -208,6 +210,7 @@ fun MainScreen(
     var showAccountDialog by remember { mutableStateOf(false) }
     var showThemeSettingsDialog by remember { mutableStateOf(false) }
     var showFeedbackSheet by remember { mutableStateOf(false) }
+    var showHomeContributeSheet by remember { mutableStateOf(false) }
     var showDeleteAccountConfirmDialog by remember { mutableStateOf(false) }
     var isDeletingAccount by remember { mutableStateOf(false) }
     var deleteAccountError by remember { mutableStateOf("") }
@@ -373,6 +376,18 @@ fun MainScreen(
         )
     }
 
+    if (showHomeContributeSheet) {
+        ContributeResearchBottomSheet(
+            repository = repository,
+            userId = userId,
+            userName = userName,
+            userEmail = userEmail,
+            initialSurahNumber = lastRead?.surahNumber ?: 1,
+            initialVerseNumber = lastRead?.verseNumber ?: 1,
+            onDismiss = { showHomeContributeSheet = false }
+        )
+    }
+
     if (showAccountDialog) {
         AlertDialog(
             onDismissRequest = { showAccountDialog = false },
@@ -426,9 +441,13 @@ fun MainScreen(
                             .fillMaxWidth()
                             .clickable {
                                 try {
-                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(ApiClient.DONATION_URL))
+                                    val intent = Intent(
+                                        Intent.ACTION_VIEW,
+                                        Uri.parse(ApiClient.DONATION_URL)
+                                    )
                                     context.startActivity(intent)
-                                } catch (_: Exception) {}
+                                } catch (_: Exception) {
+                                }
                             }
                     ) {
                         Row(
@@ -854,6 +873,9 @@ fun MainScreen(
                         }
                     },
                     actions = {
+                        IconButton(onClick = { onItemClick(com.asloobulhayat.eternalecho.WordSearchRoute()) }) {
+                            Icon(Icons.Default.Search, contentDescription = "Word Search")
+                        }
                         IconButton(onClick = { showNotificationsSheet = true }) {
                             BadgedBox(
                                 badge = {
@@ -913,8 +935,7 @@ fun MainScreen(
                     streakDays = streakDays,
                     longestStreak = longestStreak,
                     isStreakActiveToday = isStreakActiveToday,
-                    currentJuz = 2,
-                    readPages = 5,
+                    lastRead = lastRead,
                     readingProgressPercent = dailyEngagement?.progressPercent ?: 0,
                     dailyEngagement = dailyEngagement,
                     onClaimStreakClick = {
@@ -951,10 +972,9 @@ fun MainScreen(
                     onEngagementActivityClick = { activityKey ->
                         when (activityKey) {
                             "quiz" -> onItemClick(ThemeQuizSelection)
-                            "read" -> {
-                                selectedTab = 10
-                                // Open a Surah so the user can Mark as Read (records "read" engagement).
-                                onItemClick(SurahNavKey(1))
+                            "contribute" -> {
+                                // Submitting a contribution records today's "contribute" habit server-side.
+                                if (isLoggedIn) showHomeContributeSheet = true else onItemClick(AuthRoute)
                             }
                             "insight" -> selectedTab = 2
                             "dua" -> {
@@ -982,8 +1002,13 @@ fun MainScreen(
                             }
                         }
                     },
+                    onSalahClick = { onItemClick(com.asloobulhayat.eternalecho.SalahRoute) },
+                    onSurveyClick = { onItemClick(com.asloobulhayat.eternalecho.SurveyRoute) },
                     onReflectClick = { onItemClick(SurahNavKey(2, 286)) },
-                    onReadingProgressClick = { onItemClick(SurahNavKey(2, 142)) },
+                    onReadingProgressClick = {
+                        onItemClick(SurahNavKey(lastRead?.surahNumber ?: 1, lastRead?.verseNumber))
+                    },
+                    onWordSearch = { query -> onItemClick(com.asloobulhayat.eternalecho.WordSearchRoute(query)) },
                     onThemeSettingsClick = { showThemeSettingsDialog = true },
                     onSubmitFeedback = { rating, category, message ->
                         repository.submitAppFeedback(
@@ -2202,12 +2227,31 @@ fun QuranicLensTab(
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "Quranic Lens",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Quranic Lens",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Button(
+                        onClick = { showContributeSheet = true },
+                        modifier = Modifier.wrapContentSize(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Add,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text("Contribute", fontWeight = FontWeight.SemiBold)
+                    }
+                }
                 Text(
                     text = "Explore ayah connections, peer-reviewed videos, and community research.",
                     style = MaterialTheme.typography.bodySmall,
@@ -2217,28 +2261,30 @@ fun QuranicLensTab(
 
                 val stats = (allConnState as? AllConnectionsUiState.Success)?.response?.stats
                 if (stats != null) {
-                    FlowRow(
+                    LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                       //verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        StatsChip(count = "${stats.surahsCount}", label = "Surahs")
-                        StatsChip(count = "${stats.scienceCount}", label = "Science")
-                        StatsChip(count = "${stats.seerahCount}", label = "Seerah")
-                        StatsChip(count = "${stats.hadithCount}", label = "Hadith")
-                        StatsChip(count = "${stats.historyCount}", label = "History")
+                        item {
+                            StatsChip(count = "${stats.surahsCount}", label = "Surahs")
+                        }
+                        item {
+                            StatsChip(count = "${stats.scienceCount}", label = "Science")
+                        }
+                        item {
+                            StatsChip(count = "${stats.seerahCount}", label = "Seerah")
+                        }
+                        item {
+                            StatsChip(count = "${stats.hadithCount}", label = "Hadith")
+                        }
+                        item {
+                            StatsChip(count = "${stats.historyCount}", label = "History")
+                        }
                     }
                 }
 
-                Button(
-                    onClick = { showContributeSheet = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("Contribute research", fontWeight = FontWeight.SemiBold)
-                }
+
             }
         }
 

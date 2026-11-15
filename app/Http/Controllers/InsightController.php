@@ -76,11 +76,31 @@ class InsightController extends Controller
 
         $this->ensureCuratedSeerahInsights($gemini);
 
-        $insights = GeneratedQuestion::where('type', 'SEERAH_INSIGHT')
+        // Compute a user+date based page offset so each user sees a different insight per day.
+        $user = Auth::user();
+        $userId = $user ? $user->id : 0;
+        $dateInt = (int) now()->format('Ymd');
+        $totalCount = GeneratedQuestion::where('type', 'SEERAH_INSIGHT')
             ->where('difficulty', $difficulty)
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->paginate(1);
+            ->count();
+
+        if ($request->has('page')) {
+            // Allow explicit page navigation (Newer/Older links)
+            $insights = GeneratedQuestion::where('type', 'SEERAH_INSIGHT')
+                ->where('difficulty', $difficulty)
+                ->orderBy('id')
+                ->paginate(1);
+        } else {
+            // Derive a stable but per-user-per-day starting page from the pool
+            $startPage = $totalCount > 0
+                ? (abs(crc32($userId . '_' . $dateInt . '_seerah_' . $difficulty)) % $totalCount) + 1
+                : 1;
+
+            $insights = GeneratedQuestion::where('type', 'SEERAH_INSIGHT')
+                ->where('difficulty', $difficulty)
+                ->orderBy('id')
+                ->paginate(1, ['*'], 'page', $startPage);
+        }
 
         if ($request->has('generate') || $insights->isEmpty()) {
             $newInsight = $gemini->generateSeerahInsight($difficulty);
@@ -115,8 +135,7 @@ class InsightController extends Controller
 
             $insights = GeneratedQuestion::where('type', 'SEERAH_INSIGHT')
                 ->where('difficulty', $difficulty)
-                ->orderByDesc('updated_at')
-                ->orderByDesc('id')
+                ->orderBy('id')
                 ->paginate(1);
         }
 
@@ -137,15 +156,11 @@ class InsightController extends Controller
             ]
         ];
 
-        $user = Auth::user();
-        $isRead = ($user && $insightItem) ? $user->isInsightRead('SEERAH', $insightItem->question_id ?? null) : false;
-
         return view('seerah', [
             'insight' => $insight,
             'insights' => $insights,
             'difficulty' => $difficulty,
             'user' => $user,
-            'isRead' => $isRead,
         ]);
     }
 
@@ -158,11 +173,29 @@ class InsightController extends Controller
 
         $this->ensureCuratedQuranHistoryInsights($gemini);
 
-        $insights = GeneratedQuestion::where('type', 'QURAN_HISTORY')
+        // Compute a user+date based page offset so each user sees a different insight per day.
+        $user = Auth::user();
+        $userId = $user ? $user->id : 0;
+        $dateInt = (int) now()->format('Ymd');
+        $totalCountQH = GeneratedQuestion::where('type', 'QURAN_HISTORY')
             ->where('difficulty', $difficulty)
-            ->orderByDesc('updated_at')
-            ->orderByDesc('id')
-            ->paginate(1);
+            ->count();
+
+        if ($request->has('page')) {
+            $insights = GeneratedQuestion::where('type', 'QURAN_HISTORY')
+                ->where('difficulty', $difficulty)
+                ->orderBy('id')
+                ->paginate(1);
+        } else {
+            $startPageQH = $totalCountQH > 0
+                ? (abs(crc32($userId . '_' . $dateInt . '_quranhistory_' . $difficulty)) % $totalCountQH) + 1
+                : 1;
+
+            $insights = GeneratedQuestion::where('type', 'QURAN_HISTORY')
+                ->where('difficulty', $difficulty)
+                ->orderBy('id')
+                ->paginate(1, ['*'], 'page', $startPageQH);
+        }
 
         if ($request->has('generate') || $insights->isEmpty()) {
             $newInsight = $gemini->generateQuranHistoryInsight($difficulty);
@@ -197,8 +230,7 @@ class InsightController extends Controller
 
             $insights = GeneratedQuestion::where('type', 'QURAN_HISTORY')
                 ->where('difficulty', $difficulty)
-                ->orderByDesc('updated_at')
-                ->orderByDesc('id')
+                ->orderBy('id')
                 ->paginate(1);
         }
 

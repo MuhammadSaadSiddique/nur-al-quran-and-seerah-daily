@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import com.asloobulhayat.eternalecho.data.LastReadPosition
 import com.asloobulhayat.eternalecho.theme.EternalEchoMobileTheme
 import com.asloobulhayat.eternalecho.theme.ThemeMode
 import com.asloobulhayat.eternalecho.ui.components.EchoCard
@@ -55,8 +56,7 @@ fun PreviewHomeDarkGreen() {
             streakDays = 12,
             longestStreak = 21,
             isStreakActiveToday = true,
-            currentJuz = 5,
-            readPages = 18,
+            lastRead = LastReadPosition(surahNumber = 4, verseNumber = 24, juzNumber = 5),
             readingProgressPercent = 42,
             showBottomBar = true
         )
@@ -78,8 +78,6 @@ fun PreviewHomeLight() {
             streakDays = 3,
             longestStreak = 10,
             isStreakActiveToday = false,
-            currentJuz = 2,
-            readPages = 6,
             readingProgressPercent = 18,
             showBottomBar = true
         )
@@ -200,7 +198,6 @@ fun PreviewHomeSectionsStrip() {
                     userName = "Aisha",
                     streakDays = 12,
                     currentJuz = 5,
-                    readPages = 18,
                     readingProgressPercent = 42,
                     palette = palette,
                     onReadingProgressClick = {},
@@ -208,9 +205,7 @@ fun PreviewHomeSectionsStrip() {
                     onThemeClick = {}
                 )
                 ContinueReadingCard(
-                    currentJuz = 5,
-                    readPages = 18,
-                    readingProgressPercent = 42,
+                    lastRead = LastReadPosition(surahNumber = 4, verseNumber = 24, juzNumber = 5),
                     palette = palette,
                     onContinueClick = {}
                 )

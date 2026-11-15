@@ -137,6 +137,32 @@ data class AllConnectionsResponse(
     val data: List<GlobalConnectionItem>
 )
 
+/** Character range [start, end) of a matched word inside a search snippet. */
+@Serializable
+data class TextHighlight(val start: Int, val end: Int)
+
+/** One ayah returned by the Quran word search. */
+@Serializable
+data class QuranSearchHit(
+    val verseKey: String,
+    val surahNumber: Int,
+    val verseNumber: Int,
+    val arabicText: String,
+    val arabicHighlights: List<TextHighlight> = emptyList(),
+    val translationText: String = "",
+    val translationName: String = "",
+    val translationHighlights: List<TextHighlight> = emptyList()
+)
+
+@Serializable
+data class QuranSearchPage(
+    val query: String,
+    val totalResults: Int,
+    val currentPage: Int,
+    val totalPages: Int,
+    val results: List<QuranSearchHit>
+)
+
 @Serializable
 data class LeaderboardUser(
     val id: Int,

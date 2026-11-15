@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 use Illuminate\Support\Facades\Schedule;
 
 Schedule::command('send:weekly-research-promo')->weekly();
+
+// Delete website visits older than visitors.retention_days.
+Schedule::command('model:prune', ['--model' => [\App\Models\Visit::class]])->daily();

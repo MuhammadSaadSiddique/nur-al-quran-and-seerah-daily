@@ -16,6 +16,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->validateCsrfTokens(except: [
             'api/*',
         ]);
+        // Website visitor analytics (Admin → Visitors).
+        $middleware->web(append: [
+            \App\Http\Middleware\TrackVisits::class,
+        ]);
         $middleware->alias([
             'admin' => \App\Http\Middleware\IsAdmin::class,
             'researcher' => \App\Http\Middleware\IsResearcher::class,

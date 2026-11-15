@@ -20,6 +20,10 @@ class QuranResearchContributionController extends Controller
             return 'Login required to vote.';
         }
 
+        if (!empty($user->is_admin)) {
+            return null;
+        }
+
         $createdAt = $user->created_at;
         $isNew = $createdAt && $createdAt->gt(now()->subDay());
         $hasPassword = !empty($user->password);
@@ -273,7 +277,22 @@ class QuranResearchContributionController extends Controller
             'downvotes_count' => 0,
         ]));
 
-        return redirect()->route('welcome', ['tab' => Auth::check() ? 'pending' : 'videos'])
+        if (Auth::check()) {
+            app(\App\Services\DailyEngagementService::class)
+                ->record(Auth::user(), \App\Models\UserDailyEngagement::ACTIVITY_CONTRIBUTE);
+        }
+
+        $redirectTarget = $request->input('redirect_to');
+        if (!$redirectTarget) {
+            $referer = (string) $request->headers->get('referer');
+            if (str_contains($referer, 'contributions')) {
+                $redirectTarget = route('research.contributions.index', ['tab' => 'pending']);
+            } else {
+                $redirectTarget = route('welcome', ['tab' => 'pending']);
+            }
+        }
+
+        return redirect()->to($redirectTarget)
             ->with('success', 'Alhamdulillah! Your contribution has been submitted for peer verification. 5 community approvals will publish it!');
     }
 
@@ -448,6 +467,9 @@ class QuranResearchContributionController extends Controller
         $scopeData = $this->extractScopeData($request);
         $parsed = QuranResearchContribution::parseVideoUrl($request->video_url);
 
+        $status = ($user && !empty($user->is_admin) && $request->filled('status')) ? $request->input('status') : 'pending';
+        $isPublished = $status === 'published';
+
         $contribution = QuranResearchContribution::create(array_merge($scopeData, [
             'user_id' => $user->id,
             'submitter_name' => $submitterName,
@@ -458,15 +480,20 @@ class QuranResearchContributionController extends Controller
             'video_url' => $request->video_url,
             'video_platform' => $parsed['platform'],
             'video_id' => $parsed['id'],
-            'status' => 'pending',
-            'approvals_count' => 0,
+            'status' => $status,
+            'approvals_count' => $isPublished ? 5 : 0,
             'downvotes_count' => 0,
+            'published_at' => $isPublished ? now() : null,
         ]));
+
+        $engagement = app(\App\Services\DailyEngagementService::class)
+            ->record($user, \App\Models\UserDailyEngagement::ACTIVITY_CONTRIBUTE);
 
         return response()->json([
             'status' => 'success',
             'message' => 'JazakAllah Khair! Research contribution submitted. 5 peer approvals will publish it.',
-            'data' => $contribution
+            'data' => $contribution,
+            'engagement' => $engagement,
         ], 201);
     }
 
@@ -540,6 +567,44 @@ class QuranResearchContributionController extends Controller
                 'approvals_count' => $contribution->approvals_count,
                 'downvotes_count' => $contribution->downvotes_count,
             ]
+        ]);
+    }
+
+    /**
+     * API: Admin instant approval for a research / video contribution.
+     */
+    public function apiApprove(Request $request, $id)
+    {
+        $user = Auth::guard('sanctum')->user() ?: Auth::user();
+        if (!$user || empty($user->is_admin)) {
+            return response()->json(['status' => 'error', 'message' => 'Unauthorized. Admin access required.'], 403);
+        }
+
+        $contribution = QuranResearchContribution::findOrFail($id);
+        $contribution->status = 'published';
+        if (empty($contribution->published_at)) {
+            $contribution->published_at = now();
+        }
+        if ($contribution->approvals_count < 5) {
+            $contribution->approvals_count = max(5, $contribution->approvals_count);
+        }
+        $contribution->save();
+
+        QuranResearchReview::updateOrCreate(
+            [
+                'contribution_id' => $contribution->id,
+                'user_id' => $user->id,
+            ],
+            [
+                'vote' => 'approve',
+                'feedback' => $request->input('feedback', 'Approved by administrator via API.'),
+            ]
+        );
+
+        return response()->json([
+            'status' => 'success',
+            'message' => 'Contribution approved and published successfully.',
+            'data' => $contribution,
         ]);
     }
 }

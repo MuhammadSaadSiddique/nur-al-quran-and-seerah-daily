@@ -50,6 +50,10 @@ Route::get('/daily-dua', [DuaController::class, 'daily'])->name('daily.dua');
 // User & App Feedback Submission
 Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store'])->name('app-feedback.store')->middleware('throttle:10,1');
 
+// "Help shape Eternal Echo" requirements survey (guests and signed-in users)
+Route::get('/survey', [\App\Http\Controllers\SurveyController::class, 'show'])->name('survey.show');
+Route::post('/survey', [\App\Http\Controllers\SurveyController::class, 'store'])->name('survey.store')->middleware('throttle:10,1');
+
 Route::get('/quiz-learning', function () {
     $testimonials = \App\Models\Testimonial::where('is_active', true)->latest()->get();
     $quranThemes = \App\Models\Theme::where('is_active', true)->where('type', 'PARA')->has('questions', '>=', 5)->orderBy('name')->get();
@@ -61,7 +65,7 @@ Route::get('/quran-research', [QuranicLensController::class, 'index'])->name('we
 
 // Community Quran Research Contributions (Videos, verification, pending items)
 Route::get('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'index'])->name('research.contributions.index');
-Route::get('/quran-research/contributions/create', [\App\Http\Controllers\QuranResearchContributionController::class, 'create'])->name('research.contributions.create');
+Route::get('/quran-research/contributions/create', [\App\Http\Controllers\QuranResearchContributionController::class, 'create'])->name('research.contributions.create')->middleware('auth');
 Route::post('/quran-research/contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'store'])->name('research.contributions.store')->middleware('auth');
 Route::post('/quran-research/contributions/{id}/review', [\App\Http\Controllers\QuranResearchContributionController::class, 'review'])->name('research.contributions.review')->middleware(['auth', 'throttle:30,1']);
 
@@ -173,6 +177,9 @@ Route::middleware('auth')->group(function () {
 
         Route::get('/feedback', [AdminQuestionController::class, 'feedbackIndex'])->name('feedback.index');
         Route::patch('/feedback/{feedback}/status', [AdminQuestionController::class, 'feedbackUpdateStatus'])->name('feedback.update-status');
+        Route::get('/survey', [\App\Http\Controllers\SurveyController::class, 'adminIndex'])->name('survey.index');
+        Route::get('/survey/export', [\App\Http\Controllers\SurveyController::class, 'export'])->name('survey.export');
+        Route::get('/researchers', [\App\Http\Controllers\Admin\ResearcherController::class, 'index'])->name('researchers.index');
         Route::get('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'adminIndex'])->name('app-feedback.index');
         Route::patch('/app-feedback/{appFeedback}/status', [\App\Http\Controllers\AppFeedbackController::class, 'updateStatus'])->name('app-feedback.update-status');
 
@@ -195,6 +202,16 @@ Route::middleware('auth')->group(function () {
         Route::post('/duas/{id}/reject', [\App\Http\Controllers\Admin\DuaController::class, 'reject'])->name('duas.reject');
         Route::delete('/duas/{id}', [\App\Http\Controllers\Admin\DuaController::class, 'destroy'])->name('duas.destroy');
 
+        // Videos & Quran Research Contributions Management
+        Route::get('/videos', [\App\Http\Controllers\Admin\VideoController::class, 'index'])->name('videos.index');
+        Route::get('/videos/create', [\App\Http\Controllers\Admin\VideoController::class, 'create'])->name('videos.create');
+        Route::post('/videos', [\App\Http\Controllers\Admin\VideoController::class, 'store'])->name('videos.store');
+        Route::get('/videos/{id}/edit', [\App\Http\Controllers\Admin\VideoController::class, 'edit'])->name('videos.edit');
+        Route::put('/videos/{id}', [\App\Http\Controllers\Admin\VideoController::class, 'update'])->name('videos.update');
+        Route::post('/videos/{id}/approve', [\App\Http\Controllers\Admin\VideoController::class, 'approve'])->name('videos.approve');
+        Route::post('/videos/{id}/reject', [\App\Http\Controllers\Admin\VideoController::class, 'reject'])->name('videos.reject');
+        Route::delete('/videos/{id}', [\App\Http\Controllers\Admin\VideoController::class, 'destroy'])->name('videos.destroy');
+
         // Manage Dua & Quran Research Categories
         Route::get('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'index'])->name('categories.index');
         Route::post('/categories', [\App\Http\Controllers\Admin\CategoryController::class, 'store'])->name('categories.store');
@@ -206,6 +223,18 @@ Route::middleware('auth')->group(function () {
         // Donations & Sadaqah Jariyah Management
         Route::get('/donations', [DonationController::class, 'adminIndex'])->name('donations.index');
         Route::patch('/donations/{donation}/status', [DonationController::class, 'updateStatus'])->name('donations.update-status');
+
+        // Community mosque directory moderation (Salah times)
+        Route::get('/mosques', [\App\Http\Controllers\Admin\MosqueController::class, 'index'])->name('mosques.index');
+        Route::post('/mosques/bulk', [\App\Http\Controllers\Admin\MosqueController::class, 'bulk'])->name('mosques.bulk');
+        Route::post('/mosques/import-osm', [\App\Http\Controllers\Admin\MosqueController::class, 'importOsm'])->name('mosques.import-osm')->middleware('throttle:10,1');
+        Route::get('/mosques/{mosque}/edit', [\App\Http\Controllers\Admin\MosqueController::class, 'edit'])->name('mosques.edit');
+        Route::put('/mosques/{mosque}', [\App\Http\Controllers\Admin\MosqueController::class, 'update'])->name('mosques.update');
+        Route::patch('/mosques/{mosque}/moderate', [\App\Http\Controllers\Admin\MosqueController::class, 'moderate'])->name('mosques.moderate');
+        Route::delete('/mosques/{mosque}', [\App\Http\Controllers\Admin\MosqueController::class, 'destroy'])->name('mosques.destroy');
+
+        // Website visitor analytics (locations, referring sites, landing pages)
+        Route::get('/visitors', [\App\Http\Controllers\Admin\VisitorController::class, 'index'])->name('visitors.index');
     });
 
     // Quranic Lens approvals (accessible by Researchers and Admins)

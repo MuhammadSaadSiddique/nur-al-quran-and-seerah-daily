@@ -34,7 +34,7 @@ class AppFeedbackTest {
         override suspend fun changePassword(userId: Int, password: String, currentPassword: String): Boolean = true
         override suspend fun logout(): Boolean = true
         override suspend fun deleteAccount(userId: Int, currentPassword: String, confirmDeletion: Boolean): Boolean = true
-        override suspend fun submitQuiz(userId: Int, type: String, title: String, score: Int, totalQuestions: Int, difficulty: String, questionsJson: String, userAnswersJson: String, attemptToken: String = ""): Boolean = true
+        override suspend fun submitQuiz(userId: Int, type: String, title: String, score: Int, totalQuestions: Int, difficulty: String, questionsJson: String, userAnswersJson: String, attemptToken: String): Boolean = true
         override suspend fun getDuas(category: String, search: String, sourceType: String): List<Dua> = emptyList()
 
         override suspend fun submitAppFeedback(

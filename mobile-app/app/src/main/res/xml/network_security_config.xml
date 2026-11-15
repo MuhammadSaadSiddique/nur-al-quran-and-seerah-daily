@@ -9,7 +9,8 @@
     </base-config>
 
     <!-- Enforce HTTPS and strict certificates for backend domain -->
-    <domain-config cleartextTrafficPermitted="false">
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="true">192.168.1.80</domain>
         <domain includeSubdomains="true">theeternalecho.asloobulhayat.com</domain>
         <trust-anchors>
             <certificates src="system" />

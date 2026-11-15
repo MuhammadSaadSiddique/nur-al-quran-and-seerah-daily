@@ -8,13 +8,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class UserDailyEngagement extends Model
 {
     public const ACTIVITY_QUIZ = 'quiz';
-    public const ACTIVITY_READ = 'read';
+    public const ACTIVITY_CONTRIBUTE = 'contribute';
     public const ACTIVITY_INSIGHT = 'insight';
     public const ACTIVITY_DUA = 'dua';
 
     public const ACTIVITIES = [
         self::ACTIVITY_QUIZ,
-        self::ACTIVITY_READ,
+        self::ACTIVITY_CONTRIBUTE,
         self::ACTIVITY_INSIGHT,
         self::ACTIVITY_DUA,
     ];

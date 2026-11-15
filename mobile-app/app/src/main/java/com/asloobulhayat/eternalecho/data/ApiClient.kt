@@ -53,7 +53,7 @@ object ApiClient {
         TranslationEdition("ur.maududi", "Maududi (Urdu)", "ur", "rtl", 97)
     )
 
-    private suspend fun makeGetRequest(
+    internal suspend fun makeGetRequest(
         urlStr: String,
         timeoutMs: Int = 10000,
         sendAuth: Boolean = true
@@ -264,6 +264,98 @@ object ApiClient {
             .replace("&gt;", ">")
             .replace(Regex("\\s+"), " ")
             .trim()
+    }
+
+    /**
+     * Turns a Quran.com search snippet (`... have <em>mercy</em> on ...`) into
+     * clean text plus the ranges of the matched words.
+     */
+    internal fun parseHighlightedText(raw: String): Pair<String, List<TextHighlight>> {
+        val marked = raw
+            .replace(Regex("<em\\b[^>]*>", RegexOption.IGNORE_CASE), "\u0001")
+            .replace(Regex("</em>", RegexOption.IGNORE_CASE), "\u0002")
+        val cleaned = cleanTranslationText(marked)
+        val text = StringBuilder(cleaned.length)
+        val highlights = mutableListOf<TextHighlight>()
+        var openAt = -1
+        for (ch in cleaned) {
+            when (ch) {
+                '\u0001' -> openAt = text.length
+                '\u0002' -> {
+                    if (openAt in 0 until text.length) highlights.add(TextHighlight(openAt, text.length))
+                    openAt = -1
+                }
+                else -> text.append(ch)
+            }
+        }
+        return text.toString() to highlights
+    }
+
+    /**
+     * Word search across the Arabic text and published translations, via the
+     * public Quran.com search API (the app's own API has no full-text search).
+     */
+    suspend fun searchQuran(query: String, page: Int = 1, size: Int = 20): QuranSearchPage {
+        val trimmed = query.trim()
+        if (trimmed.isBlank()) return QuranSearchPage(trimmed, 0, 1, 1, emptyList())
+
+        val encoded = URLEncoder.encode(trimmed, "UTF-8")
+        val jsonStr = makeGetRequest(
+            "https://api.quran.com/api/v4/search?q=$encoded&size=$size&page=$page",
+            timeoutMs = 20000,
+            sendAuth = false
+        )
+        val search = JSONObject(jsonStr).optJSONObject("search")
+            ?: return QuranSearchPage(trimmed, 0, page, page, emptyList())
+
+        val results = mutableListOf<QuranSearchHit>()
+        val items = search.optJSONArray("results") ?: JSONArray()
+        for (i in 0 until items.length()) {
+            val item = items.optJSONObject(i) ?: continue
+            val verseKey = item.optString("verse_key")
+            val (surah, verse) = verseKey.split(":").let {
+                (it.getOrNull(0)?.toIntOrNull() ?: 0) to (it.getOrNull(1)?.toIntOrNull() ?: 0)
+            }
+            if (surah !in 1..114 || verse < 1) continue
+
+            val arabicRaw = item.optString("highlighted").takeIf { it.isNotBlank() && it != "null" }
+                ?: item.optString("text")
+            val (arabic, arabicHighlights) = parseHighlightedText(arabicRaw)
+
+            // Prefer Saheeh International when it is among the matching translations.
+            val translations = item.optJSONArray("translations")
+            var translation: JSONObject? = null
+            if (translations != null) {
+                for (j in 0 until translations.length()) {
+                    val t = translations.optJSONObject(j) ?: continue
+                    if (translation == null || t.optInt("resource_id") == 20) translation = t
+                    if (t.optInt("resource_id") == 20) break
+                }
+            }
+            val (translationText, translationHighlights) =
+                parseHighlightedText(translation?.optString("text").orEmpty())
+
+            results.add(
+                QuranSearchHit(
+                    verseKey = verseKey,
+                    surahNumber = surah,
+                    verseNumber = verse,
+                    arabicText = arabic,
+                    arabicHighlights = arabicHighlights,
+                    translationText = translationText,
+                    translationName = translation?.optString("name").orEmpty(),
+                    translationHighlights = translationHighlights
+                )
+            )
+        }
+
+        return QuranSearchPage(
+            query = trimmed,
+            totalResults = search.optInt("total_results", results.size),
+            currentPage = search.optInt("current_page", page),
+            totalPages = search.optInt("total_pages", page).coerceAtLeast(1),
+            results = results
+        )
     }
 
     /**
@@ -779,7 +871,7 @@ object ApiClient {
         }
     }
 
-    private suspend fun makePostRequest(urlStr: String, params: Map<String, String>): String = withContext(Dispatchers.IO) {
+    internal suspend fun makePostRequest(urlStr: String, params: Map<String, String>): String = withContext(Dispatchers.IO) {
         if (!urlStr.startsWith("https://", ignoreCase = true)) {
             throw SecurityException("Insecure HTTP connections are strictly prohibited.")
         }
@@ -1189,7 +1281,7 @@ object ApiClient {
 
         val activitiesObj = data.optJSONObject("activities")
         val activityList = mutableListOf<EngagementActivity>()
-        val keys = listOf("quiz", "read", "insight", "dua")
+        val keys = listOf("quiz", "contribute", "insight", "dua")
         if (activitiesObj != null) {
             for (key in keys) {
                 val act = activitiesObj.optJSONObject(key) ?: continue
@@ -1266,37 +1358,6 @@ object ApiClient {
             }
         } catch (e: Exception) {
             android.util.Log.e("ApiClient", "Failed to mark insight: ${e.message}", e)
-            Result.failure(e)
-        }
-    }
-
-    data class SurahReadResult(
-        val isRead: Boolean,
-        val engagement: DailyEngagement?
-    )
-
-    suspend fun toggleSurahRead(userId: Int, surah: Int): Result<SurahReadResult> = withContext(Dispatchers.IO) {
-        try {
-            val params = mapOf(
-                "user_id" to userId.toString(),
-                "surah" to surah.toString()
-            )
-            val jsonStr = makePostRequest("$BASE_URL?action=toggle_surah", params)
-            val jsonObj = JSONObject(jsonStr)
-            if (jsonObj.optString("status") == "success") {
-                val data = jsonObj.optJSONObject("data")
-                val engagementObj = data?.optJSONObject("engagement")
-                Result.success(
-                    SurahReadResult(
-                        isRead = data?.optBoolean("is_read", false) ?: false,
-                        engagement = engagementObj?.let { parseDailyEngagement(it) }
-                    )
-                )
-            } else {
-                Result.failure(Exception(jsonObj.optString("message", "Unable to toggle surah.")))
-            }
-        } catch (e: Exception) {
-            android.util.Log.e("ApiClient", "Failed to toggle surah: ${e.message}", e)
             Result.failure(e)
         }
     }

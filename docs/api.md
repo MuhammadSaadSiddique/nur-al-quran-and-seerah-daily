@@ -312,3 +312,80 @@ curl -X POST http://localhost:8000/api/upload-questions \
   -H "X-Admin-Token: your_bulk_api_token_here" \
   -d '[{"type": "PARA", "difficulty": "Easy", "text": "Question Text...", "options": ["A", "B"], "correct_answer_index": 0, "explanation": "Explanation..."}]'
 ```
+
+---
+
+## Mobile API: Salah Times & Mosque Directory
+
+Served by `public/api/v1/mobile.php?action=...` and backed by `App\Services\MosqueService`.
+Authenticated actions need the mobile Sanctum token (`Authorization: Bearer <token>`).
+Validation errors return HTTP `422` with `{"status":"error","message":"...","errors":{...}}`.
+
+Times are local 24-hour `HH:MM` strings. Maghrib can instead be stored as
+`maghrib_offset_minutes` (minutes after the adhan), which the app resolves against
+the day's calculated sunset. Adhan (start) times are calculated on the device.
+
+| Action | Method | Auth | Parameters |
+|---|---|---|---|
+| `nearby_mosques` | GET | – | `latitude`, `longitude`, `radius_km` (0.5–50, default 10), `search` (name/area; ignores radius), `limit` (≤50), `filters` (comma list of `wheelchair`, `chairs`, `women`, `jumuah`, `parking`), `sect` (one sect key; omit for all) |
+| `mosque` | GET | – | `id`, optional `latitude`/`longitude` for distance |
+| `mosques_by_ids` | GET | – | `ids` (comma separated, ≤20), optional `latitude`/`longitude` |
+| `add_mosque` | POST | ✓ | `name`, `latitude`, `longitude`, optional `locality`, `address`, `city`, `country`, `note`, every time field, and every detail field (below) |
+| `update_mosque_times` | POST | ✓ | `mosque_id`, `fajr_time` … `jumuah_time`, `jumuah_time_2`, `maghrib_offset_minutes`, `note` (replaces all times; unchanged times count as a confirmation) |
+| `update_mosque_details` | POST | ✓ | `mosque_id` plus any detail fields; only fields sent are changed. A `sect` change from a non-admin is held for review (`"sect_pending": true`) |
+| `confirm_mosque_times` | POST | ✓ | `mosque_id` (once per worshipper per 7 days) |
+| `report_mosque` | POST | ✓ | `mosque_id`, `reason` (`closed`, `duplicate`, `wrong_location`, `wrong_times`, `inappropriate`, `other`), `note` |
+| `salah_favorites` | GET | ✓ | optional `latitude`/`longitude`. Returns `{ "fajr": {mosque}, "dhuhr": {mosque}, ... }` |
+| `set_salah_favorite` | POST | ✓ | `prayer` (`fajr`, `dhuhr`, `asr`, `maghrib`, `isha`, `jumuah`), `mosque_id` (blank clears) |
+| `my_mosque_contributions` | GET | ✓ | – Returns counts plus `worshippers_benefiting` (others who chose mosques you added or updated) |
+
+**Detail fields** (form-encoded; blank means "not known"):
+
+| Field | Values |
+|---|---|
+| `place_type` | `masjid` (default), `musalla` |
+| `sect` | `deobandi`, `barelvi`, `ahl_e_hadith`, `sunni_other`, `shia_ithna_ashari`, `ismaili`, `bohra`, `shia_other`, or blank for not specified |
+| `asr_method` | `hanafi`, `standard`, blank |
+| `has_women_area` | `1` / `0` / blank |
+| `facilities[<key>]` | `1` / `0` / blank for `wheelchair_entrance`, `accessible_wudu`, `prayer_chairs`, `women_wudu`, `wudu_area`, `toilets`, `car_parking`, `bike_parking`, `air_conditioning` (other keys ignored) |
+| `khutbah_languages` | comma list, up to 4 of `ar`, `ur`, `en`, `bn`, `pa`, `ps`, `sd`, `fa`, `tr`, `ms`, `id`, `fr`, `so` |
+| `taraweeh_rakats` | `8`, `20`, blank |
+| `taraweeh_khatm` | `1` / `0` / blank (whole Quran completed) |
+| `eid_year` | e.g. `2027` (defaults to the current year) |
+| `eid_fitr_times`, `eid_adha_times` | comma list of up to 4 `HH:MM` jama'ah times; blank removes them |
+
+Mosque objects in responses include `place_type`, `sect`, `sect_change_pending`, `asr_method`,
+`jumuah_second_time`, `facilities` (every key, `true`/`false`/`null`), `khutbah_languages`,
+`taraweeh` (`{rakats, khatm}`) and `eid_times` (`{"fitr": {"year": 2027, "times": [...]}}`).
+
+`add_mosque` returns `"duplicate": true` with the existing mosque when one with a similar
+name is within 100 m (or any mosque within 20 m), so the app can offer to update it instead.
+Unverified mosques are hidden for admin review after 5 distinct reports; admins moderate at
+`/admin/mosques`.
+
+### Mosques from OpenStreetMap
+
+Mosque locations can be imported from OpenStreetMap, the same data falah.io's Mosque Finder
+shows (Overpass query `amenity=place_of_worship` + `religion=muslim`, plus `building=mosque`).
+
+```bash
+php artisan mosques:import-osm --city="Karachi" --country="Pakistan" --dry-run   # preview
+php artisan mosques:import-osm --city="Karachi" --country="Pakistan"             # import
+php artisan mosques:import-osm --lat=24.92 --lng=67.09 --radius=10
+php artisan mosques:import-osm --bbox="31.4,74.2,31.7,74.5"
+php artisan mosques:import-osm --country="Pakistan"   # large: split into 1° tiles, 1 s apart
+php artisan mosques:import-osm --refresh              # re-sync everything already imported
+```
+
+Options: `--include-unnamed` (import places OSM has no name for), `--verified`.
+Admins can also preview and import a city or a point (≤ 25 km) from **Admin → Mosques → Import from OpenStreetMap**.
+
+Re-running is safe: mosques are matched by OSM id; rows nobody has edited are refreshed from OSM;
+rows edited in the app or admin only get empty fields filled; mosques an admin deletes are recorded
+in `mosque_import_exclusions` and never re-imported. Jama'ah times never come from OSM.
+
+Mosque objects include `source` (`community` or `osm`), `osm_url`, and `attribution`
+(`"© OpenStreetMap contributors"` for any entry using OSM data). OSM data is licensed under the
+[Open Database License](https://www.openstreetmap.org/copyright): show the attribution wherever these
+entries appear. Set `OSM_USER_AGENT` in `.env` to identify your server to the OSM services, as their
+usage policies ask.

@@ -21,6 +21,9 @@ import kotlinx.serialization.Serializable
     val duaSlug: String = ""
 ) : NavKey
 @Serializable data object QuranResearchRoute : NavKey
+@Serializable data object SalahRoute : NavKey
+@Serializable data object SurveyRoute : NavKey
+@Serializable data class WordSearchRoute(val query: String = "") : NavKey
 @Serializable data class InsightQuizRoute(
     val markType: String,
     val questionId: String,

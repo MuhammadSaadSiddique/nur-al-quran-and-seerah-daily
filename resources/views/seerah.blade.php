@@ -25,13 +25,7 @@
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn"
-        x-data="insightQuiz({{ json_encode($insight['question']) }}, {{ $isRead ? 'true' : 'false' }})">
-        {{-- Toast Feedback --}}
-        <div x-show="toastMessage" x-cloak
-            class="fixed bottom-6 right-6 z-50 bg-emerald-700 text-white px-6 py-4 rounded-2xl shadow-2xl border border-emerald-500/30 flex items-center space-x-3 animate-slideUp">
-            <span>✨</span>
-            <span class="text-sm font-black" x-text="toastMessage"></span>
-        </div>
+        x-data="insightQuiz({{ json_encode($insight['question']) }})">
 
         {{-- Insight Content --}}
         <div class="bg-white rounded-[2rem] p-10 shadow-xl border border-slate-100 space-y-6">
@@ -42,31 +36,16 @@
                     </svg>
                     <span>Reflection Mode</span>
                 </div>
-                <div class="flex items-center gap-3">
-                    <button @click="markAsRead()" :disabled="readStatusLoading"
-                        class="px-3.5 py-1.5 rounded-full text-xs font-black transition-all shadow-sm flex items-center gap-1.5"
-                        :class="isRead ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200'">
-                        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7" />
-                        </svg>
-                        <span x-text="isRead ? '✓ Read' : 'Mark as Read'"></span>
-                    </button>
-                    <span class="px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider {{ $difficulty === 'Easy' ? 'bg-emerald-500' : ($difficulty === 'Medium' ? 'bg-amber-500' : 'bg-rose-500') }}">
-                        {{ $difficulty }}
-                    </span>
-                </div>
+                <span class="px-3 py-1 rounded-full text-[10px] font-black text-white uppercase tracking-wider {{ $difficulty === 'Easy' ? 'bg-emerald-500' : ($difficulty === 'Medium' ? 'bg-amber-500' : 'bg-rose-500') }}">
+                    {{ $difficulty }}
+                </span>
             </div>
             <h1 class="text-3xl font-black text-slate-900 leading-tight">{{ $insight['title'] }}</h1>
             <div class="text-slate-700 text-lg leading-relaxed italic border-l-4 border-blue-200 pl-6 py-2">
                 "{!! e($insight['content']) !!}"
             </div>
-            <div class="flex items-center justify-between pt-2 border-t border-slate-50">
+            <div class="pt-2 border-t border-slate-50">
                 <p class="text-xs text-slate-400 font-medium">Life and Character of Prophet Muhammad ﷺ</p>
-                <button @click="markAsRead()" :disabled="readStatusLoading"
-                    class="text-xs font-black transition-colors flex items-center gap-1"
-                    :class="isRead ? 'text-emerald-600' : 'text-blue-600 hover:text-blue-800'">
-                    <span x-text="isRead ? '✓ Marked as read' : '📖 Mark reflection as read'"></span>
-                </button>
             </div>
         </div>
 
@@ -147,6 +126,26 @@
             class="block w-full bg-slate-900 text-white py-5 rounded-2xl font-black text-lg shadow-lg hover:bg-slate-800 transition-all active:scale-[0.99] text-center">
             Return to Home
         </a>
+
+        {{-- Contribute Daily Card --}}
+        @auth
+        <div class="bg-gradient-to-br from-blue-50 to-indigo-50 rounded-2xl p-6 border border-blue-100 shadow-sm flex flex-col sm:flex-row items-center gap-4">
+            <div class="bg-blue-100 p-3 rounded-xl text-blue-700 shrink-0">
+                <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 4v16m8-8H4" />
+                </svg>
+            </div>
+            <div class="flex-1 text-center sm:text-left">
+                <h3 class="font-black text-slate-900 text-sm">Contribute Daily — Share Your Knowledge</h3>
+                <p class="text-xs text-slate-500 font-medium mt-0.5">Have a Seerah insight, video, or research to share? Help the community grow by contributing daily.</p>
+            </div>
+            <a href="{{ route('research.contributions.create') }}"
+                class="shrink-0 bg-blue-600 hover:bg-blue-700 text-white font-black text-xs px-5 py-2.5 rounded-xl transition-all shadow-md whitespace-nowrap">
+                Add Contribution
+            </a>
+        </div>
+        @endauth
     </div>
 @endsection
 

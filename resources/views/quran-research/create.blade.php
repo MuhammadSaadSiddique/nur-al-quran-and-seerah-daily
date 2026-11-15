@@ -130,21 +130,7 @@
                           class="w-full p-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">{{ old('description') }}</textarea>
             </div>
 
-            {{-- Contributor info if guest --}}
-            @guest
-                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 p-4 bg-slate-50 rounded-2xl border border-slate-100">
-                    <div class="space-y-1">
-                        <label class="block text-xs font-bold text-slate-700">Your Name (Optional)</label>
-                        <input type="text" name="submitter_name" value="{{ old('submitter_name') }}" placeholder="Brother / Sister"
-                               class="w-full py-2 px-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
-                    </div>
-                    <div class="space-y-1">
-                        <label class="block text-xs font-bold text-slate-700">Your Email (Optional, for notifications)</label>
-                        <input type="email" name="submitter_email" value="{{ old('submitter_email') }}" placeholder="you@example.com"
-                               class="w-full py-2 px-3 rounded-xl border border-slate-200 text-xs focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500">
-                    </div>
-                </div>
-            @endguest
+
 
             <div class="pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
                 <a href="{{ route('research.contributions.index') }}" class="px-5 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition-all">

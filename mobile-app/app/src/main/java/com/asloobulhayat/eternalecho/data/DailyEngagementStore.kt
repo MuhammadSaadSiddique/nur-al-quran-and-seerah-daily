@@ -22,10 +22,10 @@ object DailyEngagementStore {
     private const val KEY_CACHE = "daily_engagement_cache_v1"
     private const val KEY_PENDING = "daily_engagement_pending_v1"
 
-    private val activityKeys = listOf("quiz", "read", "insight", "dua")
+    private val activityKeys = listOf("quiz", "contribute", "insight", "dua")
     private val defaultLabels = mapOf(
         "quiz" to "Complete a quiz",
-        "read" to "Read a Surah or Para",
+        "contribute" to "Add a research contribution",
         "insight" to "Read a Seerah or Quran insight",
         "dua" to "Open today's dua"
     )
@@ -115,9 +115,9 @@ object DailyEngagementStore {
     private fun normalizeKey(raw: String): String? {
         val k = raw.trim().lowercase(Locale.US)
         return when (k) {
-            "quiz", "read", "insight", "dua" -> k
+            "quiz", "contribute", "insight", "dua" -> k
             "seerah", "history", "quran_history", "seerah_insight" -> "insight"
-            "surah", "para", "reading" -> "read"
+            "research", "contribution" -> "contribute"
             else -> if (k in activityKeys) k else null
         }
     }

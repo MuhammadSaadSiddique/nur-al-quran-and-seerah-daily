@@ -22,6 +22,7 @@ import com.asloobulhayat.eternalecho.ui.duas.DuaDetailScreen
 import com.asloobulhayat.eternalecho.ui.insights.InsightQuizScreen
 import com.asloobulhayat.eternalecho.data.SurahNavKey
 import com.asloobulhayat.eternalecho.security.SecurePreferences
+import com.asloobulhayat.eternalecho.ui.search.WordSearchScreen
 
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -117,6 +118,12 @@ fun MainNavigation(
             onFinished = {
               backStack.clear()
               backStack.add(Main)
+            },
+            // Survey sits on top of Main, so leaving it lands on the home screen.
+            onTakeSurvey = {
+              backStack.clear()
+              backStack.add(Main)
+              backStack.add(SurveyRoute)
             }
           )
         }
@@ -159,6 +166,32 @@ fun MainNavigation(
             modifier = Modifier.safeDrawingPadding().padding(4.dp)
           )
         }
+        entry<SalahRoute> {
+          com.asloobulhayat.eternalecho.ui.salah.SalahScreen(
+            onBackClick = { backStack.removeLastOrNull() },
+            onAuthClick = { backStack.add(AuthRoute) },
+            modifier = Modifier.safeDrawingPadding()
+          )
+        }
+        entry<SurveyRoute> {
+          com.asloobulhayat.eternalecho.ui.survey.SurveyScreen(
+            onBack = { backStack.removeLastOrNull() },
+            onOpenFeature = { feature ->
+              // Each survey feature card names its screen in the app; anything else opens on the web.
+              when (feature.app) {
+                "quiz" -> backStack.add(ThemeQuizSelection)
+                "duas" -> backStack.add(DuasRoute)
+                "salah" -> backStack.add(SalahRoute)
+                "research" -> backStack.add(QuranResearchRoute)
+                "quran" -> showMainTab(10)
+                "seerah" -> showMainTab(2)
+                "leaderboard" -> showMainTab(1)
+                "home" -> showMainTab(0)
+                else -> com.asloobulhayat.eternalecho.util.BrowserHelper.open(context, feature.url)
+              }
+            }
+          )
+        }
         entry<SurahNavKey> { surahKey ->
           val surahNumber = surahKey.surahNumber
           val verseNumber = surahKey.verseNumber
@@ -166,7 +199,6 @@ fun MainNavigation(
             surahNumber = surahNumber,
             initialVerseNumber = verseNumber,
             onBackClick = { backStack.removeLastOrNull() },
-            onAuthClick = { backStack.add(AuthRoute) },
             modifier = Modifier.safeDrawingPadding().padding(4.dp)
           )
         }
@@ -211,6 +243,19 @@ fun MainNavigation(
             options = key.options,
             onBackClick = { backStack.removeLastOrNull() },
             onAuthClick = { backStack.add(AuthRoute) },
+            modifier = Modifier.safeDrawingPadding()
+          )
+        }
+        entry<WordSearchRoute> { key ->
+          WordSearchScreen(
+            initialQuery = key.query,
+            onBackClick = { backStack.removeLastOrNull() },
+            onVerseClick = { surahNumber, verseNumber ->
+              backStack.add(SurahNavKey(surahNumber, verseNumber))
+            },
+            onDuaClick = { duaId, duaSlug ->
+              backStack.add(DuaDetailRoute(duaId, duaSlug))
+            },
             modifier = Modifier.safeDrawingPadding()
           )
         }

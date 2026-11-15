@@ -39,4 +39,5 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/research-contributions', [\App\Http\Controllers\QuranResearchContributionController::class, 'apiStore']);
     Route::post('/research', [ResearchApiController::class, 'store']);
     Route::post('/research-contributions/{id}/review', [\App\Http\Controllers\QuranResearchContributionController::class, 'apiReview']);
+    Route::post('/research-contributions/{id}/approve', [\App\Http\Controllers\QuranResearchContributionController::class, 'apiApprove']);
 });

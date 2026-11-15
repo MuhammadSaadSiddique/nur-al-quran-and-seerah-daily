@@ -70,9 +70,27 @@ class QuranResearchContribution extends Model
         return $query->where('status', 'pending');
     }
 
+    public function scopeRejected($query)
+    {
+        return $query->where('status', 'rejected');
+    }
+
     public function scopeVideos($query)
     {
         return $query->where('category', 'video');
+    }
+
+    public function scopeSearch($query, ?string $search)
+    {
+        if (empty($search)) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($search) {
+            $q->where('title', 'like', "%{$search}%")
+              ->orWhere('description', 'like', "%{$search}%")
+              ->orWhere('submitter_name', 'like', "%{$search}%");
+        });
     }
 
     /**
@@ -158,6 +176,8 @@ class QuranResearchContribution extends Model
         } elseif ($approvals >= 5 && $downvotes < $approvals) {
             $this->status = 'published';
             $this->published_at = now();
+        } elseif ($this->status === 'rejected') {
+            $this->status = 'rejected';
         } else {
             $this->status = 'pending';
         }

@@ -311,10 +311,6 @@ class User extends Authenticatable
         $this->para_mastery = $mastery;
         $this->save();
 
-        if ($status === 'marked') {
-            app(\App\Services\DailyEngagementService::class)->record($this, UserDailyEngagement::ACTIVITY_READ);
-        }
-
         return [
             'status' => $status,
             'is_read' => !$isRead,
@@ -342,10 +338,6 @@ class User extends Authenticatable
 
         $this->completed_paras = $completed;
         $this->save();
-
-        if ($status === 'marked') {
-            app(\App\Services\DailyEngagementService::class)->record($this, UserDailyEngagement::ACTIVITY_READ);
-        }
 
         return [
             'status' => $status,

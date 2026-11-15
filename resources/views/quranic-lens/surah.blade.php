@@ -203,7 +203,7 @@
         <div class="space-y-2">
             <h3 class="text-2xl md:text-3xl font-black">Completed Reading Surah {{ $surahInfo['name_simple'] }}?</h3>
             <p class="text-emerald-100/80 text-sm md:text-base max-w-xl mx-auto font-medium">
-                Marking this Surah as read records your progress, increases your devotion metrics, and keeps your spiritual streak alive.
+                Marking this Surah as read records it in your reading progress.
             </p>
         </div>
 

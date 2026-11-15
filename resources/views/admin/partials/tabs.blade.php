@@ -1,6 +1,7 @@
 <div class="flex space-x-4 mb-8 border-b border-slate-200 overflow-x-auto custom-scrollbar whitespace-nowrap">
     <a href="{{ route('admin.questions.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.questions.*') && !request()->routeIs('admin.feedback.*') && !request()->routeIs('admin.duplicates') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">Manage Questions</a>
     <a href="{{ route('admin.users.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.users.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">User Statistics</a>
+    <a href="{{ route('admin.visitors.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.visitors.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">📈 Visitors</a>
     <a href="{{ route('admin.themes.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.themes.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">Manage Themes</a>
     <a href="{{ route('admin.testimonials.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.testimonials.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">Testimonials</a>
     <a href="{{ route('admin.feedback.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.feedback.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">Question Reports</a>
@@ -11,6 +12,18 @@
         @endphp
         @if($pendingAppFbCount > 0)
             <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-black leading-none text-emerald-800 bg-emerald-100 rounded-full">{{ $pendingAppFbCount }}</span>
+        @endif
+    </a>
+    <a href="{{ route('admin.survey.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.survey.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">🗳️ Survey</a>
+    @php
+        $researcherApplicantsBadge = \Illuminate\Support\Facades\Schema::hasTable('researcher_onboardings')
+            ? \App\Models\User::where('is_researcher', false)->whereHas('researcherOnboarding')->count()
+            : 0;
+    @endphp
+    <a href="{{ route('admin.researchers.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm inline-flex items-center space-x-1.5 {{ request()->routeIs('admin.researchers.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">
+        <span>🔬 Researchers</span>
+        @if($researcherApplicantsBadge > 0)
+            <span class="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-black leading-none text-amber-900 bg-amber-200 rounded-full">{{ $researcherApplicantsBadge }} applied</span>
         @endif
     </a>
     <a href="{{ route('admin.duplicates') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.duplicates') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">Duplicates</a>
@@ -24,6 +37,15 @@
             <span class="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-black leading-none text-amber-900 bg-amber-200 rounded-full">{{ $pendingDuasBadge }} pending</span>
         @endif
     </a>
+    @php
+        $pendingVideosBadge = \App\Models\QuranResearchContribution::pending()->count();
+    @endphp
+    <a href="{{ route('admin.videos.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm inline-flex items-center space-x-1.5 {{ request()->routeIs('admin.videos.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">
+        <span>🎬 Review & Manage Videos</span>
+        @if($pendingVideosBadge > 0)
+            <span class="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-black leading-none text-amber-900 bg-amber-200 rounded-full">{{ $pendingVideosBadge }} pending</span>
+        @endif
+    </a>
     <a href="{{ route('admin.categories.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm inline-flex items-center space-x-1.5 {{ request()->routeIs('admin.categories.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">
         <span>🏷️ Manage Categories</span>
     </a>
@@ -34,6 +56,17 @@
         <span>💚 Donations</span>
         @if($pendingDonationsBadge > 0)
             <span class="inline-flex items-center justify-center px-1.5 py-0.5 text-[10px] font-black leading-none text-emerald-800 bg-emerald-100 rounded-full">{{ $pendingDonationsBadge }}</span>
+        @endif
+    </a>
+    @php
+        $reportedMosquesBadge = \Illuminate\Support\Facades\Schema::hasTable('mosques')
+            ? \App\Models\Mosque::where(fn ($q) => $q->where('reports_count', '>', 0)->orWhereNotNull('pending_sect'))->count()
+            : 0;
+    @endphp
+    <a href="{{ route('admin.mosques.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm inline-flex items-center space-x-1.5 {{ request()->routeIs('admin.mosques.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">
+        <span>🕌 Mosques</span>
+        @if($reportedMosquesBadge > 0)
+            <span class="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-black leading-none text-rose-900 bg-rose-200 rounded-full">{{ $reportedMosquesBadge }} to review</span>
         @endif
     </a>
 </div>

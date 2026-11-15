@@ -11,25 +11,33 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.text.input.ImeAction
 import com.asloobulhayat.eternalecho.data.DailyEngagement
 import com.asloobulhayat.eternalecho.data.DefaultDataRepository
 import com.asloobulhayat.eternalecho.data.EngagementActivity
+import com.asloobulhayat.eternalecho.data.LastReadPosition
 import com.asloobulhayat.eternalecho.security.SecurePreferences
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
@@ -56,6 +64,7 @@ import com.asloobulhayat.eternalecho.theme.ThemeManager
 import com.asloobulhayat.eternalecho.theme.ThemeSettingDialog
 import com.asloobulhayat.eternalecho.ui.components.FadeSlideIn
 import com.asloobulhayat.eternalecho.ui.components.PressableScale
+import com.asloobulhayat.eternalecho.ui.search.WORD_SEARCH_SUGGESTIONS
 
 /**
  * Adaptive Home Screen color palette derived from the active [MaterialTheme.colorScheme].
@@ -196,16 +205,18 @@ fun HomeScreen(
     streakDays: Int = 7,
     longestStreak: Int = 7,
     isStreakActiveToday: Boolean = false,
-    currentJuz: Int = 2,
-    readPages: Int = 5,
+    lastRead: LastReadPosition? = null,
     readingProgressPercent: Int = 0,
     dailyEngagement: DailyEngagement? = null,
     onStartQuizClick: () -> Unit = {},
     onExploreHistoryClick: () -> Unit = {},
     onDeepDiveClick: () -> Unit = {},
     onReadDuasClick: () -> Unit = {},
+    onSalahClick: () -> Unit = {},
+    onSurveyClick: (() -> Unit)? = null,
     onReflectClick: () -> Unit = {},
     onReadingProgressClick: () -> Unit = {},
+    onWordSearch: (String) -> Unit = {},
     onClaimStreakClick: () -> Unit = {},
     onEngagementActivityClick: (String) -> Unit = {},
     onThemeSettingsClick: (() -> Unit)? = null,
@@ -335,8 +346,7 @@ fun HomeScreen(
                     HomeHeaderSection(
                         userName = userName,
                         streakDays = streakDays,
-                        currentJuz = currentJuz,
-                        readPages = readPages,
+                        currentJuz = lastRead?.juzNumber,
                         readingProgressPercent = progressPercent,
                         palette = palette,
                         onReadingProgressClick = onReadingProgressClick,
@@ -348,6 +358,17 @@ fun HomeScreen(
                                 showLocalThemeDialog = true
                             }
                         }
+                    )
+                }
+
+
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                FadeSlideIn(delayMillis = 20) {
+                    com.asloobulhayat.eternalecho.ui.salah.SalahHomeCard(
+                        palette = palette,
+                        onClick = onSalahClick
                     )
                 }
 
@@ -365,14 +386,24 @@ fun HomeScreen(
 
                 FadeSlideIn(delayMillis = 60) {
                     ContinueReadingCard(
-                        currentJuz = currentJuz,
-                        readPages = readPages,
-                        readingProgressPercent = progressPercent,
+                        lastRead = lastRead,
                         palette = palette,
                         onContinueClick = onReadingProgressClick
                     )
                 }
+                Spacer(modifier = Modifier.height(14.dp))
 
+                // Brings its own bottom spacing and disappears entirely once hidden.
+                FadeSlideIn(delayMillis = 80) {
+                    SurveyHomeCard(palette = palette, onOpen = onSurveyClick)
+                }
+
+                FadeSlideIn(delayMillis = 20) {
+                    HomeWordSearchCard(
+                        palette = palette,
+                        onSearch = onWordSearch
+                    )
+                }
                 Spacer(modifier = Modifier.height(14.dp))
 
                 FadeSlideIn(delayMillis = 120) {
@@ -420,7 +451,7 @@ fun DailyEngagementChecklistCard(
 ) {
     val activities = engagement?.activities ?: listOf(
         EngagementActivity("quiz", false, "Complete a quiz"),
-        EngagementActivity("read", false, "Read a Surah or Para"),
+        EngagementActivity("contribute", false, "Add a research contribution"),
         EngagementActivity("insight", false, "Read a Seerah or Quran insight"),
         EngagementActivity("dua", false, "Open today's dua")
     )
@@ -539,8 +570,7 @@ fun DailyEngagementChecklistCard(
 fun HomeHeaderSection(
     userName: String,
     streakDays: Int,
-    currentJuz: Int,
-    readPages: Int,
+    currentJuz: Int?,
     readingProgressPercent: Int,
     palette: HomeThemePalette = rememberHomeThemePalette(),
     onReadingProgressClick: () -> Unit,
@@ -648,7 +678,7 @@ fun HomeHeaderSection(
 @Composable
 fun ReadingProgressRing(
     percent: Int,
-    currentJuz: Int,
+    currentJuz: Int?,
     palette: HomeThemePalette,
     onClick: () -> Unit
 ) {
@@ -688,7 +718,7 @@ fun ReadingProgressRing(
                 fontSize = 15.sp
             )
             Text(
-                text = "Juz $currentJuz",
+                text = currentJuz?.let { "Juz $it" } ?: "Begin",
                 color = palette.textMuted,
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Medium
@@ -698,13 +728,102 @@ fun ReadingProgressRing(
 }
 
 /**
+ * Word search entry point: type a word, results open on their own screen.
+ */
+@Composable
+fun HomeWordSearchCard(
+    palette: HomeThemePalette,
+    onSearch: (String) -> Unit
+) {
+    var text by rememberSaveable { mutableStateOf("") }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    fun submit(value: String) {
+        val query = value.trim()
+        if (query.isEmpty()) return
+        keyboardController?.hide()
+        onSearch(query)
+    }
+
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = palette.cardBg),
+        border = BorderStroke(1.dp, palette.cardBorder),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp)) {
+            Text(
+                text = "Word search",
+                color = palette.textPrimary,
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "Find every ayah that mentions a word, in English or Arabic",
+                color = palette.textMuted,
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedTextField(
+                value = text,
+                onValueChange = { text = it },
+                placeholder = { Text("e.g. mercy, patience, رحمة", color = palette.textMuted) },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = palette.primaryAccent)
+                },
+                trailingIcon = {
+                    if (text.isNotBlank()) {
+                        IconButton(onClick = { submit(text) }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowForward,
+                                contentDescription = "Search",
+                                tint = palette.primaryAccent
+                            )
+                        }
+                    }
+                },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                keyboardActions = KeyboardActions(onSearch = { submit(text) }),
+                shape = RoundedCornerShape(14.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = palette.textPrimary,
+                    unfocusedTextColor = palette.textPrimary,
+                    focusedBorderColor = palette.primaryAccent,
+                    unfocusedBorderColor = palette.cardBorder,
+                    cursorColor = palette.primaryAccent,
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent
+                ),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .testTag("home_word_search_field")
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                WORD_SEARCH_SUGGESTIONS.forEach { suggestion ->
+                    SuggestionChip(
+                        onClick = { submit(suggestion) },
+                        label = { Text(suggestion, fontSize = 12.sp) },
+                        colors = SuggestionChipDefaults.suggestionChipColors(labelColor = palette.textSecondary),
+                        border = BorderStroke(1.dp, palette.cardBorder)
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
  * Primary “continue where you left off” action — reduces decision fatigue.
  */
 @Composable
 fun ContinueReadingCard(
-    currentJuz: Int,
-    readPages: Int,
-    readingProgressPercent: Int,
+    lastRead: LastReadPosition?,
     palette: HomeThemePalette,
     onContinueClick: () -> Unit
 ) {
@@ -737,14 +856,16 @@ fun ContinueReadingCard(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "Continue reading",
+                            text = if (lastRead != null) "Continue reading" else "Start reading",
                             color = palette.textPrimary,
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "Juz $currentJuz · $readPages pages · $readingProgressPercent% of journey",
+                            text = lastRead?.let {
+                                "Surah ${it.surahNumber} · Ayah ${it.verseNumber} · Juz ${it.juzNumber}"
+                            } ?: "Begin with Surah Al-Fatihah · Juz 1",
                             color = palette.textMuted,
                             fontSize = 12.sp
                         )

@@ -363,9 +363,58 @@ try {
         }
     }
 
+    // Salah & mosque directory helpers (Laravel MosqueService — source of truth)
+    if (!function_exists('mobile_mosque_respond')) {
+        function mobile_mosque_respond(callable $handler): void
+        {
+            try {
+                $payload = $handler(app(\App\Services\MosqueService::class));
+                echo json_encode(array_merge(['status' => 'success'], $payload));
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                http_response_code(422);
+                $first = collect($e->errors())->flatten()->first();
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => $first ?: 'Please check the details and try again.',
+                    'errors' => $e->errors(),
+                ]);
+            }
+        }
+    }
+
+    if (!function_exists('mobile_float_param')) {
+        function mobile_float_param(array $data, string $key): ?float
+        {
+            return isset($data[$key]) && is_numeric($data[$key]) ? (float) $data[$key] : null;
+        }
+    }
+
+    if (!function_exists('mobile_mosque_or_fail')) {
+        function mobile_mosque_or_fail(\App\Services\MosqueService $service, array $data): \App\Models\Mosque
+        {
+            $id = (int) ($data['mosque_id'] ?? $data['id'] ?? 0);
+            $mosque = $service->findActive($id);
+            if (!$mosque) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'mosque_id' => 'This mosque is no longer listed.',
+                ]);
+            }
+
+            return $mosque;
+        }
+    }
+
     $action = isset($requestData['action']) ? trim((string)$requestData['action']) : '';
 
     $authRequiredActions = [
+        'add_mosque',
+        'update_mosque_times',
+        'update_mosque_details',
+        'confirm_mosque_times',
+        'report_mosque',
+        'salah_favorites',
+        'set_salah_favorite',
+        'my_mosque_contributions',
         'set_password',
         'change_password',
         'delete_account',
@@ -1752,11 +1801,11 @@ try {
         case 'mark_engagement':
             $userId = (int) $authUser->id;
             $activity = isset($requestData['activity']) ? strtolower(trim((string)$requestData['activity'])) : '';
-            // Self-mark only for dua. Quiz/read/insight require real actions (submit_quiz, toggle_*, mark_insight).
+            // Self-mark only for dua. Quiz/contribute/insight require real actions (submit_quiz, submit_research_contribution, mark_insight).
             if ($activity !== \App\Models\UserDailyEngagement::ACTIVITY_DUA) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'Invalid activity. Only dua can be self-marked. Use quiz submit, reading toggles, or mark_insight for others.'
+                    'message' => 'Invalid activity. Only dua can be self-marked. Use quiz submit, research contribution submit, or mark_insight for others.'
                 ]);
                 break;
             }
@@ -2553,6 +2602,7 @@ try {
             ]);
 
             $newContribId = (int)$pdo->lastInsertId();
+            $engagement = mobile_engagement_record($userId, \App\Models\UserDailyEngagement::ACTIVITY_CONTRIBUTE);
 
             echo json_encode([
                 'status' => 'success',
@@ -2561,7 +2611,8 @@ try {
                     'id' => $newContribId,
                     'title' => $title,
                     'category' => $category,
-                    'status' => 'pending'
+                    'status' => 'pending',
+                    'engagement' => $engagement,
                 ]
             ]);
             break;
@@ -2839,6 +2890,195 @@ try {
                     'currency' => $currency
                 ]
             ]);
+            break;
+
+        case 'nearby_mosques':
+            mobile_mosque_respond(fn (\App\Services\MosqueService $service) => [
+                'data' => $service->nearby(
+                    mobile_float_param($requestData, 'latitude'),
+                    mobile_float_param($requestData, 'longitude'),
+                    mobile_float_param($requestData, 'radius_km') ?? \App\Services\MosqueService::DEFAULT_RADIUS_KM,
+                    isset($requestData['limit']) ? (int) $requestData['limit'] : 30,
+                    isset($requestData['search']) ? (string) $requestData['search'] : null,
+                    array_filter(explode(',', (string) ($requestData['filters'] ?? ''))),
+                    isset($requestData['sect']) && $requestData['sect'] !== '' ? (string) $requestData['sect'] : null
+                ),
+            ]);
+            break;
+
+        case 'mosque':
+            mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData) {
+                $mosque = mobile_mosque_or_fail($service, $requestData);
+                $lat = mobile_float_param($requestData, 'latitude');
+                $lng = mobile_float_param($requestData, 'longitude');
+                $distance = ($lat !== null && $lng !== null)
+                    ? $service->distanceKm($lat, $lng, $mosque->latitude, $mosque->longitude)
+                    : null;
+
+                return ['data' => $service->present($mosque, $distance)];
+            });
+            break;
+
+        case 'mosques_by_ids':
+            mobile_mosque_respond(fn (\App\Services\MosqueService $service) => [
+                'data' => $service->byIds(
+                    explode(',', (string) ($requestData['ids'] ?? '')),
+                    mobile_float_param($requestData, 'latitude'),
+                    mobile_float_param($requestData, 'longitude')
+                ),
+            ]);
+            break;
+
+        case 'add_mosque':
+            mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData, $authUser) {
+                $result = $service->create($authUser, $requestData);
+                $mosque = $result['mosque'];
+                if ($result['duplicate']) {
+                    $meters = (int) round(($mosque['distance_km'] ?? 0) * 1000);
+                    return [
+                        'duplicate' => true,
+                        'message' => "{$mosque['name']} is already listed {$meters} m from here. You can update its times instead.",
+                        'data' => $mosque,
+                    ];
+                }
+
+                return [
+                    'duplicate' => false,
+                    'message' => "JazakAllah khair! {$mosque['name']} is now listed. May every jama'ah prayed through it be sadaqah jariyah for you.",
+                    'data' => $mosque,
+                ];
+            });
+            break;
+
+        case 'update_mosque_times':
+            mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData, $authUser) {
+                $result = $service->updateTimes($authUser, mobile_mosque_or_fail($service, $requestData), $requestData);
+
+                return [
+                    'changed' => $result['changed'],
+                    'message' => $result['changed']
+                        ? "JazakAllah khair! Times updated for {$result['mosque']['name']}."
+                        : 'These match the listed times, so we counted it as a confirmation. JazakAllah khair!',
+                    'data' => $result['mosque'],
+                ];
+            });
+            break;
+
+        case 'update_mosque_details':
+            mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData, $authUser) {
+                $result = $service->updateDetails($authUser, mobile_mosque_or_fail($service, $requestData), $requestData);
+                $name = $result['mosque']['name'];
+
+                $message = match (true) {
+                    $result['changed'] && $result['sect_pending'] => "JazakAllah khair! Details for {$name} are updated. The school of thought change will appear once our team reviews it.",
+                    $result['sect_pending'] => 'JazakAllah khair! The school of thought change will appear once our team reviews it.',
+                    $result['changed'] => "JazakAllah khair! Details for {$name} are updated.",
+                    default => 'Nothing changed. These details are already listed.',
+                };
+
+                return [
+                    'changed' => $result['changed'],
+                    'sect_pending' => $result['sect_pending'],
+                    'message' => $message,
+                    'data' => $result['mosque'],
+                ];
+            });
+            break;
+
+        case 'confirm_mosque_times':
+            mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData, $authUser) {
+                $result = $service->confirmTimes($authUser, mobile_mosque_or_fail($service, $requestData));
+
+                return [
+                    'counted' => $result['counted'],
+                    'message' => $result['counted']
+                        ? 'JazakAllah khair for confirming these times.'
+                        : 'You have already vouched for these times recently.',
+                    'data' => $result['mosque'],
+                ];
+            });
+            break;
+
+        case 'report_mosque':
+            mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData, $authUser) {
+                $result = $service->report($authUser, mobile_mosque_or_fail($service, $requestData), $requestData);
+
+                return [
+                    'counted' => $result['counted'],
+                    'hidden' => $result['hidden'],
+                    'message' => $result['counted']
+                        ? 'Thank you. Our team will review this mosque.'
+                        : 'You have already reported this mosque. Our team is reviewing it.',
+                ];
+            });
+            break;
+
+        case 'salah_favorites':
+            mobile_mosque_respond(fn (\App\Services\MosqueService $service) => [
+                'data' => (object) $service->favorites(
+                    $authUser,
+                    mobile_float_param($requestData, 'latitude'),
+                    mobile_float_param($requestData, 'longitude')
+                ),
+            ]);
+            break;
+
+        case 'set_salah_favorite':
+            mobile_mosque_respond(fn (\App\Services\MosqueService $service) => [
+                'data' => (object) $service->setFavorite(
+                    $authUser,
+                    (string) ($requestData['prayer'] ?? ''),
+                    isset($requestData['mosque_id']) && is_numeric($requestData['mosque_id']) ? (int) $requestData['mosque_id'] : null
+                ),
+            ]);
+            break;
+
+        case 'my_mosque_contributions':
+            mobile_mosque_respond(fn (\App\Services\MosqueService $service) => [
+                'data' => $service->contributionSummary($authUser),
+            ]);
+            break;
+
+        // "Help shape Eternal Echo" survey. Questions come from RequirementSurvey, so the
+        // web page and the app always ask the same thing. Sign-in is optional for both.
+        case 'survey_config':
+            $surveyUser = \App\Services\MobileApiAuthService::userFromRequest();
+            echo json_encode([
+                'status' => 'success',
+                'data' => array_merge(\App\Services\RequirementSurvey::clientConfig(), [
+                    'previous' => \App\Services\RequirementSurvey::previousFor($surveyUser),
+                ]),
+            ]);
+            break;
+
+        case 'submit_survey':
+            // The app sends its answers as one JSON string, since its POST helper is form-encoded.
+            $surveyInput = $requestData;
+            if (isset($requestData['payload']) && is_string($requestData['payload'])) {
+                $decodedSurvey = json_decode($requestData['payload'], true);
+                if (is_array($decodedSurvey)) {
+                    $surveyInput = $decodedSurvey;
+                }
+            }
+            try {
+                $saved = \App\Services\RequirementSurvey::record(
+                    $surveyInput,
+                    \App\Services\MobileApiAuthService::userFromRequest(),
+                    'android'
+                );
+                echo json_encode([
+                    'status' => 'success',
+                    'message' => 'JazakAllahu Khairan! Your answers will shape what we build next.',
+                    'data' => ['id' => $saved->id],
+                ]);
+            } catch (\Illuminate\Validation\ValidationException $e) {
+                http_response_code(422);
+                echo json_encode([
+                    'status' => 'error',
+                    'message' => collect($e->errors())->flatten()->first() ?: 'Please check your answers and try again.',
+                    'errors' => $e->errors(),
+                ]);
+            }
             break;
 
         case 'logout':

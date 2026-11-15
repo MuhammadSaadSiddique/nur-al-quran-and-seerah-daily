@@ -50,14 +50,16 @@ data class OnboardingStep(
 @Composable
 fun OnboardingScreen(
     onFinished: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** When set, the last page offers the "Help shape Eternal Echo" survey. Onboarding counts as done either way. */
+    onTakeSurvey: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val prefs = remember { com.asloobulhayat.eternalecho.security.SecurePreferences.getInstance(context) }
     val coroutineScope = rememberCoroutineScope()
 
-    val steps = remember {
-        listOf(
+    val steps = remember(onTakeSurvey != null) {
+        listOfNotNull(
             OnboardingStep(
                 title = "Welcome to The Eternal Echo",
                 subtitle = "AI-Powered Islamic Learning & Research",
@@ -89,9 +91,18 @@ fun OnboardingScreen(
                 icon = Icons.Default.Favorite,
                 badges = listOf("Word-by-Word", "Sunnah Tasbih", "Quran & Hadith Citations"),
                 highlightColor = Color(0xFF059669) // Deep Emerald
-            )
+            ),
+            if (onTakeSurvey != null) OnboardingStep(
+                title = "Help Shape Eternal Echo",
+                subtitle = "A 2-Minute Survey Made for You",
+                description = "Tell us what you need, swipe through what's already inside, and vote on what we build next. Your answers decide our roadmap.",
+                icon = Icons.Default.HowToVote,
+                badges = listOf("2 Minutes", "Vote on Features", "Founding Voice Badge"),
+                highlightColor = Color(0xFFD4AF37) // Gold
+            ) else null
         )
     }
+    val surveyPage = if (onTakeSurvey != null) steps.lastIndex else -1
 
     val pagerState = rememberPagerState(
         initialPage = 0,
@@ -386,6 +397,28 @@ fun OnboardingScreen(
                     }
                 }
 
+                if (currentStep == surveyPage && onTakeSurvey != null) {
+                    Button(
+                        onClick = {
+                            prefs.putBoolean("has_completed_onboarding", true)
+                            onTakeSurvey()
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp),
+                        shape = RoundedCornerShape(16.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE6CA65))
+                    ) {
+                        Text(
+                            "Take the 2-minute survey ✨",
+                            fontWeight = FontWeight.Black,
+                            fontSize = 16.sp,
+                            color = Color(0xFF1C1300)
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+
                 // Next / Back / Get Started Buttons
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -424,7 +457,11 @@ fun OnboardingScreen(
                         colors = ButtonDefaults.buttonColors(containerColor = activeColor)
                     ) {
                         Text(
-                            text = if (currentStep == steps.size - 1) "Begin journey" else "Next",
+                            text = when {
+                                currentStep == surveyPage -> "Maybe later"
+                                currentStep == steps.size - 1 -> "Begin journey"
+                                else -> "Next"
+                            },
                             fontWeight = FontWeight.Bold,
                             fontSize = 15.sp,
                             color = Color.White

@@ -208,6 +208,15 @@
                         Close
                     </button>
                 </div>
+                <a href="{{ route('survey.show') }}"
+                   class="mt-2 flex items-center gap-3 rounded-2xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-left hover:bg-amber-400/15 transition-colors">
+                    <span class="text-2xl">🗳️</span>
+                    <span class="flex-1">
+                        <span class="block text-sm font-bold text-amber-200">Got 2 more minutes?</span>
+                        <span class="block text-xs text-slate-300">Vote on what we build next in our quick survey.</span>
+                    </span>
+                    <span class="text-amber-300" aria-hidden="true">→</span>
+                </a>
             </div>
 
         </div>

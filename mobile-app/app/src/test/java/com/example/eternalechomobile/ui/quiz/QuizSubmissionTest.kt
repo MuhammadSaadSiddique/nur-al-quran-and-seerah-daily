@@ -312,7 +312,7 @@ private class FakeQuizRepository(private val mockQuestions: List<QuizQuestion>) 
         difficulty: String,
         questionsJson: String,
         userAnswersJson: String,
-      attemptToken: String = ""
+      attemptToken: String
   ): Boolean {
         submittedUserId = userId
         submittedType = type

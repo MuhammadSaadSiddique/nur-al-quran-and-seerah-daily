@@ -80,6 +80,8 @@ class MainActivity : ComponentActivity() {
       .getString("api_token", null)
     com.asloobulhayat.eternalecho.data.ApiClient.authToken = savedToken
     com.asloobulhayat.eternalecho.data.DailyEngagementStore.init(this)
+    com.asloobulhayat.eternalecho.data.LastReadStore.init(this)
+    com.asloobulhayat.eternalecho.data.SalahStore.init(this)
 
     setContent {
       EternalEchoMobileTheme {

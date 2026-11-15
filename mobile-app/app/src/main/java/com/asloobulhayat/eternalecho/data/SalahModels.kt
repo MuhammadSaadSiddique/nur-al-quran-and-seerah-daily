@@ -122,6 +122,23 @@ data class SalahSettings(
     val chosenByUser: Boolean = false
 )
 
+/**
+ * Adhan notifications. Dhuhr's switch also covers Jumu'ah on Fridays.
+ * [minutesBefore] of 0 means at the adhan itself.
+ */
+data class SalahReminders(
+    val enabled: Boolean = false,
+    val prayers: Set<SalahPrayer> = SalahPrayer.DAILY.toSet(),
+    val minutesBefore: Int = 0
+) {
+    fun covers(prayer: SalahPrayer): Boolean =
+        enabled && (if (prayer == SalahPrayer.JUMUAH) SalahPrayer.DHUHR else prayer) in prayers
+
+    companion object {
+        val LEAD_OPTIONS = listOf(0, 5, 10, 15, 30)
+    }
+}
+
 /** Adhan (start) times for one day, as minutes after local midnight. */
 data class PrayerTimesDay(
     val fajr: Int,

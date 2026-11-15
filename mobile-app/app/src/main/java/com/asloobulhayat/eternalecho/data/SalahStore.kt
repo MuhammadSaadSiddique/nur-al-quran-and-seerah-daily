@@ -16,6 +16,7 @@ object SalahStore {
     private const val KEY_LOCATION = "salah_location_v1"
     private const val KEY_SETTINGS = "salah_settings_v1"
     private const val KEY_FAVORITES = "salah_favorites_v1"
+    private const val KEY_REMINDERS = "salah_reminders_v1"
 
     @Volatile
     private var prefs: SecurePreferences? = null
@@ -29,6 +30,9 @@ object SalahStore {
     private val _favorites = MutableStateFlow<Map<SalahPrayer, Mosque>>(emptyMap())
     val favorites: StateFlow<Map<SalahPrayer, Mosque>> = _favorites.asStateFlow()
 
+    private val _reminders = MutableStateFlow(SalahReminders())
+    val reminders: StateFlow<SalahReminders> = _reminders.asStateFlow()
+
     fun init(context: Context) {
         if (prefs != null) return
         val p = SecurePreferences.getInstance(context.applicationContext)
@@ -36,6 +40,19 @@ object SalahStore {
         _location.value = decodeLocation(p.getString(KEY_LOCATION, null))
         _settings.value = decodeSettings(p.getString(KEY_SETTINGS, null))
         _favorites.value = decodeFavorites(p.getString(KEY_FAVORITES, null))
+        _reminders.value = decodeReminders(p.getString(KEY_REMINDERS, null))
+    }
+
+    fun setReminders(reminders: SalahReminders) {
+        _reminders.value = reminders
+        prefs?.putString(
+            KEY_REMINDERS,
+            JSONObject()
+                .put("on", reminders.enabled)
+                .put("prayers", reminders.prayers.joinToString(",") { it.key })
+                .put("before", reminders.minutesBefore)
+                .toString()
+        )
     }
 
     fun setLocation(location: SavedLocation) {
@@ -136,6 +153,19 @@ object SalahStore {
         } ?: SalahSettings()
     } catch (_: Exception) {
         SalahSettings()
+    }
+
+    private fun decodeReminders(raw: String?): SalahReminders = try {
+        raw?.let {
+            val o = JSONObject(it)
+            SalahReminders(
+                enabled = o.optBoolean("on", false),
+                prayers = o.optString("prayers").split(',').mapNotNull { key -> SalahPrayer.fromKey(key) }.toSet(),
+                minutesBefore = o.optInt("before", 0).coerceIn(0, 60)
+            )
+        } ?: SalahReminders()
+    } catch (_: Exception) {
+        SalahReminders()
     }
 
     private fun decodeFavorites(raw: String?): Map<SalahPrayer, Mosque> = try {

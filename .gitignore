@@ -30,6 +30,8 @@ quraniclens_mysql_dump.sql
 /mobile-app/app/google-services.json
 /storage/app/firebase-service.json
 /storage/app/firebase-service-account.json
+/.claude
+/mobile-app/app/release
 /mobile-app/*
 !mobile-app/app/
 !mobile-app/app/src/**

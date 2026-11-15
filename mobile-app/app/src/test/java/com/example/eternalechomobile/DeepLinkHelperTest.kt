@@ -141,6 +141,10 @@ class DeepLinkHelperTest {
             DeepLinkDestination.Home,
             DeepLinkHelper.parse("eternalecho://app")
         )
+        assertEquals(
+            DeepLinkDestination.Salah,
+            DeepLinkHelper.parse("eternalecho://salah")
+        )
     }
 
     @Test

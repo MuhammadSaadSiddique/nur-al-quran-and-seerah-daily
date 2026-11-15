@@ -15,9 +15,11 @@ import com.asloobulhayat.eternalecho.data.MosqueFilter
 import com.asloobulhayat.eternalecho.data.MosqueSect
 import com.asloobulhayat.eternalecho.data.MosqueTimesInput
 import com.asloobulhayat.eternalecho.data.SalahPrayer
+import com.asloobulhayat.eternalecho.data.SalahReminders
 import com.asloobulhayat.eternalecho.data.SalahSettings
 import com.asloobulhayat.eternalecho.data.SalahStore
 import com.asloobulhayat.eternalecho.data.SavedLocation
+import com.asloobulhayat.eternalecho.notifications.PrayerReminderScheduler
 import com.asloobulhayat.eternalecho.security.SecurePreferences
 import com.asloobulhayat.eternalecho.util.LocationHelper
 import kotlinx.coroutines.Job
@@ -54,6 +56,7 @@ class SalahViewModel(application: Application) : AndroidViewModel(application) {
     val location: StateFlow<SavedLocation?> = SalahStore.location
     val settings: StateFlow<SalahSettings> = SalahStore.settings
     val favorites: StateFlow<Map<SalahPrayer, Mosque>> = SalahStore.favorites
+    val reminders: StateFlow<SalahReminders> = SalahStore.reminders
 
     private var nearbyJob: Job? = null
     private var started = false
@@ -108,6 +111,7 @@ class SalahViewModel(application: Application) : AndroidViewModel(application) {
                     accuracyMeters = if (fix.hasAccuracy()) fix.accuracy else null
                 )
             )
+            PrayerReminderScheduler.reschedule(app)
             _state.update { it.copy(locating = false) }
             loadNearby()
         }
@@ -332,6 +336,23 @@ class SalahViewModel(application: Application) : AndroidViewModel(application) {
 
     fun updateSettings(settings: SalahSettings) {
         SalahStore.setSettings(settings.copy(chosenByUser = true))
+        PrayerReminderScheduler.reschedule(getApplication())
+    }
+
+    fun updateReminders(reminders: SalahReminders) {
+        SalahStore.setReminders(reminders)
+        PrayerReminderScheduler.reschedule(getApplication())
+        val message = when {
+            !reminders.enabled -> "Salah notifications turned off."
+            reminders.prayers.isEmpty() -> "Choose at least one salah to be notified for."
+            location.value == null -> "Notifications on. Share your location so we can work out the times."
+            else -> null
+        }
+        message?.let { m -> _state.update { it.copy(message = m) } }
+    }
+
+    fun showMessage(message: String) {
+        _state.update { it.copy(message = message) }
     }
 
     fun consumeMessage() {

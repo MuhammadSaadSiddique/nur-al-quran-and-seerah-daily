@@ -18,8 +18,26 @@ class DonationFeatureTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('Sadaqah Jariyah');
         $response->assertSee('The Eternal Echo');
-        $response->assertSee('Bank Transfer');
-        $response->assertSee('Online / Card / PayPal');
+        $response->assertDontSee('IBAN');
+        $response->assertDontSee('PK66MEZN0008010113847096');
+        $response->assertDontSee('Meezan Bank');
+    }
+
+    public function test_form_submission_redirects_to_whop_checkout()
+    {
+        $response = $this->post(route('donate.notify'), [
+            'donor_name' => 'Abdullah',
+            'amount' => 25,
+            'currency' => 'USD',
+            'payment_method' => 'whop',
+        ]);
+
+        $response->assertRedirect('https://whop.com/asloob-ul-hayat/eternal-echo-sadaqah-jariyah-support/');
+        $this->assertDatabaseHas('donation_records', [
+            'donor_name' => 'Abdullah',
+            'payment_method' => 'whop',
+            'status' => 'pending',
+        ]);
     }
 
     public function test_guest_can_submit_donation_notification()

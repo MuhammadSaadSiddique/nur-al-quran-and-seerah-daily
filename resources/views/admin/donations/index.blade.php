@@ -38,6 +38,7 @@
             <div>
                 <select name="payment_method" onchange="this.form.submit()" class="bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-emerald-500">
                     <option value="">All Methods</option>
+                    <option value="whop" {{ request('payment_method') === 'whop' ? 'selected' : '' }}>Whop</option>
                     <option value="bank_transfer" {{ request('payment_method') === 'bank_transfer' ? 'selected' : '' }}>Bank Transfer</option>
                     <option value="stripe" {{ request('payment_method') === 'stripe' ? 'selected' : '' }}>Card (Stripe)</option>
                     <option value="paypal" {{ request('payment_method') === 'paypal' ? 'selected' : '' }}>PayPal</option>

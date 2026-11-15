@@ -14,6 +14,7 @@ sealed interface DeepLinkDestination {
     data object Quiz : DeepLinkDestination
     data object Leaderboard : DeepLinkDestination
     data object Home : DeepLinkDestination
+    data object Salah : DeepLinkDestination
 }
 
 /**
@@ -154,6 +155,7 @@ object DeepLinkHelper {
             "quiz-learning", "themes", "quiz", "theme-quiz" -> DeepLinkDestination.Quiz
             "leaderboard" -> DeepLinkDestination.Leaderboard
             "home", "app" -> DeepLinkDestination.Home
+            "salah", "prayer-times" -> DeepLinkDestination.Salah
             else -> null
         }
     }

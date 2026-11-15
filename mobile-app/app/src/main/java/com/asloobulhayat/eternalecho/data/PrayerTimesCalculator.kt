@@ -232,3 +232,48 @@ fun upcomingSalah(
 
 /** Minutes from [now] to [target], wrapping past midnight. */
 fun minutesUntil(now: Int, target: Int): Int = ((target - now) % 1440 + 1440) % 1440
+
+data class PrayerReminder(
+    val prayer: SalahPrayer,
+    /** Minutes after local midnight on the reminder's day. */
+    val adhanMinutes: Int,
+    val adhanAtMillis: Long,
+    val notifyAtMillis: Long
+)
+
+/**
+ * The first enabled adhan whose notification time is strictly after [nowMillis].
+ * Looks a few days ahead so a single enabled prayer, or a polar day with no
+ * Isha, still finds the next one.
+ */
+fun nextPrayerReminder(
+    nowMillis: Long,
+    latitude: Double,
+    longitude: Double,
+    settings: SalahSettings,
+    reminders: SalahReminders,
+    timeZone: TimeZone = TimeZone.getDefault()
+): PrayerReminder? {
+    if (!reminders.enabled || reminders.prayers.isEmpty()) return null
+    val lead = reminders.minutesBefore * 60_000L
+    for (offset in 0..2) {
+        val day = Calendar.getInstance(timeZone).apply {
+            timeInMillis = nowMillis
+            add(Calendar.DAY_OF_YEAR, offset)
+        }
+        val times = PrayerTimesCalculator.calculate(day, latitude, longitude, settings.method, settings.asrMethod, timeZone)
+        val isFriday = day.get(Calendar.DAY_OF_WEEK) == Calendar.FRIDAY
+        for ((prayer, minutes) in dailyOrder(times, isFriday)) {
+            if (minutes < 0 || !reminders.covers(prayer)) continue
+            val adhanAt = (day.clone() as Calendar).apply {
+                set(Calendar.HOUR_OF_DAY, minutes / 60)
+                set(Calendar.MINUTE, minutes % 60)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+            val notifyAt = adhanAt - lead
+            if (notifyAt > nowMillis) return PrayerReminder(prayer, minutes, adhanAt, notifyAt)
+        }
+    }
+    return null
+}

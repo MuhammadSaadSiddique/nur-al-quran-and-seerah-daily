@@ -91,6 +91,10 @@ fun MainNavigation(
         is DeepLinkDestination.History -> showMainTab(3)
         is DeepLinkDestination.Leaderboard -> showMainTab(1)
         is DeepLinkDestination.Home -> showMainTab(0)
+        is DeepLinkDestination.Salah -> {
+          ensureMainUnderneath()
+          if (backStack.lastOrNull() != SalahRoute) backStack.add(SalahRoute)
+        }
       }
       onDeepLinkHandled()
     }

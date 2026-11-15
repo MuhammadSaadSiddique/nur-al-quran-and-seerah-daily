@@ -1309,7 +1309,6 @@ private fun DoneStep(
                         Text(feature.title, color = palette.textPrimary, fontWeight = FontWeight.Bold, fontSize = 15.sp)
                         Text(feature.body, color = palette.textMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                    Text("→", color = palette.goldAccent, fontSize = 18.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }

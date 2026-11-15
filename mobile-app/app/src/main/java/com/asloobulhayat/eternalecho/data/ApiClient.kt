@@ -32,7 +32,7 @@ object ApiClient {
         get() = AppSecurity.deobfuscate(OBFUSCATED_BASE_URL, OBFUSCATION_KEY)
 
     const val ACCOUNT_DELETE_URL: String = "https://theeternalecho.asloobulhayat.com/delete-account"
-    const val DONATION_URL: String = "https://theeternalecho.asloobulhayat.com/donate"
+    const val DONATION_URL: String = "https://whop.com/asloob-ul-hayat/eternal-echo-sadaqah-jariyah-support/"
 
     private val webTranslationCache = java.util.concurrent.ConcurrentHashMap<Int, Map<Int, List<VerseTranslation>>>()
 

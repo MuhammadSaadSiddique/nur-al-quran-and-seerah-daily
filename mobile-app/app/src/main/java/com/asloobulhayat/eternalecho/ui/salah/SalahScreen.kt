@@ -133,6 +133,7 @@ fun SalahScreen(
     val location by vm.location.collectAsState()
     val settings by vm.settings.collectAsState()
     val favorites by vm.favorites.collectAsState()
+    val reminders by vm.reminders.collectAsState()
     val effective = SalahStore.effectiveSettings(settings, location)
     val is24 = rememberIs24Hour()
 
@@ -236,6 +237,15 @@ fun SalahScreen(
                         locationError = state.locationError,
                         is24 = is24,
                         onUseLocation = { useMyLocation() }
+                    )
+                }
+
+                item(key = "reminders") {
+                    SalahReminderCard(
+                        reminders = reminders,
+                        hasLocation = location != null,
+                        onChange = vm::updateReminders,
+                        onMessage = vm::showMessage
                     )
                 }
 

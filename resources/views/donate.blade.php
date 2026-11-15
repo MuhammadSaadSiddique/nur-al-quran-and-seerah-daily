@@ -206,13 +206,6 @@
 
             {{-- Channel Selector Tabs --}}
             <div class="flex flex-wrap gap-2">
-                <button type="button" 
-                        @click="activeTab = 'bank'"
-                        :class="activeTab === 'bank' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
-                        class="px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center space-x-1.5">
-                    <span>🏦</span>
-                    <span>Bank Transfer</span>
-                </button>
                 <!--<button type="button" 
                         @click="activeTab = 'online'"
                         :class="activeTab === 'online' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
@@ -234,86 +227,6 @@
                     <span>🪙</span>
                     <span>Crypto</span>
                 </button>-->
-            </div>
-        </div>
-
-        {{-- TAB 1: BANK TRANSFER --}}
-        <div x-show="activeTab === 'bank'" x-transition class="space-y-4">
-            <div class="p-4 bg-emerald-50/60 border border-emerald-100 rounded-2xl flex items-start space-x-3 text-xs text-emerald-900">
-                <span class="text-base">ℹ️</span>
-                <p>
-                    Direct bank wire transfers allow 100% of your funds to reach the project with zero third-party gateway deductions. 
-                    Copy any detail below with one click:
-                </p>
-            </div>
-
-            <!-- EDIT PAYMENT DETAILS HERE: Direct Bank Transfer Details -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {{-- Account Title --}}
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-                    <div>
-                        <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Account Title</span>
-                        <span class="text-sm font-bold text-slate-800">Muhammad Saad Siddique</span>
-                    </div>
-                    <button type="button" @click="copyText('The Eternal Echo / Asloob ul Hayat', 'Account Title copied!')" class="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-emerald-600 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                </div>
-
-                {{-- Bank Name --}}
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-                    <div>
-                        <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Bank Name</span>
-                        <span class="text-sm font-bold text-slate-800">Meezan Bank Limited (Islamic Banking)</span>
-                    </div>
-                    <button type="button" @click="copyText('Meezan Bank Limited', 'Bank Name copied!')" class="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-emerald-600 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                </div>
-
-                {{-- IBAN --}}
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-                    <div>
-                        <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block">IBAN Number</span>
-                        <span class="text-sm font-mono font-bold text-slate-900 tracking-wider">click to Copy</span>
-                    </div>
-                    <button type="button" @click="copyText('PK66MEZN0008010113847096', 'IBAN copied!')" class="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-emerald-600 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                </div>
-
-                <!--{{-- Account Number --}}
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-                    <div>
-                        <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Account Number</span>
-                        <span class="text-sm font-mono font-bold text-slate-900">0101010101010101</span>
-                    </div>
-                    <button type="button" @click="copyText('0101010101010101', 'Account Number copied!')" class="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-emerald-600 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                </div>
-
-                {{-- SWIFT / BIC --}}
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-                    <div>
-                        <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block">SWIFT / BIC (International)</span>
-                        <span class="text-sm font-mono font-bold text-slate-900">MEZNPKKA</span>
-                    </div>
-                    <button type="button" @click="copyText('MEZNPKKA', 'SWIFT code copied!')" class="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-emerald-600 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                </div>
-
-                {{-- Branch Code --}}
-                <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 flex items-center justify-between">
-                    <div>
-                        <span class="text-[10px] font-black uppercase text-slate-400 tracking-wider block">Branch Code / Routing</span>
-                        <span class="text-sm font-bold text-slate-800">Main Islamic Branch (0101)</span>
-                    </div>
-                    <button type="button" @click="copyText('0101', 'Branch code copied!')" class="p-2 hover:bg-white rounded-xl text-slate-500 hover:text-emerald-600 transition-colors shadow-sm">
-                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>
-                    </button>
-                </div>-->
             </div>
         </div>
 
@@ -519,7 +432,7 @@
                 <span class="text-emerald-400 text-xs font-bold uppercase tracking-widest">Acknowledgment & Record</span>
                 <h3 class="text-2xl font-black text-white mt-1">Let Us Know About Your Gift</h3>
                 <p class="text-xs text-slate-400 mt-1">
-                    If you sent a direct wire transfer or mobile payment, please let us know so we can confirm receipt, acknowledge your contribution, and make du'a for you.
+                    Share your details below, then you'll be taken to our secure Whop checkout to complete your contribution. We'll acknowledge your gift and make du'a for you.
                 </p>
             </div>
 
@@ -575,7 +488,7 @@
                     <div>
                         <label class="block text-xs font-bold uppercase text-slate-400 mb-1">Payment Method</label>
                         <select name="payment_method" class="w-full bg-slate-800/80 border border-slate-700 rounded-xl px-3 py-2.5 text-xs text-white focus:outline-none focus:border-emerald-500">
-                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="whop">Whop (Card / Online)</option>
                             <option value="paypal">PayPal</option>
                             <option value="stripe">Credit / Debit Card</option>
                             <option value="easypaisa">EasyPaisa</option>
@@ -603,7 +516,7 @@
                 <div class="pt-2 text-center">
                     <button type="submit" 
                             class="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold text-xs rounded-full shadow-lg shadow-emerald-500/25 transition-all transform hover:-translate-y-0.5">
-                        Submit Contribution Notification ✨
+                        Continue to Secure Payment ✨
                     </button>
                 </div>
             </form>
@@ -659,7 +572,7 @@
 <script>
 function donationPage() {
     return {
-        activeTab: 'bank',
+        activeTab: 'mobile',
         selectedAmount: '25',
         toastMessage: '',
 

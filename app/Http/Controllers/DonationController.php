@@ -8,6 +8,8 @@ use Illuminate\Support\Facades\Auth;
 
 class DonationController extends Controller
 {
+    public const WHOP_CHECKOUT_URL = 'https://whop.com/asloob-ul-hayat/eternal-echo-sadaqah-jariyah-support/';
+
     /**
      * Display the donation / support page.
      */
@@ -98,7 +100,7 @@ class DonationController extends Controller
             'donor_email' => $donorEmail,
             'amount' => $validated['amount'] ?? null,
             'currency' => strtoupper($validated['currency'] ?? 'USD'),
-            'payment_method' => $validated['payment_method'] ?? 'bank_transfer',
+            'payment_method' => $validated['payment_method'] ?? 'whop',
             'transaction_reference' => $validated['transaction_reference'] ?? null,
             'message' => $validated['message'] ?? null,
             'status' => 'pending',
@@ -112,7 +114,7 @@ class DonationController extends Controller
             ]);
         }
 
-        return redirect()->route('donate')->with('success', 'JazakAllahu Khairan! Thank you for supporting the continuity of The Eternal Echo. May Allah reward you abundantly!');
+        return redirect()->away(self::WHOP_CHECKOUT_URL);
     }
 
     /**

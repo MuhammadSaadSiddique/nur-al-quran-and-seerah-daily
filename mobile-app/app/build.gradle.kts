@@ -8,13 +8,13 @@ plugins {
 
 android {
     namespace = "com.asloobulhayat.eternalecho"
-    compileSdk = 36
+    compileSdk = 37
     defaultConfig {
         applicationId = "com.asloobulhayat.eternalecho"
         minSdk = 24
-        targetSdk = 36
-        versionCode = 7
-        versionName = "2.6"
+        targetSdk = 37
+        versionCode = 8
+        versionName = "3.0"
     }
 
     buildTypes {

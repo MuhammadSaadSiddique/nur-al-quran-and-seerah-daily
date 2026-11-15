@@ -82,6 +82,7 @@ class MainActivity : ComponentActivity() {
     com.asloobulhayat.eternalecho.data.DailyEngagementStore.init(this)
     com.asloobulhayat.eternalecho.data.LastReadStore.init(this)
     com.asloobulhayat.eternalecho.data.SalahStore.init(this)
+    com.asloobulhayat.eternalecho.notifications.PrayerReminderScheduler.reschedule(this)
 
     setContent {
       EternalEchoMobileTheme {

@@ -802,6 +802,8 @@ fun MainScreen(
                         selectedTab = 0
                         onTabSelected(0)
                     }
+                    is DeepLinkDestination.Salah ->
+                        onItemClick(com.asloobulhayat.eternalecho.SalahRoute)
                 }
             }
         )

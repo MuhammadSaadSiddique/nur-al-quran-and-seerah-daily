@@ -48,8 +48,10 @@ class MosqueService
     private const TIME_PATTERN = '/^([01]\d|2[0-3]):[0-5]\d$/';
     private const EARTH_RADIUS_KM = 6371.0088;
 
-    public function __construct(private DailyEngagementService $engagement)
-    {
+    public function __construct(
+        private DailyEngagementService $engagement,
+        private ContributionPoints $points,
+    ) {
     }
 
     /**
@@ -178,6 +180,7 @@ class MosqueService
             return [
                 'mosque' => $this->present($existing, $this->distanceKm($lat, $lng, $existing->latitude, $existing->longitude)),
                 'duplicate' => true,
+                'points_awarded' => 0,
             ];
         }
 
@@ -225,10 +228,12 @@ class MosqueService
         });
 
         $this->recordContribution($user);
+        $points = $this->points->award($user, ContributionPoints::MOSQUE_ADDED, 'mosque_added:' . $mosque->id);
 
         return [
             'mosque' => $this->present($this->findActive($mosque->id) ?? $mosque, 0.0),
             'duplicate' => false,
+            'points_awarded' => $points,
         ];
     }
 
@@ -256,9 +261,13 @@ class MosqueService
 
         $before = $this->extractTimes($mosque->only(array_keys($times)));
         if ($before === $times) {
-            $this->confirmTimes($user, $mosque);
+            $confirmed = $this->confirmTimes($user, $mosque);
 
-            return ['mosque' => $this->present($this->findActive($mosque->id) ?? $mosque), 'changed' => false];
+            return [
+                'mosque' => $confirmed['mosque'],
+                'changed' => false,
+                'points_awarded' => $confirmed['points_awarded'],
+            ];
         }
 
         $updatesToday = MosqueContribution::where('user_id', $user->id)
@@ -271,7 +280,7 @@ class MosqueService
             ]);
         }
 
-        DB::transaction(function () use ($user, $mosque, $times, $before, $data) {
+        $contribution = DB::transaction(function () use ($user, $mosque, $times, $before, $data) {
             $mosque->fill($times);
             $mosque->times_updated_at = now();
             $mosque->times_updated_by = $user->id;
@@ -280,7 +289,7 @@ class MosqueService
             $mosque->times_confirmed_at = null;
             $mosque->save();
 
-            MosqueContribution::create([
+            return MosqueContribution::create([
                 'mosque_id' => $mosque->id,
                 'user_id' => $user->id,
                 'type' => MosqueContribution::TYPE_TIMES_UPDATED,
@@ -291,7 +300,11 @@ class MosqueService
 
         $this->recordContribution($user);
 
-        return ['mosque' => $this->present($this->findActive($mosque->id) ?? $mosque), 'changed' => true];
+        return [
+            'mosque' => $this->present($this->findActive($mosque->id) ?? $mosque),
+            'changed' => true,
+            'points_awarded' => $this->awardMosque($user, ContributionPoints::MOSQUE_UPDATED, $contribution->id),
+        ];
     }
 
     /**
@@ -326,13 +339,13 @@ class MosqueService
             && $mosque->times_updated_at->greaterThan($cooldownStart);
 
         if ($alreadyConfirmed || $isOwnFreshUpdate) {
-            return ['mosque' => $this->present($mosque), 'counted' => false];
+            return ['mosque' => $this->present($mosque), 'counted' => false, 'points_awarded' => 0];
         }
 
-        DB::transaction(function () use ($user, $mosque) {
+        $contribution = DB::transaction(function () use ($user, $mosque) {
             $mosque->increment('confirmations_count', 1, ['times_confirmed_at' => now()]);
 
-            MosqueContribution::create([
+            return MosqueContribution::create([
                 'mosque_id' => $mosque->id,
                 'user_id' => $user->id,
                 'type' => MosqueContribution::TYPE_CONFIRMED,
@@ -340,7 +353,11 @@ class MosqueService
             ]);
         });
 
-        return ['mosque' => $this->present($this->findActive($mosque->id) ?? $mosque->fresh()), 'counted' => true];
+        return [
+            'mosque' => $this->present($this->findActive($mosque->id) ?? $mosque->fresh()),
+            'counted' => true,
+            'points_awarded' => $this->awardMosque($user, ContributionPoints::MOSQUE_CONFIRMED, $contribution->id),
+        ];
     }
 
     /**
@@ -380,7 +397,8 @@ class MosqueService
         $sectPending = $sectDiffers && !$applySectNow;
         $previousSect = $mosque->sect;
 
-        DB::transaction(function () use ($user, $mosque, $data, $before, $after, $detailsChanged, $proposedSect, $applySectNow, $sectPending, $previousSect) {
+        $contributionId = null;
+        DB::transaction(function () use ($user, $mosque, $data, $before, $after, $detailsChanged, $proposedSect, $applySectNow, $sectPending, $previousSect, &$contributionId) {
             if ($applySectNow) {
                 $mosque->sect = $proposedSect;
                 $mosque->pending_sect = null;
@@ -393,13 +411,14 @@ class MosqueService
                 $mosque->pending_sect_by = $user->id;
                 $mosque->pending_sect_at = now();
 
-                MosqueContribution::create([
+                $proposed = MosqueContribution::create([
                     'mosque_id' => $mosque->id,
                     'user_id' => $user->id,
                     'type' => MosqueContribution::TYPE_SECT_PROPOSED,
                     'payload' => ['from' => $previousSect, 'to' => $proposedSect],
                     'note' => $this->nullableTrim($data['note'] ?? null),
                 ]);
+                $contributionId = $proposed->id;
             }
 
             if ($detailsChanged || $applySectNow || $sectPending) {
@@ -407,7 +426,7 @@ class MosqueService
             }
 
             if ($detailsChanged || $applySectNow) {
-                MosqueContribution::create([
+                $updated = MosqueContribution::create([
                     'mosque_id' => $mosque->id,
                     'user_id' => $user->id,
                     'type' => MosqueContribution::TYPE_DETAILS_UPDATED,
@@ -417,10 +436,12 @@ class MosqueService
                     ],
                     'note' => $this->nullableTrim($data['note'] ?? null),
                 ]);
+                $contributionId ??= $updated->id;
             }
         });
 
-        if ($detailsChanged) {
+        $changed = $detailsChanged || $applySectNow || $sectPending;
+        if ($changed) {
             $this->recordContribution($user);
         }
 
@@ -428,6 +449,9 @@ class MosqueService
             'mosque' => $this->present($this->findActive($mosque->id) ?? $mosque),
             'changed' => $detailsChanged || $applySectNow,
             'sect_pending' => $sectPending,
+            'points_awarded' => $changed
+                ? $this->awardMosque($user, ContributionPoints::MOSQUE_UPDATED, $contributionId)
+                : 0,
         ];
     }
 
@@ -495,15 +519,16 @@ class MosqueService
         $after = $this->adminSnapshot($mosque);
         $changedFields = array_keys(array_filter($after, fn ($value, $key) => $before[$key] !== $value, ARRAY_FILTER_USE_BOTH));
         if ($changedFields === []) {
-            return ['changed' => false, 'times_changed' => false, 'changed_fields' => []];
+            return ['changed' => false, 'times_changed' => false, 'changed_fields' => [], 'points_awarded' => 0];
         }
 
-        DB::transaction(function () use ($admin, $mosque, $before, $after, $changedFields) {
+        $contributionId = null;
+        DB::transaction(function () use ($admin, $mosque, $before, $after, $changedFields, &$contributionId) {
             $mosque->save();
 
             // Only what actually changed, so the history stays readable.
             $keys = array_flip($changedFields);
-            MosqueContribution::create([
+            $row = MosqueContribution::create([
                 'mosque_id' => $mosque->id,
                 'user_id' => $admin->id,
                 'type' => MosqueContribution::TYPE_DETAILS_UPDATED,
@@ -514,9 +539,15 @@ class MosqueService
                 ],
                 'note' => 'Edited in admin panel',
             ]);
+            $contributionId = $row->id;
         });
 
-        return ['changed' => true, 'times_changed' => $timesChanged, 'changed_fields' => $changedFields];
+        return [
+            'changed' => true,
+            'times_changed' => $timesChanged,
+            'changed_fields' => $changedFields,
+            'points_awarded' => $this->awardMosque($admin, ContributionPoints::MOSQUE_UPDATED, $contributionId),
+        ];
     }
 
     /** Everything the admin form can change, in comparable form. */
@@ -707,8 +738,19 @@ class MosqueService
             'confirmations' => (int) ($counts[MosqueContribution::TYPE_CONFIRMED] ?? 0),
             'mosques_helped' => $helpedIds->count(),
             'worshippers_benefiting' => (int) $worshippers,
+            'contribution_points' => (int) $user->contribution_points,
+            'total_score' => (int) $user->total_score,
             'recent' => $recent,
         ];
+    }
+
+    private function awardMosque(User $user, string $action, ?int $contributionId): int
+    {
+        if (!$contributionId) {
+            return 0;
+        }
+
+        return $this->points->award($user, $action, 'mosque_contribution:' . $contributionId);
     }
 
     /** @return array<string, mixed> */

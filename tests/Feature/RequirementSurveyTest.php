@@ -38,7 +38,11 @@ class RequirementSurveyTest extends TestCase
             ->assertOk()
             ->assertSee('Customize my')
             ->assertSee('Para-by-para quizzes')
-            ->assertSee('Salah times');
+            ->assertSee('Salah times')
+            // Android phones with the app installed are sent to eternalecho://survey.
+            // ?web=1 is the fallback when the app is not installed, so the page does not loop.
+            ->assertSee('intent://survey#Intent;scheme=eternalecho;package=com.asloobulhayat.eternalecho;', false)
+            ->assertSee('Open in the app', false);
     }
 
     public function test_guest_can_submit_a_complete_survey(): void

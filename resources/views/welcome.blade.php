@@ -214,50 +214,7 @@
             </div>
         </section>
 
-        <section id="themes" class="py-16 border-y border-emerald-800/40 bg-emerald-900/20">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-                <div class="text-center max-w-2xl mx-auto">
-                    <span class="text-xs uppercase font-mono tracking-widest text-gold-400">Choose a set</span>
-                    <h2 class="text-3xl sm:text-4xl font-bold text-white mt-1">Quiz collections</h2>
-                    <p class="text-slate-300 text-sm sm:text-base mt-2">Paras of the Quran and chapters of the Seerah. Open one to begin.</p>
-                </div>
-
-                <div>
-                    <h3 class="text-lg font-bold text-white mb-4">Quran paras</h3>
-                    @if($quranThemes->isNotEmpty())
-                        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            @foreach($quranThemes as $theme)
-                                <a href="{{ route('themes.show', $theme) }}" class="glass-panel glass-card-hover rounded-2xl p-5 block">
-                                    <p class="text-sm font-bold text-white">{{ $theme->name }}</p>
-                                    <p class="text-xs text-slate-400 mt-2 line-clamp-2">{{ $theme->description ?: 'Questions drawn from this para.' }}</p>
-                                    <p class="text-[11px] text-gold-400 mt-3">Open quiz</p>
-                                </a>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-sm text-slate-400">Para sets appear here as they are published. <a href="{{ route('login') }}" class="text-gold-400 hover:text-gold-300">Sign in</a> to start one from your dashboard.</p>
-                    @endif
-                </div>
-
-                <div>
-                    <h3 class="text-lg font-bold text-white mb-4">Seerah</h3>
-                    @if($seerahThemes->isNotEmpty())
-                        <div class="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                            @foreach($seerahThemes as $theme)
-                                <a href="{{ route('themes.show', $theme) }}" class="glass-panel glass-card-hover rounded-2xl p-5 block">
-                                    <p class="text-sm font-bold text-white">{{ $theme->name }}</p>
-                                    <p class="text-xs text-slate-400 mt-2 line-clamp-2">{{ $theme->description ?: 'Questions from this part of the Seerah.' }}</p>
-                                    <p class="text-[11px] text-gold-400 mt-3">Open quiz</p>
-                                </a>
-                            @endforeach
-                        </div>
-                    @else
-                        <p class="text-sm text-slate-400">Seerah sets appear here as they are published. <a href="{{ route('seerah') }}" class="text-gold-400 hover:text-gold-300">Read the Seerah</a> in the meantime.</p>
-                    @endif
-                </div>
-            </div>
-        </section>
-
+        
         <section id="features" class="py-16 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div class="text-center max-w-2xl mx-auto mb-10">
                 <h2 class="text-3xl sm:text-4xl font-bold text-white">How the quizzes work</h2>

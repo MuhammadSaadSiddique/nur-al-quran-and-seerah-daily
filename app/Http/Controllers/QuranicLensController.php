@@ -714,7 +714,7 @@ class QuranicLensController extends Controller
             $lensType = $request->science_category;
         }
 
-        QuranicLensAnalysis::create([
+        $analysis = QuranicLensAnalysis::create([
             'user_id' => Auth::id(),
             'chapter_number' => $request->chapter_number,
             'verse_number' => $request->verse_number,
@@ -726,9 +726,13 @@ class QuranicLensController extends Controller
             'status' => (Auth::user() && Auth::user()->is_researcher) ? 'approved' : 'pending',
         ]);
 
+        $points = Auth::user()
+            ? app(\App\Services\ContributionPoints::class)->forLensAnalysis(Auth::user(), $analysis->id)
+            : 0;
+
         $isResearcher = Auth::user() && Auth::user()->is_researcher;
         $message = $isResearcher ? 'Your lens analysis has been published successfully.' : 'Your lens analysis has been submitted and is currently pending review by a researcher.';
-        return back()->with('success', $message);
+        return back()->with('success', $message . \App\Services\ContributionPoints::note($points));
     }
 
     /**

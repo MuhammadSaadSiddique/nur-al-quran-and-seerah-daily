@@ -11,12 +11,14 @@ class UserDailyEngagement extends Model
     public const ACTIVITY_CONTRIBUTE = 'contribute';
     public const ACTIVITY_INSIGHT = 'insight';
     public const ACTIVITY_DUA = 'dua';
+    public const ACTIVITY_PRAYER = 'prayer';
 
     public const ACTIVITIES = [
         self::ACTIVITY_QUIZ,
         self::ACTIVITY_CONTRIBUTE,
         self::ACTIVITY_INSIGHT,
         self::ACTIVITY_DUA,
+        self::ACTIVITY_PRAYER,
     ];
 
     protected $fillable = [

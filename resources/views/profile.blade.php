@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @section('title', 'Profile - The Eternal Echo')
-@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-2xl mx-auto space-y-8 pb-10 animate-fadeIn">
@@ -68,6 +67,24 @@
             </form>
         </div>
 
+        {{-- Affiliate link --}}
+        <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-4" x-data="{ copied: false }">
+            <div>
+                <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Your invite link</h3>
+                <p class="text-slate-500 text-sm font-medium mt-1">Share this link. You earn {{ \App\Services\ContributionPoints::AFFILIATE_SIGNUP_POINTS }} points when someone new joins through it.</p>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input x-ref="affiliateLink" type="text" readonly value="{{ $user->affiliateUrl() }}"
+                    class="flex-1 p-4 rounded-xl border-2 border-slate-100 font-bold text-slate-800 bg-slate-50">
+                <button type="button"
+                    @click="navigator.clipboard.writeText($refs.affiliateLink.value); copied = true"
+                    class="bg-slate-900 text-white px-5 py-4 rounded-xl font-black hover:bg-emerald-800 transition-all">
+                    <span x-text="copied ? 'Copied' : 'Copy'"></span>
+                </button>
+            </div>
+            <p class="text-xs font-bold text-slate-500">{{ $user->referrals_count }} {{ \Illuminate\Support\Str::plural('person', $user->referrals_count) }} joined with your link.</p>
+        </div>
+
         {{-- Daily Streak Card --}}
         @php
             $streak = $user->getStreakStatus();
@@ -118,7 +135,7 @@
                 @php
                     $pPct = (int) ($engagement['progress_percent'] ?? 0);
                     $pDone = (int) ($engagement['completed_count'] ?? 0);
-                    $pTotal = (int) ($engagement['total'] ?? 4);
+                    $pTotal = (int) ($engagement['total'] ?? 5);
                 @endphp
                 <div class="pt-2 border-t border-amber-100/80 space-y-3">
                     <div class="flex items-center justify-between">
@@ -149,6 +166,14 @@
                 <div class="flex justify-between py-4">
                     <span class="font-bold text-slate-600">Daily Streak</span>
                     <span class="font-black text-amber-600">🔥 {{ $streak['current_streak'] }} Days</span>
+                </div>
+                <div class="flex justify-between py-4">
+                    <span class="font-bold text-slate-600">Points</span>
+                    <span class="font-black text-emerald-600">{{ number_format($user->total_score) }}</span>
+                </div>
+                <div class="flex justify-between py-4">
+                    <span class="font-bold text-slate-600">From mosques & Quran</span>
+                    <span class="font-black text-emerald-600">{{ number_format($user->contribution_points) }}</span>
                 </div>
                 <div class="flex justify-between py-4">
                     <span class="font-bold text-slate-600">Accuracy</span>

@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('title', 'Admin Panel - Requirements Survey')
-@section('robots', 'noindex, nofollow')
 
 @push('styles')
 <style>

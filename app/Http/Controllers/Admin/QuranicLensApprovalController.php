@@ -627,7 +627,17 @@ class QuranicLensApprovalController extends Controller
             return back()->with('error', 'Failed to map connection link: ' . $e->getMessage());
         }
 
-        return back()->with('success', 'New connection link was successfully mapped. Data duplication check verified.');
+        $points = 0;
+        if ($admin = Auth::user()) {
+            $points = app(\App\Services\ContributionPoints::class)->forConnectionLink(
+                $admin,
+                (string) $request->link_type,
+                (int) $verse->id,
+                (string) $request->title
+            );
+        }
+
+        return back()->with('success', 'New connection link was successfully mapped. Data duplication check verified.' . \App\Services\ContributionPoints::note($points));
     }
 
     /**

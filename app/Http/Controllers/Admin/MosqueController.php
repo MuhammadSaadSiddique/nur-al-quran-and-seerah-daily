@@ -9,6 +9,7 @@ use App\Services\MosqueService;
 use App\Services\OsmMosqueImporter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
 /**
@@ -52,8 +53,19 @@ class MosqueController extends Controller
         'clear_reports' => 'Clear reports',
         'approve_sect' => 'Approve proposed school of thought',
         'reject_sect' => 'Reject proposed school of thought',
+        'set_city' => 'Set city to…',
+        'set_country' => 'Set country to…',
         'delete' => 'Delete permanently',
     ];
+
+    /** Bulk actions that write a typed value into a column, with its length limit. */
+    private const VALUE_ACTIONS = [
+        'set_city' => ['column' => 'city', 'max' => 120, 'label' => 'City'],
+        'set_country' => ['column' => 'country', 'max' => 80, 'label' => 'Country'],
+    ];
+
+    /** Filter value meaning "this field is empty". */
+    public const NONE = '__none__';
 
     /** Upper bound for one bulk action, so a stray "select all" can't touch the whole directory. */
     public const MAX_BULK = 500;
@@ -101,8 +113,16 @@ class MosqueController extends Controller
             ->get()
             ->groupBy('mosque_id');
 
-        $cities = Mosque::whereNotNull('city')->where('city', '!=', '')
-            ->distinct()->orderBy('city')->limit(300)->pluck('city');
+        // Name => how many mosques use it, so spelling variants are easy to spot and merge.
+        $valueCounts = fn (string $column, int $limit) => Mosque::query()
+            ->whereNotNull($column)->where($column, '!=', '')
+            ->selectRaw("{$column} as field_value, count(*) as total")
+            ->groupBy($column)->orderBy($column)->limit($limit)
+            ->pluck('total', 'field_value');
+        $cities = $valueCounts('city', 300);
+        $countries = $valueCounts('country', 100);
+        $noCity = Mosque::where(fn ($q) => $q->whereNull('city')->orWhere('city', ''))->count();
+        $noCountry = Mosque::where(fn ($q) => $q->whereNull('country')->orWhere('country', ''))->count();
 
         $activeFilterCount = count(array_filter($filters, fn ($v) => $v !== '')) + ($sort ? 1 : 0);
 
@@ -115,6 +135,10 @@ class MosqueController extends Controller
             'filters' => $filters,
             'sort' => $sort ?? $this->defaultSort($queue),
             'cities' => $cities,
+            'countries' => $countries,
+            'noCity' => $noCity,
+            'noCountry' => $noCountry,
+            'none' => self::NONE,
             'activeFilterCount' => $activeFilterCount,
             'sorts' => self::SORTS,
             'timeFilters' => self::TIME_FILTERS,
@@ -137,6 +161,16 @@ class MosqueController extends Controller
             'ids.*' => ['integer'],
             'select_all_matching' => ['nullable', 'boolean'],
             'expected_count' => ['nullable', 'integer', 'min:0'],
+            // Not "city"/"country": those carry the list's current filters.
+            'bulk_value' => [
+                'nullable',
+                'required_if:action,' . implode(',', array_keys(self::VALUE_ACTIONS)),
+                'string',
+                'max:' . (self::VALUE_ACTIONS[$request->input('action')]['max'] ?? 120),
+            ],
+        ], [
+            'bulk_value.required_if' => 'Type the new value first.',
+            'bulk_value.max' => 'That name is too long.',
         ]);
 
         $query = Mosque::query();
@@ -166,6 +200,23 @@ class MosqueController extends Controller
         }
 
         $action = $data['action'];
+
+        if (isset(self::VALUE_ACTIONS[$action])) {
+            $spec = self::VALUE_ACTIONS[$action];
+            $value = trim(preg_replace('/\s+/u', ' ', (string) $data['bulk_value']));
+            if ($value === '') {
+                return back()->withErrors(['bulk' => 'Type the new value first.']);
+            }
+            $changed = $this->setColumn($query, $spec['column'], $value, $request->user()?->id);
+            $noun = \Illuminate\Support\Str::plural('mosque', $changed);
+            $message = "{$spec['label']} set to “{$value}” on {$changed} {$noun}.";
+            if ($changed < $total) {
+                $message .= ' ' . ($total - $changed) . ' already had it.';
+            }
+
+            return back()->with('success', $message);
+        }
+
         $affected = match ($action) {
             'verify' => $query->update(['is_verified' => true, 'status' => Mosque::STATUS_ACTIVE, 'updated_at' => now()]),
             'unverify' => $query->update(['is_verified' => false, 'updated_at' => now()]),
@@ -202,12 +253,55 @@ class MosqueController extends Controller
         return back()->with('success', $message);
     }
 
+    /**
+     * Write one value into a column for many mosques, logging each change as
+     * an admin edit. The log matters: an OpenStreetMap refresh overwrites
+     * fields on mosques nobody edited, so without it a renamed city would
+     * quietly revert on the next refresh.
+     *
+     * @return int mosques actually changed
+     */
+    private function setColumn(Builder $query, string $column, string $value, ?int $adminId): int
+    {
+        $rows = (clone $query)
+            ->where(fn (Builder $q) => $q->whereNull($column)->orWhere($column, '!=', $value))
+            ->get(['id', $column]);
+        if ($rows->isEmpty()) {
+            return 0;
+        }
+
+        $now = now();
+        DB::transaction(function () use ($rows, $column, $value, $adminId, $now) {
+            foreach ($rows->chunk(500) as $chunk) {
+                Mosque::whereIn('id', $chunk->pluck('id'))->update([$column => $value, 'updated_at' => $now]);
+
+                MosqueContribution::insert($chunk->map(fn (Mosque $m) => [
+                    'mosque_id' => $m->id,
+                    'user_id' => $adminId,
+                    'type' => MosqueContribution::TYPE_DETAILS_UPDATED,
+                    'payload' => json_encode([
+                        'by_admin' => true,
+                        'bulk' => true,
+                        'before' => [$column => $m->{$column}],
+                        'after' => [$column => $value],
+                    ], JSON_UNESCAPED_UNICODE),
+                    'note' => 'Bulk edit in admin panel',
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all());
+            }
+        });
+
+        return $rows->count();
+    }
+
     /** @return array<string, string> */
     private function readFilters(Request $request): array
     {
         return [
             'search' => trim((string) $request->input('search', '')),
             'city' => trim((string) $request->input('city', '')),
+            'country' => trim((string) $request->input('country', '')),
             'sect' => (string) $request->input('sect', ''),
             'place_type' => (string) $request->input('place_type', ''),
             'asr' => (string) $request->input('asr', ''),
@@ -333,6 +427,7 @@ class MosqueController extends Controller
             $result['times_changed'] => "{$mosque->name} updated. Times changed, so confirmations were reset.",
             default => "{$mosque->name} updated.",
         };
+        $message .= \App\Services\ContributionPoints::note((int) ($result['points_awarded'] ?? 0));
 
         $returnTo = $this->safeReturnUrl($request->input('return'));
 
@@ -366,8 +461,13 @@ class MosqueController extends Controller
             });
         }
 
-        if ($filters['city'] !== '') {
-            $query->where('city', $filters['city']);
+        foreach (['city', 'country'] as $column) {
+            $wanted = $filters[$column] ?? '';
+            if ($wanted === self::NONE) {
+                $query->where(fn (Builder $q) => $q->whereNull($column)->orWhere($column, ''));
+            } elseif ($wanted !== '') {
+                $query->where($column, $wanted);
+            }
         }
 
         match ($filters['source'] ?? '') {

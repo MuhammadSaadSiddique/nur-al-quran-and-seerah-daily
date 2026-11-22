@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @section('title', 'Quiz History - The Eternal Echo')
-@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-4xl mx-auto space-y-8 pb-10 animate-fadeIn">

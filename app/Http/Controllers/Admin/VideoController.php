@@ -159,8 +159,14 @@ class VideoController extends Controller
             );
         }
 
+        $points = 0;
+        if (Auth::user()) {
+            $points = app(\App\Services\ContributionPoints::class)
+                ->forResearch(Auth::user(), $resolvedCategory, $contribution->id);
+        }
+
         return redirect()->route('admin.videos.index', ['status' => $status])
-            ->with('success', "Video '{$contribution->title}' has been successfully added " . ($isPublished ? 'and PUBLISHED!' : 'as pending review.'));
+            ->with('success', "Video '{$contribution->title}' has been successfully added " . ($isPublished ? 'and PUBLISHED!' : 'as pending review.') . \App\Services\ContributionPoints::note($points));
     }
 
     /**

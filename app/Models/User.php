@@ -7,6 +7,8 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Laravel\Sanctum\HasApiTokens;
 
 class User extends Authenticatable
@@ -22,7 +24,10 @@ class User extends Authenticatable
         'quran_access_token',
         'quran_refresh_token',
         'expert_category_id',
+        'affiliate_code',
+        'referred_by',
         'total_score',
+        'contribution_points',
         'total_questions',
         'seerah_read_count',
         'quran_history_read_count',
@@ -108,7 +113,99 @@ class User extends Authenticatable
             'is_admin' => 'boolean',
             'is_researcher' => 'boolean',
             'expert_category_id' => 'integer',
+            'contribution_points' => 'integer',
         ];
+    }
+
+    public function pointAwards()
+    {
+        return $this->hasMany(UserPointAward::class);
+    }
+
+    public function referredBy()
+    {
+        return $this->belongsTo(self::class, 'referred_by');
+    }
+
+    public function referrals()
+    {
+        return $this->hasMany(self::class, 'referred_by');
+    }
+
+    /**
+     * Stable public code for this user's invite link. Created the first time it is needed.
+     */
+    public function ensureAffiliateCode(): string
+    {
+        if (!empty($this->affiliate_code)) {
+            return (string) $this->affiliate_code;
+        }
+
+        try {
+            if (!Schema::hasColumn('users', 'affiliate_code')) {
+                return '';
+            }
+        } catch (\Throwable) {
+            return '';
+        }
+
+        $alphabet = 'abcdefghjkmnpqrstuvwxyz23456789';
+        $max = strlen($alphabet) - 1;
+
+        for ($attempt = 0; $attempt < 5; $attempt++) {
+            $code = '';
+            for ($i = 0; $i < 8; $i++) {
+                $code .= $alphabet[random_int(0, $max)];
+            }
+
+            $taken = static::query()->where('affiliate_code', $code)->exists();
+            if ($taken) {
+                continue;
+            }
+
+            $this->forceFill(['affiliate_code' => $code])->save();
+
+            return $code;
+        }
+
+        $fallback = strtolower(Str::random(8));
+        $this->forceFill(['affiliate_code' => $fallback])->save();
+
+        return $fallback;
+    }
+
+    public function affiliateUrl(): string
+    {
+        $code = $this->ensureAffiliateCode();
+        if ($code === '') {
+            return url('/');
+        }
+
+        return route('affiliate.visit', ['code' => $code]);
+    }
+
+    /**
+     * Attach this new account to the person who shared the invite, and pay them once.
+     */
+    public function claimAffiliate(?string $code): int
+    {
+        $code = strtolower(trim((string) $code));
+        if ($code === '' || $this->referred_by) {
+            return 0;
+        }
+
+        $referrer = static::query()->where('affiliate_code', $code)->first();
+        if (!$referrer || (int) $referrer->id === (int) $this->id) {
+            return 0;
+        }
+
+        $this->forceFill(['referred_by' => $referrer->id])->save();
+
+        return app(\App\Services\ContributionPoints::class)->award(
+            $referrer,
+            \App\Services\ContributionPoints::AFFILIATE_SIGNUP,
+            'affiliate_signup:' . $this->id
+        );
     }
 
     public function quizzes()
@@ -170,13 +267,22 @@ class User extends Authenticatable
         return ($easyTotal * 5) + ($mediumTotal * 10) + ($hardTotal * 15) + $insightTotal;
     }
 
+    /**
+     * Quiz points only. Contribution awards are stored inside total_score as well
+     * so existing leaderboards keep rising, and subtracted back out here.
+     */
+    public function getQuizScoreAttribute(): int
+    {
+        return max(0, (int) $this->total_score - (int) $this->contribution_points);
+    }
+
     public function getAccuracyAttribute(): int
     {
         $maxPossible = $this->max_possible_score;
         if ($maxPossible <= 0) {
             return 0;
         }
-        $accuracy = (int) round(($this->total_score / $maxPossible) * 100);
+        $accuracy = (int) round(($this->quiz_score / $maxPossible) * 100);
         return min(100, max(0, $accuracy));
     }
 
@@ -210,6 +316,7 @@ class User extends Authenticatable
                 'longest_streak' => (int) ($this->longest_streak ?? 1),
                 'last_streak_date' => $today,
                 'is_active_today' => true,
+                'points_awarded' => 0,
                 'message' => 'Streak already maintained for today!'
             ];
         }
@@ -241,12 +348,15 @@ class User extends Authenticatable
             \Illuminate\Support\Facades\Log::warning('Streak persistence error: ' . $e->getMessage());
         }
 
+        $points = app(\App\Services\ContributionPoints::class)->forDailyStreak($this, (int) $this->streak_count, $today);
+
         return [
             'status' => 'success',
             'streak_count' => (int) $this->streak_count,
             'longest_streak' => (int) $this->longest_streak,
             'last_streak_date' => $today,
             'is_active_today' => true,
+            'points_awarded' => $points,
             'message' => 'Daily streak increased! Keep up your devotion.'
         ];
     }

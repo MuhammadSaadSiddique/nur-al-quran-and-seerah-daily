@@ -42,8 +42,6 @@ class SitemapController extends Controller
             'priority' => '0.9',
         ];
 
-       
-
         // 5. Sadaqah Jariyah & Support
         if (Route::has('donate')) {
             $urls[] = [

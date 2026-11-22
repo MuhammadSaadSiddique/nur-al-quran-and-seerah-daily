@@ -159,11 +159,17 @@ class ResearchApiController extends Controller
             'status' => $status,
         ]);
 
+        $points = app(\App\Services\ContributionPoints::class)->forLensAnalysis($user, $analysis->id);
+
         return response()->json([
             'success' => true,
-            'message' => $status === 'approved' 
-                ? 'Your research analysis has been published successfully.' 
-                : 'Your research analysis has been submitted and is currently pending review by a researcher.',
+            'message' => ($status === 'approved'
+                ? 'Your research analysis has been published successfully.'
+                : 'Your research analysis has been submitted and is currently pending review by a researcher.')
+                . \App\Services\ContributionPoints::note($points),
+            'points_awarded' => $points,
+            'total_score' => (int) $user->total_score,
+            'contribution_points' => (int) $user->contribution_points,
             'data' => $analysis->load(['user:id,name,display_name', 'theme:id,title,slug'])
         ], 201);
     }

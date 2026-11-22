@@ -82,11 +82,21 @@ class DeepLinkHelperTest {
         val dest1 = DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/quiz-learning")
         assertEquals(DeepLinkDestination.Quiz, dest1)
 
-        val dest2 = DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/themes")
-        assertEquals(DeepLinkDestination.Quiz, dest2)
-
         val dest3 = DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/quiz")
         assertEquals(DeepLinkDestination.Quiz, dest3)
+    }
+
+    @Test
+    fun testThemePagesOpenOnWeb() {
+        assertNull(DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/themes"))
+        assertEquals(
+            "https://theeternalecho.asloobulhayat.com/themes",
+            DeepLinkHelper.externalWebUrl("https://theeternalecho.asloobulhayat.com/themes")
+        )
+        assertEquals(
+            "https://theeternalecho.asloobulhayat.com/themes/allahs-mercy",
+            DeepLinkHelper.externalWebUrl("https://theeternalecho.asloobulhayat.com/themes/allahs-mercy")
+        )
     }
 
     @Test
@@ -171,6 +181,18 @@ class DeepLinkHelperTest {
             "https://theeternalecho.asloobulhayat.com/duas/ayat-al-kursi",
             DeepLinkHelper.toAbsoluteUrl("/duas/ayat-al-kursi")
         )
+    }
+
+    @Test
+    fun testSurveyDeepLinkStaysInApp() {
+        // Regression: /survey had no route, so the app re-opened the same URL and looped.
+        assertEquals(DeepLinkDestination.Survey, DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/survey"))
+        assertEquals(DeepLinkDestination.Survey, DeepLinkHelper.parse("https://www.theeternalecho.asloobulhayat.com/survey?utm_source=wa"))
+        assertEquals(DeepLinkDestination.Survey, DeepLinkHelper.parse("eternalecho://survey"))
+        assertEquals(DeepLinkDestination.Survey, DeepLinkHelper.parse("/survey"))
+        assertNull(DeepLinkHelper.externalWebUrl("https://theeternalecho.asloobulhayat.com/survey"))
+        // Admin results page is web-only.
+        assertNull(DeepLinkHelper.parse("https://theeternalecho.asloobulhayat.com/admin/survey"))
     }
 
     @Test

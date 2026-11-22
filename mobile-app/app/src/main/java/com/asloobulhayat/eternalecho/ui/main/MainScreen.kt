@@ -770,7 +770,7 @@ fun MainScreen(
                 if (destination == null) {
                     val external = DeepLinkHelper.externalWebUrl(item.actionUrl) ?: return@open
                     showNotificationsSheet = false
-                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(external)))
+                    com.asloobulhayat.eternalecho.util.BrowserHelper.open(context, external)
                     return@open
                 }
                 showNotificationsSheet = false
@@ -804,6 +804,8 @@ fun MainScreen(
                     }
                     is DeepLinkDestination.Salah ->
                         onItemClick(com.asloobulhayat.eternalecho.SalahRoute)
+                    is DeepLinkDestination.Survey ->
+                        onItemClick(com.asloobulhayat.eternalecho.SurveyRoute)
                 }
             }
         )
@@ -989,6 +991,16 @@ fun MainScreen(
                                     }
                                 }
                             }
+                            "prayer" -> {
+                                onItemClick(com.asloobulhayat.eternalecho.SalahRoute)
+                                DailyEngagementStore.markLocal("prayer")
+                                if (isLoggedIn) {
+                                    scope.launch {
+                                        ApiClient.authToken = prefs.getString("api_token", null)
+                                        repository.markEngagement(userId, "prayer")
+                                    }
+                                }
+                            }
                         }
                     },
                     onStartQuizClick = { onItemClick(ThemeQuizSelection) },
@@ -1004,7 +1016,16 @@ fun MainScreen(
                             }
                         }
                     },
-                    onSalahClick = { onItemClick(com.asloobulhayat.eternalecho.SalahRoute) },
+                    onSalahClick = {
+                        onItemClick(com.asloobulhayat.eternalecho.SalahRoute)
+                        DailyEngagementStore.markLocal("prayer")
+                        if (isLoggedIn) {
+                            scope.launch {
+                                ApiClient.authToken = prefs.getString("api_token", null)
+                                repository.markEngagement(userId, "prayer")
+                            }
+                        }
+                    },
                     onSurveyClick = { onItemClick(com.asloobulhayat.eternalecho.SurveyRoute) },
                     onReflectClick = { onItemClick(SurahNavKey(2, 286)) },
                     onReadingProgressClick = {

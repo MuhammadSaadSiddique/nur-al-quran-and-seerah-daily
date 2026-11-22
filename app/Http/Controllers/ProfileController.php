@@ -11,6 +11,8 @@ class ProfileController extends Controller
     public function show()
     {
         $user = Auth::user();
+        $user->ensureAffiliateCode();
+        $user->loadCount('referrals');
         $engagement = app(\App\Services\DailyEngagementService::class)->todayStatus($user);
         return view('profile', compact('user', 'engagement'));
     }

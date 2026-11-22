@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @section('title', 'Your Progress - The Eternal Echo')
-@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-5xl mx-auto space-y-10 pb-10 animate-fadeIn">
@@ -40,8 +39,16 @@
         <div class="bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-6">
             <h2 class="text-xl font-black text-slate-900 uppercase tracking-wider">Score Breakdown</h2>
             <div class="flex items-center justify-between">
-                <span class="font-bold text-slate-600">Total Score</span>
-                <span class="font-black text-emerald-600">{{ $user->total_score }} / {{ $user->max_possible_score }}</span>
+                <span class="font-bold text-slate-600">Quiz score</span>
+                <span class="font-black text-emerald-600">{{ $user->quiz_score }} / {{ $user->max_possible_score }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-600">Mosques, videos & connections</span>
+                <span class="font-black text-emerald-600">{{ number_format($user->contribution_points) }}</span>
+            </div>
+            <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-600">Total points</span>
+                <span class="font-black text-emerald-600">{{ number_format($user->total_score) }}</span>
             </div>
             @if($user->total_questions > 0)
                 <div class="w-full h-4 bg-slate-200 rounded-full overflow-hidden">

@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @section('title', 'Dashboard - The Eternal Echo')
-@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="space-y-12 pb-10 animate-fadeIn" x-data="homePage()">
@@ -15,7 +14,7 @@
                 $homeStreak = $engagement['streak'] ?? $user->getStreakStatus();
                 $progressPercent = (int) ($engagement['progress_percent'] ?? 0);
                 $completedCount = (int) ($engagement['completed_count'] ?? 0);
-                $engagementTotal = (int) ($engagement['total'] ?? 4);
+                $engagementTotal = (int) ($engagement['total'] ?? 5);
                 $ringRadius = 36;
                 $ringCircumference = 2 * M_PI * $ringRadius;
                 $ringOffset = $ringCircumference * (1 - ($progressPercent / 100));
@@ -62,7 +61,7 @@
                 <div class="flex-1 w-full space-y-3 text-left">
                     <div>
                         <h3 class="text-lg font-black text-slate-900 uppercase tracking-wider">Today's Devotion</h3>
-                        <p class="text-xs font-medium text-slate-500">Complete any habit to keep your streak alive.</p>
+                        <p class="text-xs font-medium text-slate-500">Each task earns {{ \App\Services\ContributionPoints::DAILY_TASK_POINTS }} points. Checking in earns {{ \App\Services\ContributionPoints::STREAK_BASE_POINTS }} points on day 1, plus 1 more for every extra day of your streak, up to {{ \App\Services\ContributionPoints::STREAK_MAX_POINTS }}.</p>
                     </div>
                     <ul class="space-y-2">
                         @foreach(($engagement['activities'] ?? []) as $key => $activity)

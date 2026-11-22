@@ -25,6 +25,7 @@ import com.asloobulhayat.eternalecho.notifications.NotificationSyncWorker
 import com.asloobulhayat.eternalecho.security.AppSecurity
 import com.asloobulhayat.eternalecho.theme.EternalEchoMobileTheme
 import com.asloobulhayat.eternalecho.util.DeepLinkDestination
+import com.asloobulhayat.eternalecho.util.BrowserHelper
 import com.asloobulhayat.eternalecho.util.DeepLinkHelper
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.semantics.semantics
@@ -134,11 +135,10 @@ class MainActivity : ComponentActivity() {
       currentDeepLink = destination
     } else {
       val external = DeepLinkHelper.externalWebUrl(actionUrl ?: targetUri?.toString())
+      // Must go to a browser explicitly: we're a verified App Link for every path on our domain,
+      // so a plain ACTION_VIEW for an unmapped page lands back here and loops forever.
       if (!external.isNullOrBlank()) {
-        try {
-          startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(external)))
-        } catch (_: Exception) {
-        }
+        BrowserHelper.open(this, external)
       }
     }
   }

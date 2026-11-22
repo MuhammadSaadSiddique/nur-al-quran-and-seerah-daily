@@ -76,7 +76,7 @@ class QuranicLensConnectionTest extends TestCase
         ]);
 
         $response->assertStatus(302);
-        $response->assertSessionHas('success', 'New connection link was successfully mapped. Data duplication check verified.');
+        $response->assertSessionHas('success', 'New connection link was successfully mapped. Data duplication check verified. You earned 10 points.');
 
         $this->assertDatabaseHas('science_facts', [
             'title' => 'Cosmological expansion of orbits',

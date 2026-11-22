@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @section('title', 'Bookmarks - The Eternal Echo')
-@section('robots', 'noindex, nofollow')
 
 @section('content')
     <div class="max-w-3xl mx-auto space-y-8 pb-10 animate-fadeIn" x-data="bookmarkPage({{ json_encode($bookmarks) }})">

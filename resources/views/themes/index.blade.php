@@ -12,7 +12,7 @@
         }
 
         .theme-gradient-quran {
-            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
         }
 
         .theme-gradient-seerah {
@@ -74,7 +74,7 @@
                 <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Themes</div>
             </div>
             <div class="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-white/50 shadow-xl text-center">
-                <div class="text-3xl font-black text-sky-600 mb-1">Global</div>
+                <div class="text-3xl font-black text-emerald-600 mb-1">Global</div>
                 <div class="text-[10px] font-black uppercase tracking-widest text-slate-400">Knowledge Base</div>
             </div>
             <div class="bg-white/80 backdrop-blur-md p-6 rounded-[2rem] border border-white/50 shadow-xl text-center">
@@ -91,7 +91,7 @@
         <section class="mb-24">
             <div class="flex items-center space-x-6 mb-12 px-4">
                 <h2 class="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">Quranic Para Themes</h2>
-                <div class="h-px flex-1 bg-gradient-to-r from-sky-200 to-transparent"></div>
+                <div class="h-px flex-1 bg-gradient-to-r from-emerald-200 to-transparent"></div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
@@ -99,19 +99,19 @@
                     <a href="{{ route('themes.show', $theme) }}"
                         class="group relative flex flex-col bg-white rounded-[2.5rem] p-8 shadow-sm hover:shadow-2xl hover:-translate-y-2 transition-all duration-500 overflow-hidden border border-slate-100">
                         <div
-                            class="absolute top-0 right-0 w-32 h-32 bg-sky-50 rounded-bl-full -mr-10 -mt-10 group-hover:bg-sky-600 transition-colors duration-500 opacity-20 group-hover:opacity-100">
+                            class="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -mr-10 -mt-10 group-hover:bg-emerald-600 transition-colors duration-500 opacity-20 group-hover:opacity-100">
                         </div>
 
                         <div class="relative z-10">
                             <div
-                                class="w-14 h-14 bg-sky-100 text-sky-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-white group-hover:scale-110 transition-all duration-500">
+                                class="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-2xl flex items-center justify-center mb-6 group-hover:bg-white group-hover:scale-110 transition-all duration-500">
                                 <svg class="w-7 h-7" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.247 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                                 </svg>
                             </div>
                             <h3
-                                class="text-xl font-bold text-slate-800 group-hover:text-sky-900 transition-colors mb-3 animated-border inline-block">
+                                class="text-xl font-bold text-slate-800 group-hover:text-emerald-900 transition-colors mb-3 animated-border inline-block">
                                 {{ $theme->name }}
                             </h3>
                             <p class="text-slate-500 text-sm leading-relaxed mb-6 group-hover:text-slate-600">
@@ -121,9 +121,9 @@
 
                         <div
                             class="mt-auto pt-6 border-t border-slate-50 flex items-center justify-between text-[10px] font-black uppercase tracking-widest">
-                            <span class="text-sky-600">Deep Insights</span>
+                            <span class="text-emerald-600">Deep Insights</span>
                             <span
-                                class="text-slate-300 group-hover:text-sky-600 group-hover:translate-x-2 transition-all">Explore
+                                class="text-slate-300 group-hover:text-emerald-600 group-hover:translate-x-2 transition-all">Explore
                                 &rarr;</span>
                         </div>
                     </a>
@@ -183,7 +183,7 @@
         <div class="relative rounded-[3.5rem] overflow-hidden p-12 md:p-20 bg-slate-900 text-white shadow-3xl">
             <div class="absolute top-0 right-0 w-96 h-96 bg-emerald-600 rounded-full blur-[120px] opacity-20 -mr-48 -mt-48">
             </div>
-            <div class="absolute bottom-0 left-0 w-96 h-96 bg-sky-600 rounded-full blur-[120px] opacity-10 -ml-48 -mb-48">
+            <div class="absolute bottom-0 left-0 w-96 h-96 bg-emerald-600 rounded-full blur-[120px] opacity-10 -ml-48 -mb-48">
             </div>
 
             <div class="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">

@@ -14,7 +14,7 @@
     <uses-feature android:name="android.hardware.location.gps" android:required="false" />
 
     <!-- Lets BrowserHelper find the browser, so pages on our own domain that have no in-app
-         screen (e.g. /survey) open there instead of looping back into this app's App Links. -->
+         screen (e.g. /donate) open there instead of looping back into this app's App Links. -->
     <queries>
         <intent>
             <action android:name="android.intent.action.VIEW" />

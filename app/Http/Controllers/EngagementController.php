@@ -60,15 +60,15 @@ class EngagementController extends Controller
     public function mark(Request $request)
     {
         $request->validate([
-            'activity' => 'required|string|in:' . UserDailyEngagement::ACTIVITY_DUA,
+            'activity' => 'required|string|in:' . UserDailyEngagement::ACTIVITY_DUA . ',' . UserDailyEngagement::ACTIVITY_PRAYER,
         ]);
 
         $user = Auth::user();
-        $status = $this->engagementService->record($user, UserDailyEngagement::ACTIVITY_DUA);
+        $status = $this->engagementService->record($user, $request->input('activity'));
 
         return response()->json([
             'success' => true,
-            'message' => 'Engagement recorded.',
+            'message' => 'Engagement recorded.' . \App\Services\ContributionPoints::note((int) ($status['points_awarded'] ?? 0)),
             'data' => $status,
         ]);
     }

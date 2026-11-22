@@ -46,6 +46,7 @@ Route::get('/duas/create', [DuaController::class, 'create'])->name('duas.create'
 Route::post('/duas', [DuaController::class, 'store'])->name('duas.store')->middleware('auth');
 Route::get('/duas/{dua:slug}', [DuaController::class, 'show'])->name('duas.show');
 Route::get('/daily-dua', [DuaController::class, 'daily'])->name('daily.dua');
+Route::get('/prayer', [\App\Http\Controllers\PrayerController::class, 'index'])->name('prayer');
 
 // User & App Feedback Submission
 Route::post('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'store'])->name('app-feedback.store')->middleware('throttle:10,1');
@@ -73,6 +74,7 @@ Route::post('/quran-research/contributions/{id}/review', [\App\Http\Controllers\
 Route::post('/categories', [\App\Http\Controllers\CategoryController::class, 'store'])->name('categories.store')->middleware('auth');
 
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
+Route::get('/a/{code}', [AuthController::class, 'affiliate'])->name('affiliate.visit')->where('code', '[A-Za-z0-9]{4,16}');
 Route::post('/otp/request', [AuthController::class, 'requestOtp'])->middleware('throttle:5,1');
 Route::post('/otp/verify', [AuthController::class, 'verifyOtp'])->middleware('throttle:10,1');
 Route::post('/login/password', [AuthController::class, 'loginWithPassword'])->name('login.password')->middleware('throttle:10,1');

@@ -15,6 +15,7 @@ sealed interface DeepLinkDestination {
     data object Leaderboard : DeepLinkDestination
     data object Home : DeepLinkDestination
     data object Salah : DeepLinkDestination
+    data object Survey : DeepLinkDestination
 }
 
 /**
@@ -152,10 +153,11 @@ object DeepLinkHelper {
             }
             "seerah", "seerah-daily" -> DeepLinkDestination.Seerah
             "quran-history", "history" -> DeepLinkDestination.History
-            "quiz-learning", "themes", "quiz", "theme-quiz" -> DeepLinkDestination.Quiz
+            "quiz-learning", "quiz", "theme-quiz" -> DeepLinkDestination.Quiz
             "leaderboard" -> DeepLinkDestination.Leaderboard
             "home", "app" -> DeepLinkDestination.Home
-            "salah", "prayer-times" -> DeepLinkDestination.Salah
+            "salah", "prayer", "prayer-times" -> DeepLinkDestination.Salah
+            "survey" -> DeepLinkDestination.Survey
             else -> null
         }
     }

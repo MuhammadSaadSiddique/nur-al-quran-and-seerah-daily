@@ -10,6 +10,10 @@ use Illuminate\Support\Facades\Schema;
 
 class DailyEngagementService
 {
+    public function __construct(private ContributionPoints $points)
+    {
+    }
+
     /**
      * Idempotently record a daily activity and ensure streak check-in.
      */
@@ -21,11 +25,15 @@ class DailyEngagementService
         }
 
         // Always maintain streak even if engagement table is unavailable.
-        $user->checkInStreak();
+        $streak = $user->checkInStreak();
         $user->refresh();
+        $awarded = (int) ($streak['points_awarded'] ?? 0);
 
         if (!$this->engagementTableReady()) {
-            return $this->todayStatus($user, $date);
+            $status = $this->todayStatus($user, $date);
+            $status['points_awarded'] = $awarded;
+
+            return $status;
         }
 
         $day = ($date ?? now())->toDateString();
@@ -49,12 +57,17 @@ class DailyEngagementService
                 }
             }
 
-            $engagement->mark($activity);
+            if ($engagement->mark($activity)) {
+                $awarded += $this->points->forDailyTask($user, $activity, $day);
+            }
         } catch (\Throwable $e) {
             Log::warning('Daily engagement record failed: ' . $e->getMessage());
         }
 
-        return $this->todayStatus($user, $date ? Carbon::parse($day) : null);
+        $status = $this->todayStatus($user, $date ? Carbon::parse($day) : null);
+        $status['points_awarded'] = $awarded;
+
+        return $status;
     }
 
     /**
@@ -129,6 +142,10 @@ class DailyEngagementService
             UserDailyEngagement::ACTIVITY_DUA => [
                 'label' => "Open today's dua",
                 'href' => $this->safeRoute('daily.dua', '/daily-dua'),
+            ],
+            UserDailyEngagement::ACTIVITY_PRAYER => [
+                'label' => 'Open the prayer page',
+                'href' => $this->safeRoute('prayer', '/prayer'),
             ],
         ];
     }

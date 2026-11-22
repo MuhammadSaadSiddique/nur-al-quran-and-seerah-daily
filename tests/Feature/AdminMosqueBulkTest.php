@@ -171,6 +171,122 @@ class AdminMosqueBulkTest extends TestCase
             ->assertSessionHasErrors('action');
     }
 
+    public function test_country_filter_and_empty_city_or_country_options(): void
+    {
+        $this->mosque('Pakistan Masjid', ['country' => 'Pakistan']);
+        $this->mosque('Code Masjid', ['country' => 'PK']);
+        $this->mosque('Countryless Masjid', ['country' => null, 'city' => null]);
+
+        $none = \App\Http\Controllers\Admin\MosqueController::NONE;
+
+        $this->list(['country' => 'PK'])->assertSee('Code Masjid')->assertDontSee('Pakistan Masjid');
+        $this->list(['country' => $none])->assertSee('Countryless Masjid')->assertDontSee('Code Masjid');
+        $this->list(['city' => $none])->assertSee('Countryless Masjid')->assertDontSee('Pakistan Masjid');
+
+        // Dropdowns show how many use each spelling, so variants are easy to spot.
+        $this->list([])
+            ->assertSee('Karachi (2)')
+            ->assertSee('No city (1)')
+            ->assertSee('PK (1)')
+            ->assertSee('No country (1)');
+    }
+
+    public function test_bulk_set_city_on_ticked_mosques_logs_each_change(): void
+    {
+        $a = $this->mosque('Masjid A', ['city' => 'لاہور']);
+        $b = $this->mosque('Masjid B', ['city' => null]);
+        $c = $this->mosque('Masjid C', ['city' => 'Lahore']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.mosques.bulk'), ['action' => 'set_city', 'bulk_value' => '  Lahore ', 'ids' => [$a->id, $b->id, $c->id]])
+            ->assertSessionHas('success', 'City set to “Lahore” on 2 mosques. 1 already had it.');
+
+        $this->assertSame(['Lahore', 'Lahore', 'Lahore'], [$a->fresh()->city, $b->fresh()->city, $c->fresh()->city]);
+
+        $log = \App\Models\MosqueContribution::where('mosque_id', $a->id)->where('note', 'Bulk edit in admin panel')->sole();
+        $this->assertSame($this->admin->id, $log->user_id);
+        $this->assertSame(['city' => 'لاہور'], $log->payload['before']);
+        $this->assertTrue($log->payload['by_admin']);
+        $this->assertDatabaseMissing('mosque_contributions', ['mosque_id' => $c->id, 'note' => 'Bulk edit in admin panel']);
+    }
+
+    public function test_rename_a_spelling_everywhere_with_select_all_matching(): void
+    {
+        $this->mosque('Urdu One', ['city' => 'اسلام آباد']);
+        $this->mosque('Urdu Two', ['city' => 'اسلام آباد']);
+        $other = $this->mosque('Karachi One');
+
+        // The list's own "city" filter travels with the form; the new name is bulk_value.
+        $this->actingAs($this->admin)
+            ->post(route('admin.mosques.bulk'), [
+                'action' => 'set_city',
+                'bulk_value' => 'Islamabad',
+                'select_all_matching' => '1',
+                'expected_count' => 2,
+                'filter' => 'all',
+                'city' => 'اسلام آباد',
+            ])
+            ->assertSessionHas('success', 'City set to “Islamabad” on 2 mosques.');
+
+        $this->assertSame(0, Mosque::where('city', 'اسلام آباد')->count());
+        $this->assertSame(2, Mosque::where('city', 'Islamabad')->count());
+        $this->assertSame('Karachi', $other->fresh()->city);
+    }
+
+    public function test_bulk_set_country_for_mosques_without_one(): void
+    {
+        $this->mosque('No Country A');
+        $this->mosque('No Country B', ['country' => '']);
+        $this->mosque('Has Country', ['country' => 'PK']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.mosques.bulk'), [
+                'action' => 'set_country',
+                'bulk_value' => 'Pakistan',
+                'select_all_matching' => '1',
+                'expected_count' => 2,
+                'filter' => 'all',
+                'country' => \App\Http\Controllers\Admin\MosqueController::NONE,
+            ])
+            ->assertSessionHas('success', 'Country set to “Pakistan” on 2 mosques.');
+
+        $this->assertSame(2, Mosque::where('country', 'Pakistan')->count());
+        $this->assertSame('PK', Mosque::where('name', 'Has Country')->value('country'));
+    }
+
+    public function test_set_city_needs_a_value(): void
+    {
+        $mosque = $this->mosque('Masjid Value', ['city' => 'Karachi']);
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.mosques.bulk'), ['action' => 'set_city', 'bulk_value' => '', 'ids' => [$mosque->id]])
+            ->assertSessionHasErrors('bulk_value');
+        $this->actingAs($this->admin)
+            ->post(route('admin.mosques.bulk'), ['action' => 'set_country', 'bulk_value' => str_repeat('x', 81), 'ids' => [$mosque->id]])
+            ->assertSessionHasErrors('bulk_value');
+
+        $this->assertSame('Karachi', $mosque->fresh()->city);
+    }
+
+    public function test_renamed_city_survives_an_openstreetmap_reimport(): void
+    {
+        $element = ['type' => 'node', 'id' => 4242, 'lat' => 31.52, 'lon' => 74.35, 'tags' => [
+            'amenity' => 'place_of_worship', 'religion' => 'muslim', 'name' => 'Badshahi Masjid', 'addr:city' => 'لاہور',
+        ]];
+        $importer = app(\App\Services\OsmMosqueImporter::class);
+        $importer->import([$element]);
+        $mosque = Mosque::where('osm_id', 4242)->sole();
+
+        $this->actingAs($this->admin)
+            ->post(route('admin.mosques.bulk'), ['action' => 'set_city', 'bulk_value' => 'Lahore', 'ids' => [$mosque->id]]);
+
+        // OSM still says لاہور; the admin's rename must win.
+        $report = $importer->import([$element]);
+
+        $this->assertSame('Lahore', $mosque->fresh()->city);
+        $this->assertSame(0, $report['refreshed']);
+    }
+
     public function test_non_admin_cannot_run_bulk_actions(): void
     {
         $mosque = $this->mosque('Masjid Safe');

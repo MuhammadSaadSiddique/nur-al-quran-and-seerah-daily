@@ -114,7 +114,7 @@ class AdminMosqueEditTest extends TestCase
                 'is_verified' => '1',
             ]))
             ->assertRedirect(route('admin.mosques.edit', $mosque))
-            ->assertSessionHas('success', 'Jamia Masjid Al-Noor updated. Times changed, so confirmations were reset.');
+            ->assertSessionHas('success', 'Jamia Masjid Al-Noor updated. Times changed, so confirmations were reset. You earned 10 points.');
 
         $fresh = $mosque->fresh();
         $this->assertSame('Jamia Masjid Al-Noor', $fresh->name);

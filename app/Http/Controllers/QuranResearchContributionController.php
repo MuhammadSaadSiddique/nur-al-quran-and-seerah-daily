@@ -277,9 +277,12 @@ class QuranResearchContributionController extends Controller
             'downvotes_count' => 0,
         ]));
 
+        $points = 0;
         if (Auth::check()) {
             app(\App\Services\DailyEngagementService::class)
                 ->record(Auth::user(), \App\Models\UserDailyEngagement::ACTIVITY_CONTRIBUTE);
+            $points = app(\App\Services\ContributionPoints::class)
+                ->forResearch(Auth::user(), $resolvedCategory, $contribution->id);
         }
 
         $redirectTarget = $request->input('redirect_to');
@@ -293,7 +296,7 @@ class QuranResearchContributionController extends Controller
         }
 
         return redirect()->to($redirectTarget)
-            ->with('success', 'Alhamdulillah! Your contribution has been submitted for peer verification. 5 community approvals will publish it!');
+            ->with('success', 'Alhamdulillah! Your contribution has been submitted for peer verification. 5 community approvals will publish it!' . \App\Services\ContributionPoints::note($points));
     }
 
     /**
@@ -488,12 +491,17 @@ class QuranResearchContributionController extends Controller
 
         $engagement = app(\App\Services\DailyEngagementService::class)
             ->record($user, \App\Models\UserDailyEngagement::ACTIVITY_CONTRIBUTE);
+        $points = app(\App\Services\ContributionPoints::class)
+            ->forResearch($user, $resolvedCategory, $contribution->id);
 
         return response()->json([
             'status' => 'success',
-            'message' => 'JazakAllah Khair! Research contribution submitted. 5 peer approvals will publish it.',
+            'message' => 'JazakAllah Khair! Research contribution submitted. 5 peer approvals will publish it.' . \App\Services\ContributionPoints::note($points),
             'data' => $contribution,
             'engagement' => $engagement,
+            'points_awarded' => $points,
+            'total_score' => (int) $user->total_score,
+            'contribution_points' => (int) $user->contribution_points,
         ], 201);
     }
 

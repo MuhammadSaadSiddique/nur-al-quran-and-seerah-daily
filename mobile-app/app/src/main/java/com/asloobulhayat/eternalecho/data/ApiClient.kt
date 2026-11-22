@@ -1281,7 +1281,7 @@ object ApiClient {
 
         val activitiesObj = data.optJSONObject("activities")
         val activityList = mutableListOf<EngagementActivity>()
-        val keys = listOf("quiz", "contribute", "insight", "dua")
+        val keys = listOf("quiz", "contribute", "insight", "dua", "prayer")
         if (activitiesObj != null) {
             for (key in keys) {
                 val act = activitiesObj.optJSONObject(key) ?: continue
@@ -1300,7 +1300,7 @@ object ApiClient {
             date = data.optString("date", ""),
             activities = activityList,
             completedCount = data.optInt("completed_count", activityList.count { it.done }),
-            total = data.optInt("total", 4),
+            total = data.optInt("total", keys.size),
             progressPercent = data.optInt("progress_percent", 0),
             streak = streak
         )

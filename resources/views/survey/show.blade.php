@@ -8,7 +8,7 @@
     <meta name="theme-color" content="#061712">
     <title>Help Shape Eternal Echo | 2-Minute Survey</title>
     <meta name="description" content="Tell us what you need from Eternal Echo, discover features you may have missed, and vote on what we build next. Takes about 2 minutes.">
-    <meta name="robots" content="noindex, follow">
+    <meta name="robots" content="index, follow">
     <link rel="icon" href="{{ asset('eternal.png') }}" type="image/png">
 
     <meta property="og:type" content="website">
@@ -16,6 +16,29 @@
     <meta property="og:title" content="Help shape Eternal Echo: a 2-minute survey">
     <meta property="og:description" content="Vote on what we build next and discover what's already inside.">
     <meta property="og:image" content="{{ asset('eternal.png') }}">
+
+    {{-- Android: open the in-app survey when Eternal Echo is installed. A missing app falls back to this page with ?web=1, so the survey stays in the browser and does not loop. The custom scheme is intentional: an https App Link for /survey bounces back into older builds that do not route it. --}}
+    <script>
+        (function () {
+            try {
+                var params = new URLSearchParams(location.search);
+                if (params.has('web')) return;
+                var ua = navigator.userAgent || '';
+                if (!/Android/i.test(ua)) return;
+                if (/bot|crawl|spider|slurp|preview|googlebot|bingbot|baiduspider|yandex|duckduckbot|facebookexternalhit|twitterbot|linkedinbot|embedly|pinterest|slackbot|discordbot|telegrambot|applebot|petalbot/i.test(ua)) return;
+                if (navigator.webdriver) return;
+                try {
+                    var saved = JSON.parse(localStorage.getItem(@json('ee-survey:' . \App\Services\RequirementSurvey::KEY)) || 'null');
+                    if (saved && saved.screen && saved.screen !== 'welcome' && saved.screen !== 'done' && !saved.done) return;
+                } catch (e) {}
+                if (sessionStorage.getItem('ee-survey-app-tried') === '1') return;
+                sessionStorage.setItem('ee-survey-app-tried', '1');
+                var stay = new URL(location.href);
+                stay.searchParams.set('web', '1');
+                location.replace('intent://survey#Intent;scheme=eternalecho;package=com.asloobulhayat.eternalecho;S.browser_fallback_url=' + encodeURIComponent(stay.toString()) + ';end');
+            } catch (e) {}
+        })();
+    </script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -226,6 +249,7 @@
                                         </button>
                                     </template>
                                     <p class="text-[11px] text-slate-500">No sign-in needed.<span class="hidden sm:inline"> Press <kbd class="px-1.5 py-0.5 rounded bg-white/10 text-slate-300 font-mono">Enter</kbd> to start.</span></p>
+                                    <a x-show="isAndroid" :href="appIntent" class="inline-flex items-center justify-center gap-1.5 text-sm font-bold text-gold-300 hover:text-gold-200">Open in the app</a>
                                 </div>
                             </div>
                         </template>
@@ -528,6 +552,8 @@
 
             return {
                 opts,
+                isAndroid: /Android/i.test(navigator.userAgent || ''),
+                appIntent: 'intent://survey#Intent;scheme=eternalecho;package=com.asloobulhayat.eternalecho;S.browser_fallback_url=' + encodeURIComponent(opts.playUrl) + ';end',
                 features: opts.config.features,
                 totalQuestions: FLOW.length - 2,
                 screen: 'welcome',

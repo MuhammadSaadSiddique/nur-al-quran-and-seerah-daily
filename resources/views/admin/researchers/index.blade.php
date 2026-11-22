@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('title', 'Admin Panel - Researchers')
-@section('robots', 'noindex, nofollow')
 
 @section('content')
 <div class="max-w-7xl mx-auto animate-fadeIn">

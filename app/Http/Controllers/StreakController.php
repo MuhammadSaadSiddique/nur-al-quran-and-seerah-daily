@@ -29,7 +29,7 @@ class StreakController extends Controller
             ]);
         }
 
-        return back()->with('success', $result['message']);
+        return back()->with('success', $result['message'] . \App\Services\ContributionPoints::note((int) ($result['points_awarded'] ?? 0)));
     }
 
     /**

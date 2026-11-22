@@ -1,6 +1,5 @@
 @extends('layouts.app')
 @section('title', 'Login - The Eternal Echo')
-@section('robots', 'noindex, follow')
 @section('canonical', route('login'))
 
 @section('content')
@@ -19,6 +18,12 @@
                 <p class="text-slate-500 font-bold uppercase text-[10px] tracking-[0.2em] mt-2">Spiritual Knowledge Journey
                 </p>
             </div>
+
+            @if(session('affiliate_code'))
+                <div class="bg-emerald-50 border border-emerald-200 text-emerald-800 p-4 rounded-2xl text-sm font-bold text-center leading-relaxed">
+                    You opened an invite link. Sign in, or create your account with the code we email you.
+                </div>
+            @endif
 
             {{-- Method Selection Tabs --}}
             <div x-show="!loading && phase === 'email'" class="flex bg-slate-50 p-1 rounded-xl border border-slate-100">

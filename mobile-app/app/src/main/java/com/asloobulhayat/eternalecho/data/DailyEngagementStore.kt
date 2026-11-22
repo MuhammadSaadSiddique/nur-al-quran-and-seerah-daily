@@ -22,12 +22,13 @@ object DailyEngagementStore {
     private const val KEY_CACHE = "daily_engagement_cache_v1"
     private const val KEY_PENDING = "daily_engagement_pending_v1"
 
-    private val activityKeys = listOf("quiz", "contribute", "insight", "dua")
+    private val activityKeys = listOf("quiz", "contribute", "insight", "dua", "prayer")
     private val defaultLabels = mapOf(
         "quiz" to "Complete a quiz",
         "contribute" to "Add a research contribution",
         "insight" to "Read a Seerah or Quran insight",
-        "dua" to "Open today's dua"
+        "dua" to "Open today's dua",
+        "prayer" to "Open the prayer page"
     )
 
     @Volatile
@@ -115,7 +116,7 @@ object DailyEngagementStore {
     private fun normalizeKey(raw: String): String? {
         val k = raw.trim().lowercase(Locale.US)
         return when (k) {
-            "quiz", "contribute", "insight", "dua" -> k
+            "quiz", "contribute", "insight", "dua", "prayer" -> k
             "seerah", "history", "quran_history", "seerah_insight" -> "insight"
             "research", "contribution" -> "contribute"
             else -> if (k in activityKeys) k else null
@@ -139,7 +140,7 @@ object DailyEngagementStore {
             date = todayDate(),
             activities = defaultActivities(),
             completedCount = 0,
-            total = 4,
+            total = activityKeys.size,
             progressPercent = 0,
             streak = StreakData(
                 currentStreak = prefsOrThrow.getInt("current_streak", 0),
@@ -154,8 +155,7 @@ object DailyEngagementStore {
         if (current == null || current.date != todayDate()) {
             return emptyForToday(p)
         }
-        // Ensure all four keys exist
-        if (current.activities.size < 4 || activityKeys.any { k -> current.activities.none { it.key == k } }) {
+        if (current.activities.size < activityKeys.size || activityKeys.any { k -> current.activities.none { it.key == k } }) {
             val doneMap = current.activities.associate { it.key to it.done }
             return recompute(current.copy(activities = defaultActivities(doneMap)), current.streak)
         }
@@ -188,7 +188,7 @@ object DailyEngagementStore {
 
     private fun recompute(base: DailyEngagement, streak: StreakData): DailyEngagement {
         val completed = base.activities.count { it.done }
-        val total = 4
+        val total = activityKeys.size
         return base.copy(
             completedCount = completed,
             total = total,
@@ -324,8 +324,8 @@ object DailyEngagementStore {
                 date = data.optString("date", todayDate()),
                 activities = activities,
                 completedCount = data.optInt("completed_count", completed),
-                total = data.optInt("total", 4),
-                progressPercent = data.optInt("progress_percent", if (completed == 0) 0 else (completed * 100) / 4),
+                total = data.optInt("total", activityKeys.size),
+                progressPercent = data.optInt("progress_percent", if (completed == 0) 0 else (completed * 100) / activityKeys.size),
                 streak = streak
             )
         } catch (_: Exception) {

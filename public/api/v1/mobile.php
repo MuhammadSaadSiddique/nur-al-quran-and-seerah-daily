@@ -289,6 +289,7 @@ try {
             $isActiveToday = ($lastDate === $today);
             $currentStreak = (int)($user['streak_count'] ?? 0);
             $longestStreak = (int)($user['longest_streak'] ?? 0);
+            $pointsAwarded = 0;
 
             if ($shouldCheckIn) {
                 if (!$isActiveToday) {
@@ -323,6 +324,10 @@ try {
                         // Gracefully ignore column errors if schema differs
                     }
                     $isActiveToday = true;
+                    $eloquentUser = \App\Models\User::find($userId);
+                    if ($eloquentUser) {
+                        $pointsAwarded = app(\App\Services\ContributionPoints::class)->forDailyStreak($eloquentUser, $currentStreak, $today);
+                    }
                 }
             } else {
                 if ($lastDate && $lastDate < $yesterday && !$isActiveToday) {
@@ -335,7 +340,8 @@ try {
                 'longest_streak' => $longestStreak,
                 'is_active_today' => $isActiveToday,
                 'last_streak_date' => $lastDate,
-                'streak_history' => $history
+                'streak_history' => $history,
+                'points_awarded' => $pointsAwarded,
             ];
         }
     }
@@ -1415,6 +1421,7 @@ try {
                 && \Illuminate\Support\Facades\Hash::check($password, $userModel->password)) {
                 $streak = calculate_user_streak($pdo, $userModel->id, true);
                 $token = \App\Services\MobileApiAuthService::issueToken($userModel);
+                $userModel->ensureAffiliateCode();
                 echo json_encode([
                     'status' => 'success',
                     'data' => [
@@ -1422,6 +1429,9 @@ try {
                         'name' => $userModel->name ?: $userModel->display_name ?: 'User',
                         'email' => $userModel->email,
                         'total_score' => (int)$userModel->total_score,
+                        'contribution_points' => (int)($userModel->contribution_points ?? 0),
+                        'affiliate_code' => (string) $userModel->affiliate_code,
+                        'affiliate_url' => $userModel->affiliateUrl(),
                         'token' => $token,
                         'streak' => $streak
                     ]
@@ -1515,6 +1525,12 @@ try {
                 ['name' => explode('@', $email)[0]]
             );
 
+            $invite = trim((string) ($requestData['affiliate_code'] ?? $requestData['ref'] ?? ''));
+            if ($user->wasRecentlyCreated && $invite !== '') {
+                $user->claimAffiliate($invite);
+            }
+            $user->ensureAffiliateCode();
+
             $streak = calculate_user_streak($pdo, $user->id, true);
             $token = \App\Services\MobileApiAuthService::issueToken($user);
 
@@ -1525,6 +1541,9 @@ try {
                     'name' => $user->name ?: $user->display_name ?: 'User',
                     'email' => $user->email,
                     'total_score' => (int)$user->total_score,
+                    'contribution_points' => (int)($user->contribution_points ?? 0),
+                    'affiliate_code' => (string) $user->affiliate_code,
+                    'affiliate_url' => $user->affiliateUrl(),
                     'has_password' => !empty($user->password),
                     'token' => $token,
                     'streak' => $streak
@@ -1801,11 +1820,15 @@ try {
         case 'mark_engagement':
             $userId = (int) $authUser->id;
             $activity = isset($requestData['activity']) ? strtolower(trim((string)$requestData['activity'])) : '';
-            // Self-mark only for dua. Quiz/contribute/insight require real actions (submit_quiz, submit_research_contribution, mark_insight).
-            if ($activity !== \App\Models\UserDailyEngagement::ACTIVITY_DUA) {
+            // Opening today's dua or the prayer page can be marked directly. Quiz, contribute, and insight require the real action.
+            $selfMarked = [
+                \App\Models\UserDailyEngagement::ACTIVITY_DUA,
+                \App\Models\UserDailyEngagement::ACTIVITY_PRAYER,
+            ];
+            if (!in_array($activity, $selfMarked, true)) {
                 echo json_encode([
                     'status' => 'error',
-                    'message' => 'Invalid activity. Only dua can be self-marked. Use quiz submit, research contribution submit, or mark_insight for others.'
+                    'message' => 'Invalid activity. Only dua and prayer can be self-marked. Use quiz submit, research contribution submit, or mark_insight for others.'
                 ]);
                 break;
             }
@@ -1817,9 +1840,10 @@ try {
                 ]);
                 break;
             }
+            $taskNote = \App\Services\ContributionPoints::note((int) ($engagement['points_awarded'] ?? 0));
             echo json_encode([
                 'status' => 'success',
-                'message' => 'Engagement recorded successfully.',
+                'message' => 'Engagement recorded successfully.' . $taskNote,
                 'data' => $engagement
             ]);
             break;
@@ -1936,9 +1960,10 @@ try {
                 ]);
                 break;
             }
+            $streakNote = \App\Services\ContributionPoints::note((int) ($streak['points_awarded'] ?? 0));
             echo json_encode([
                 'status' => 'success',
-                'message' => 'Daily streak recorded successfully!',
+                'message' => 'Daily streak recorded successfully!' . $streakNote,
                 'data' => $streak
             ]);
             break;
@@ -1963,7 +1988,10 @@ try {
             $userId = (int) $authUser->id;
 
             try {
-                $stmt = $pdo->prepare("SELECT id, name, display_name, email, password, total_score, total_questions, seerah_read_count, quran_history_read_count, completed_paras, para_mastery, difficulty_stats, bookmarked_questions FROM users WHERE id = :id");
+                $pointsSelect = \Illuminate\Support\Facades\Schema::hasColumn('users', 'contribution_points')
+                    ? ', contribution_points'
+                    : '';
+                $stmt = $pdo->prepare("SELECT id, name, display_name, email, password, total_score{$pointsSelect}, total_questions, seerah_read_count, quran_history_read_count, completed_paras, para_mastery, difficulty_stats, bookmarked_questions FROM users WHERE id = :id");
                 $stmt->execute(['id' => $userId]);
                 $user = $stmt->fetch();
             } catch (Exception $e) {
@@ -1987,6 +2015,8 @@ try {
             $bookmarkedQuestions = json_decode($user['bookmarked_questions'] ?? '[]', true) ?: [];
 
             $totalScore = (int)($user['total_score'] ?? 0);
+            $contributionPoints = (int)($user['contribution_points'] ?? 0);
+            $quizScore = max(0, $totalScore - $contributionPoints);
             $totalQuestions = (int)($user['total_questions'] ?? 0);
 
             // Compute max possible score & accuracy exactly like the User model
@@ -1999,7 +2029,10 @@ try {
                 $maxPossible = $totalQuestions * 5;
             }
 
-            $accuracy = $maxPossible > 0 ? min(100, max(0, (int)round(($totalScore / $maxPossible) * 100))) : 0;
+            $accuracy = $maxPossible > 0 ? min(100, max(0, (int)round(($quizScore / $maxPossible) * 100))) : 0;
+            $statsUser = \App\Models\User::find($userId);
+            $affiliateCode = $statsUser ? $statsUser->ensureAffiliateCode() : '';
+            $affiliateUrl = $statsUser && $affiliateCode !== '' ? $statsUser->affiliateUrl() : '';
             $spiritualLevel = $totalQuestions > 50 ? 'Knowledge Seeker' : ($totalQuestions > 10 ? 'Aspirant' : 'Novice');
 
             $diffSummary = [
@@ -2028,6 +2061,10 @@ try {
                     'email' => $user['email'] ?? '',
                     'spiritual_level' => $spiritualLevel,
                     'total_score' => $totalScore,
+                    'quiz_score' => $quizScore,
+                    'contribution_points' => $contributionPoints,
+                    'affiliate_code' => $affiliateCode,
+                    'affiliate_url' => $affiliateUrl,
                     'max_possible_score' => $maxPossible,
                     'total_questions' => $totalQuestions,
                     'accuracy' => $accuracy,
@@ -2051,7 +2088,10 @@ try {
             break;
 
         case 'leaderboard':
-            $stmt = $pdo->query("SELECT id, name, display_name, total_score, total_questions, seerah_read_count 
+            $pointsSelect = \Illuminate\Support\Facades\Schema::hasColumn('users', 'contribution_points')
+                ? ', contribution_points'
+                : '';
+            $stmt = $pdo->query("SELECT id, name, display_name, total_score{$pointsSelect}, total_questions, seerah_read_count 
                                  FROM users 
                                  ORDER BY total_score DESC, total_questions DESC 
                                  LIMIT 50");
@@ -2603,10 +2643,14 @@ try {
 
             $newContribId = (int)$pdo->lastInsertId();
             $engagement = mobile_engagement_record($userId, \App\Models\UserDailyEngagement::ACTIVITY_CONTRIBUTE);
+            $points = app(\App\Services\ContributionPoints::class)->forResearch($authUser, $category, $newContribId);
 
             echo json_encode([
                 'status' => 'success',
-                'message' => 'Alhamdulillah! Contribution submitted for peer verification. 5 approvals will publish it.',
+                'message' => 'Alhamdulillah! Contribution submitted for peer verification. 5 approvals will publish it.' . \App\Services\ContributionPoints::note($points),
+                'points_awarded' => $points,
+                'total_score' => (int) $authUser->total_score,
+                'contribution_points' => (int) $authUser->contribution_points,
                 'data' => [
                     'id' => $newContribId,
                     'title' => $title,
@@ -2942,9 +2986,14 @@ try {
                     ];
                 }
 
+                $points = (int) ($result['points_awarded'] ?? 0);
+
                 return [
                     'duplicate' => false,
-                    'message' => "JazakAllah khair! {$mosque['name']} is now listed. May every jama'ah prayed through it be sadaqah jariyah for you.",
+                    'points_awarded' => $points,
+                    'total_score' => (int) $authUser->total_score,
+                    'contribution_points' => (int) $authUser->contribution_points,
+                    'message' => "JazakAllah khair! {$mosque['name']} is now listed. May every jama'ah prayed through it be sadaqah jariyah for you." . \App\Services\ContributionPoints::note($points),
                     'data' => $mosque,
                 ];
             });
@@ -2954,11 +3003,17 @@ try {
             mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData, $authUser) {
                 $result = $service->updateTimes($authUser, mobile_mosque_or_fail($service, $requestData), $requestData);
 
+                $points = (int) ($result['points_awarded'] ?? 0);
+
                 return [
                     'changed' => $result['changed'],
-                    'message' => $result['changed']
+                    'points_awarded' => $points,
+                    'total_score' => (int) $authUser->total_score,
+                    'contribution_points' => (int) $authUser->contribution_points,
+                    'message' => ($result['changed']
                         ? "JazakAllah khair! Times updated for {$result['mosque']['name']}."
-                        : 'These match the listed times, so we counted it as a confirmation. JazakAllah khair!',
+                        : 'These match the listed times, so we counted it as a confirmation. JazakAllah khair!')
+                        . \App\Services\ContributionPoints::note($points),
                     'data' => $result['mosque'],
                 ];
             });
@@ -2976,10 +3031,15 @@ try {
                     default => 'Nothing changed. These details are already listed.',
                 };
 
+                $points = (int) ($result['points_awarded'] ?? 0);
+
                 return [
                     'changed' => $result['changed'],
                     'sect_pending' => $result['sect_pending'],
-                    'message' => $message,
+                    'points_awarded' => $points,
+                    'total_score' => (int) $authUser->total_score,
+                    'contribution_points' => (int) $authUser->contribution_points,
+                    'message' => $message . \App\Services\ContributionPoints::note($points),
                     'data' => $result['mosque'],
                 ];
             });
@@ -2989,11 +3049,17 @@ try {
             mobile_mosque_respond(function (\App\Services\MosqueService $service) use ($requestData, $authUser) {
                 $result = $service->confirmTimes($authUser, mobile_mosque_or_fail($service, $requestData));
 
+                $points = (int) ($result['points_awarded'] ?? 0);
+
                 return [
                     'counted' => $result['counted'],
-                    'message' => $result['counted']
+                    'points_awarded' => $points,
+                    'total_score' => (int) $authUser->total_score,
+                    'contribution_points' => (int) $authUser->contribution_points,
+                    'message' => ($result['counted']
                         ? 'JazakAllah khair for confirming these times.'
-                        : 'You have already vouched for these times recently.',
+                        : 'You have already vouched for these times recently.')
+                        . \App\Services\ContributionPoints::note($points),
                     'data' => $result['mosque'],
                 ];
             });

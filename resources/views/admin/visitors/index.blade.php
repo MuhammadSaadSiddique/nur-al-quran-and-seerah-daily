@@ -1,7 +1,6 @@
 @extends('layouts.app')
 
 @section('title', 'Admin Panel - Website Visitors')
-@section('robots', 'noindex, nofollow')
 
 @section('content')
 @use('App\Support\Countries')

@@ -27,7 +27,7 @@ class DailyEngagementTest extends TestCase
         $this->assertEquals(1, $first['completed_count']);
         $this->assertEquals(1, $second['completed_count']);
         $this->assertTrue($second['activities']['quiz']['done']);
-        $this->assertEquals(25, $second['progress_percent']);
+        $this->assertEquals(20, $second['progress_percent']);
 
         $this->assertDatabaseCount('user_daily_engagements', 1);
     }
@@ -56,8 +56,8 @@ class DailyEngagementTest extends TestCase
         $status = $service->todayStatus($user->fresh());
 
         $this->assertEquals(2, $status['completed_count']);
-        $this->assertEquals(4, $status['total']);
-        $this->assertEquals(50, $status['progress_percent']);
+        $this->assertEquals(5, $status['total']);
+        $this->assertEquals(40, $status['progress_percent']);
         $this->assertTrue($status['activities']['quiz']['done']);
         $this->assertTrue($status['activities']['dua']['done']);
         $this->assertFalse($status['activities']['contribute']['done']);
@@ -74,8 +74,8 @@ class DailyEngagementTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.completed_count', 1)
-            ->assertJsonPath('data.total', 4)
-            ->assertJsonPath('data.progress_percent', 25)
+            ->assertJsonPath('data.total', 5)
+            ->assertJsonPath('data.progress_percent', 20)
             ->assertJsonPath('data.activities.insight.done', true);
     }
 
@@ -158,6 +158,7 @@ class DailyEngagementTest extends TestCase
         $response->assertSee('Today', false);
         $response->assertSee('Devotion', false);
         $response->assertSee('Complete a quiz');
+        $response->assertSee('Open the prayer page');
         $response->assertSee(route('quiz.learning'), false);
         $response->assertSee(route('research.contributions.create'), false);
     }
@@ -171,7 +172,114 @@ class DailyEngagementTest extends TestCase
         $this->assertSame(route('research.contributions.create'), $status['activities']['contribute']['href']);
         $this->assertSame(route('seerah'), $status['activities']['insight']['href']);
         $this->assertSame(route('daily.dua'), $status['activities']['dua']['href']);
+        $this->assertSame(route('prayer'), $status['activities']['prayer']['href']);
         $this->assertStringNotContainsString('/dashboard', $status['activities']['contribute']['href']);
         $this->assertStringNotContainsString('/dashboard', $status['activities']['quiz']['href']);
+    }
+
+    public function test_first_task_awards_task_points_and_day_one_streak_points(): void
+    {
+        $user = User::factory()->create([
+            'streak_count' => 0,
+            'last_streak_date' => null,
+            'total_score' => 0,
+            'contribution_points' => 0,
+        ]);
+
+        $status = app(DailyEngagementService::class)->record($user, UserDailyEngagement::ACTIVITY_DUA);
+
+        $this->assertSame(10, $status['points_awarded']);
+        $this->assertSame(10, $user->fresh()->total_score);
+        $this->assertSame(10, $user->fresh()->contribution_points);
+    }
+
+    public function test_later_task_the_same_day_awards_only_the_task(): void
+    {
+        $user = User::factory()->create([
+            'streak_count' => 0,
+            'last_streak_date' => null,
+            'total_score' => 0,
+            'contribution_points' => 0,
+        ]);
+        $service = app(DailyEngagementService::class);
+
+        $service->record($user, UserDailyEngagement::ACTIVITY_DUA);
+        $second = $service->record($user->fresh(), UserDailyEngagement::ACTIVITY_PRAYER);
+        $repeat = $service->record($user->fresh(), UserDailyEngagement::ACTIVITY_PRAYER);
+
+        $this->assertSame(5, $second['points_awarded']);
+        $this->assertSame(0, $repeat['points_awarded']);
+        $this->assertSame(15, $user->fresh()->total_score);
+    }
+
+    public function test_longer_streak_awards_more_points_up_to_the_cap(): void
+    {
+        $week = User::factory()->create([
+            'streak_count' => 6,
+            'last_streak_date' => now()->subDay()->toDateString(),
+            'total_score' => 0,
+            'contribution_points' => 0,
+        ]);
+
+        $checkedIn = $week->checkInStreak();
+
+        $this->assertSame(7, $checkedIn['streak_count']);
+        $this->assertSame(11, $checkedIn['points_awarded']);
+        $this->assertSame(0, $week->fresh()->checkInStreak()['points_awarded']);
+
+        $long = User::factory()->create([
+            'streak_count' => 40,
+            'last_streak_date' => now()->subDay()->toDateString(),
+            'total_score' => 0,
+            'contribution_points' => 0,
+        ]);
+
+        $this->assertSame(30, $long->checkInStreak()['points_awarded']);
+        $this->assertSame(30, $long->fresh()->total_score);
+    }
+
+    public function test_prayer_page_shows_ordered_times_and_marks_the_daily_task(): void
+    {
+        $guest = $this->get('/prayer?latitude=24.86&longitude=67.01&tz=5');
+
+        $guest->assertStatus(200);
+        $guest->assertSee('Fajr');
+        $guest->assertSee('Isha');
+        $this->assertPrayerOrder($guest->getContent());
+
+        $user = User::factory()->create([
+            'streak_count' => 0,
+            'last_streak_date' => null,
+            'total_score' => 0,
+            'contribution_points' => 0,
+        ]);
+
+        $response = $this->actingAs($user)->get('/prayer?latitude=24.86&longitude=67.01&tz=5');
+
+        $response->assertStatus(200);
+        $response->assertSee('You earned 10 points.');
+        $this->assertTrue(
+            app(DailyEngagementService::class)->todayStatus($user->fresh())['activities']['prayer']['done']
+        );
+        $this->assertSame(10, $user->fresh()->total_score);
+
+        $this->actingAs($user->fresh())->get('/prayer?latitude=24.86&longitude=67.01&tz=5')
+            ->assertDontSee('You earned');
+    }
+
+    private function assertPrayerOrder(string $html): void
+    {
+        preg_match_all('/\b([01]\d|2[0-3]):[0-5]\d\b/', $html, $matches);
+        $minutes = array_map(function (string $clock) {
+            [$hour, $minute] = array_map('intval', explode(':', $clock));
+
+            return $hour * 60 + $minute;
+        }, $matches[0]);
+
+        $this->assertCount(6, $minutes);
+        $ordered = $minutes;
+        sort($ordered);
+        $this->assertSame($ordered, $minutes);
+        $this->assertNotSame($minutes[0], $minutes[5]);
     }
 }

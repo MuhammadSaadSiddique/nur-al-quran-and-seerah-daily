@@ -73,8 +73,19 @@
                     <label class="block text-[11px] font-bold text-slate-500 mb-1" for="f-city">City</label>
                     <select id="f-city" name="city" onchange="this.form.submit()" class="{{ $select }}">
                         <option value="">All cities</option>
-                        @foreach($cities as $city)
-                            <option value="{{ $city }}" @selected($filters['city'] === $city)>{{ $city }}</option>
+                        <option value="{{ $none }}" @selected($filters['city'] === $none)>No city ({{ number_format($noCity) }})</option>
+                        @foreach($cities as $city => $total)
+                            <option value="{{ $city }}" @selected($filters['city'] === (string) $city)>{{ $city }} ({{ number_format($total) }})</option>
+                        @endforeach
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-[11px] font-bold text-slate-500 mb-1" for="f-country">Country</label>
+                    <select id="f-country" name="country" onchange="this.form.submit()" class="{{ $select }}">
+                        <option value="">All countries</option>
+                        <option value="{{ $none }}" @selected($filters['country'] === $none)>No country ({{ number_format($noCountry) }})</option>
+                        @foreach($countries as $country => $total)
+                            <option value="{{ $country }}" @selected($filters['country'] === (string) $country)>{{ $country }} ({{ number_format($total) }})</option>
                         @endforeach
                     </select>
                 </div>
@@ -295,6 +306,20 @@
                         <option value="{{ $key }}">{{ $label }}</option>
                     @endforeach
                 </select>
+                {{-- Shown only for "Set city/country to…"; suggestions are names already in use. --}}
+                <label for="bulk-value" class="sr-only">New value</label>
+                <input id="bulk-value" name="bulk_value" form="bulk-form" hidden maxlength="120" autocomplete="off"
+                       class="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 w-44 focus:outline-none focus:border-emerald-500">
+                <datalist id="bulk-city-names">
+                    @foreach($cities as $city => $total)
+                        <option value="{{ $city }}"></option>
+                    @endforeach
+                </datalist>
+                <datalist id="bulk-country-names">
+                    @foreach(collect($countries)->keys()->merge(['Pakistan'])->unique() as $country)
+                        <option value="{{ $country }}"></option>
+                    @endforeach
+                </datalist>
                 <button type="submit" form="bulk-form" id="bulk-apply" disabled
                         class="px-4 py-2 bg-slate-800 text-white rounded-xl text-xs font-bold disabled:opacity-40 disabled:cursor-not-allowed">Apply</button>
             </div>
@@ -492,10 +517,18 @@
     const clearBtn = document.getElementById('bulk-clear');
     const action = document.getElementById('bulk-action');
     const apply = document.getElementById('bulk-apply');
+    const valueBox = document.getElementById('bulk-value');
     const total = Number(form.dataset.total);
+
+    // Actions that need a typed value, and what to suggest for it.
+    const valueActions = {
+        set_city: { placeholder: 'New city name', list: 'bulk-city-names', max: 120, label: 'city' },
+        set_country: { placeholder: 'New country name', list: 'bulk-country-names', max: 80, label: 'country' },
+    };
 
     const ticked = () => rows.filter((r) => r.checked).length;
     const selected = () => (allMatching.value === '1' ? total : ticked());
+    const needsValue = () => Object.prototype.hasOwnProperty.call(valueActions, action.value);
 
     function refresh() {
         const n = ticked();
@@ -508,11 +541,24 @@
         countEl.textContent = count > 0
             ? count + (count === 1 ? ' mosque selected' : ' mosques selected')
             : 'Tick mosques to act on several at once';
-        apply.disabled = count === 0 || action.value === '';
+
+        const spec = valueActions[action.value];
+        valueBox.hidden = !spec;
+        valueBox.required = Boolean(spec);
+        if (spec) {
+            valueBox.placeholder = spec.placeholder;
+            valueBox.maxLength = spec.max;
+            valueBox.setAttribute('list', spec.list);
+        }
+        apply.disabled = count === 0 || action.value === '' || (needsValue() && valueBox.value.trim() === '');
     }
 
     rows.forEach((r) => r.addEventListener('change', refresh));
-    action.addEventListener('change', refresh);
+    action.addEventListener('change', () => {
+        refresh();
+        if (needsValue()) valueBox.focus();
+    });
+    valueBox.addEventListener('input', refresh);
     pageBox.addEventListener('change', () => {
         rows.forEach((r) => { r.checked = pageBox.checked; });
         allMatching.value = '0';
@@ -529,10 +575,16 @@
         const n = selected();
         const label = action.options[action.selectedIndex].text;
         const noun = n === 1 ? 'mosque' : 'mosques';
-        const message = action.value === 'delete'
-            ? 'Permanently delete ' + n + ' ' + noun + '? Their favourites and history are removed too. This cannot be undone.'
-            : label + ' — apply to ' + n + ' ' + noun + '?';
-        if (n === 0 || action.value === '' || !window.confirm(message)) event.preventDefault();
+        const value = valueBox.value.trim();
+        let message;
+        if (action.value === 'delete') {
+            message = 'Permanently delete ' + n + ' ' + noun + '? Their favourites and history are removed too. This cannot be undone.';
+        } else if (needsValue()) {
+            message = 'Set the ' + valueActions[action.value].label + ' to “' + value + '” on ' + n + ' ' + noun + '?';
+        } else {
+            message = label + ' — apply to ' + n + ' ' + noun + '?';
+        }
+        if (n === 0 || action.value === '' || (needsValue() && value === '') || !window.confirm(message)) event.preventDefault();
     });
 
     refresh();

@@ -33,9 +33,10 @@
 }
 </script>
 @endpush
+@push('styles')
 <style>
     .theme-header {
-        background: linear-gradient(135deg, {{ $theme->type === 'PARA' ? '#0c4a6e 0%, #075985 100%' : '#78350f 0%, #92400e 100%' }});
+        background: linear-gradient(135deg, {{ $theme->type === 'PARA' ? '#064e3b 0%, #047857 100%' : '#78350f 0%, #92400e 100%' }});
     }
     .question-card {
         transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);

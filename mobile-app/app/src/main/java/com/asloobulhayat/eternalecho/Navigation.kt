@@ -95,6 +95,10 @@ fun MainNavigation(
           ensureMainUnderneath()
           if (backStack.lastOrNull() != SalahRoute) backStack.add(SalahRoute)
         }
+        is DeepLinkDestination.Survey -> {
+          ensureMainUnderneath()
+          if (backStack.lastOrNull() != SurveyRoute) backStack.add(SurveyRoute)
+        }
       }
       onDeepLinkHandled()
     }

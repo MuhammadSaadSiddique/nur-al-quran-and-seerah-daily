@@ -13,12 +13,35 @@ use Illuminate\Support\Facades\Log;
 
 class AuthController extends Controller
 {
-    public function showLogin()
+    public function showLogin(Request $request)
     {
+        if ($request->filled('ref')) {
+            $request->session()->put('affiliate_code', strtolower(trim((string) $request->query('ref'))));
+        }
+
         if (Auth::check()) {
             return redirect()->route('home');
         }
         return view('auth.login');
+    }
+
+    /**
+     * Personal invite link. Guests keep the code through signup; members just continue in.
+     */
+    public function affiliate(Request $request, string $code)
+    {
+        $code = strtolower(trim($code));
+        $referrer = User::query()->where('affiliate_code', $code)->first();
+
+        if ($referrer && !Auth::check()) {
+            $request->session()->put('affiliate_code', $code);
+        }
+
+        if (Auth::check()) {
+            return redirect()->route('home');
+        }
+
+        return redirect()->route('login');
     }
 
     public function requestOtp(Request $request)
@@ -86,6 +109,11 @@ class AuthController extends Controller
             ['email' => $email],
             ['name' => explode('@', $email)[0]]
         );
+
+        $invite = $request->session()->pull('affiliate_code');
+        if ($user->wasRecentlyCreated) {
+            $user->claimAffiliate(is_string($invite) ? $invite : null);
+        }
 
         Auth::login($user, true);
         $user->checkInStreak();

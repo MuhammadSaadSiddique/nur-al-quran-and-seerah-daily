@@ -11,7 +11,7 @@ import android.os.Build
  * Opens a web page in the phone's browser even when it is on our own domain.
  *
  * The app is a verified App Link handler for every path on [DeepLinkHelper.WEB_HOST], so a plain
- * ACTION_VIEW for a page with no in-app screen (e.g. /survey) would resolve straight back to the app.
+ * ACTION_VIEW for a page with no in-app screen (e.g. /donate) would resolve straight back to the app.
  * Targeting the browser's package directly avoids that. Needs the https `<queries>` entry in the manifest.
  */
 object BrowserHelper {

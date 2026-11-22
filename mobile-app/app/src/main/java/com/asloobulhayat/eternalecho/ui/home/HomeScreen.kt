@@ -453,11 +453,12 @@ fun DailyEngagementChecklistCard(
         EngagementActivity("quiz", false, "Complete a quiz"),
         EngagementActivity("contribute", false, "Add a research contribution"),
         EngagementActivity("insight", false, "Read a Seerah or Quran insight"),
-        EngagementActivity("dua", false, "Open today's dua")
+        EngagementActivity("dua", false, "Open today's dua"),
+        EngagementActivity("prayer", false, "Open the prayer page")
     )
     val progress = (engagement?.progressPercent ?: 0).coerceIn(0, 100)
     val completed = engagement?.completedCount ?: 0
-    val total = engagement?.total ?: 4
+    val total = engagement?.total ?: 5
     val animatedProgress by animateFloatAsState(
         targetValue = progress / 100f,
         animationSpec = tween(700),

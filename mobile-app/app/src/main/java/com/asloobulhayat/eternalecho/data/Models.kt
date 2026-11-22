@@ -345,7 +345,7 @@ data class DailyEngagement(
     val date: String = "",
     val activities: List<EngagementActivity> = emptyList(),
     val completedCount: Int = 0,
-    val total: Int = 4,
+    val total: Int = 5,
     val progressPercent: Int = 0,
     val streak: StreakData = StreakData()
 )

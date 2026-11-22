@@ -19,35 +19,34 @@ class LeaderboardController extends Controller
         }
 
         if ($period === 'weekly') {
-            $topUsers = User::withSum([
-                'quizzes' => function ($query) {
-                    $query->where('created_at', '>=', now()->startOfWeek());
-                }
-            ], 'score')
-                ->orderBy('quizzes_sum_score', 'desc')
-                ->orderBy('total_questions', 'desc')
+            $weekStart = now()->startOfWeek();
+            $weeklyScore = '(COALESCE((SELECT SUM(score) FROM quizzes WHERE quizzes.user_id = users.id AND quizzes.created_at >= ?), 0)'
+                . ' + COALESCE((SELECT SUM(points) FROM user_point_awards WHERE user_point_awards.user_id = users.id AND user_point_awards.created_at >= ?), 0))';
+
+            $topUsers = User::query()
+                ->select('users.*')
+                ->selectRaw($weeklyScore . ' as weekly_score', [$weekStart, $weekStart])
+                ->orderByDesc('weekly_score')
+                ->orderByDesc('total_questions')
                 ->limit(100)
                 ->get()
                 ->map(function ($user) {
-                    // For the view consistency, we set total_score to the weekly sum
-                    $user->display_score = $user->quizzes_sum_score ?: 0;
+                    $user->display_score = (int) $user->weekly_score;
                     return $user;
                 });
 
-            // Find current user's rank for weekly
-            $currentUserWeeklyScore = $currentUser ? $currentUser->quizzes()
-                ->where('created_at', '>=', now()->startOfWeek())
-                ->sum('score') : 0;
+            $currentUserWeeklyScore = 0;
+            if ($currentUser) {
+                $currentUserWeeklyScore = (int) $currentUser->quizzes()
+                    ->where('created_at', '>=', $weekStart)
+                    ->sum('score')
+                    + (int) $currentUser->pointAwards()
+                        ->where('created_at', '>=', $weekStart)
+                        ->sum('points');
+                $currentUser->display_score = $currentUserWeeklyScore;
+            }
 
-            $currentUserRank = User::withSum([
-                'quizzes' => function ($query) {
-                    $query->where('created_at', '>=', now()->startOfWeek());
-                }
-            ], 'score')
-                ->having('quizzes_sum_score', '>', $currentUserWeeklyScore)
-                ->count() + 1;
-                if ($currentUser)
-                    $currentUser->display_score = $currentUserWeeklyScore;
+            $currentUserRank = User::whereRaw($weeklyScore . ' > ?', [$weekStart, $weekStart, $currentUserWeeklyScore])->count() + 1;
         } else {
             $topUsers = User::orderBy('total_score', 'desc')
                 ->orderBy('total_questions', 'desc')

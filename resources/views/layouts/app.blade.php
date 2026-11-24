@@ -185,6 +185,7 @@
                         ['route' => 'duas.index', 'label' => 'Duas', 'icon' => 'M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'],
                         ['route' => 'prayer', 'label' => 'Prayer', 'icon' => 'M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z'],
                         ['route' => 'researchers.index', 'label' => 'Researchers', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'],
+                        ['route' => 'scholars.index', 'label' => 'Scholars', 'icon' => 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z'],
                         ['route' => 'home', 'label' => 'Quizzes', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                         ['route' => 'themes.index', 'label' => 'Themes', 'icon' => 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'],
                         ['route' => 'stats', 'label' => 'Progress', 'icon' => 'M13 7h8m0 0v8m0-8l-8 8-4-4-6 6'],
@@ -210,6 +211,7 @@
                         ['route' => 'themes.index', 'label' => 'Themes', 'icon' => 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'],
                         ['route' => 'quiz.learning', 'label' => 'Quiz Challenges', 'icon' => 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'],
                         ['route' => 'researchers.index', 'label' => 'Researchers', 'icon' => 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'],
+                        ['route' => 'scholars.index', 'label' => 'Scholars', 'icon' => 'M12 14l9-5-9-5-9 5 9 5z M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z'],
                         ['route' => 'leaderboard', 'label' => 'Rankings', 'icon' => 'M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z'],
                     ];
                 }
@@ -228,13 +230,20 @@
                         $moreNav[] = $item;
                     }
                 }
-                $moreIsActive = collect($moreNav)->contains(fn ($item) => request()->routeIs($item['route']));
+                $navIsActive = function (array $item): bool {
+                    return match ($item['route']) {
+                        'scholars.index' => request()->routeIs('scholars.*'),
+                        'researchers.index' => request()->routeIs('researchers.*'),
+                        default => request()->routeIs($item['route']),
+                    };
+                };
+                $moreIsActive = collect($moreNav)->contains(fn ($item) => $navIsActive($item));
             @endphp
 
             <nav class="hidden md:flex items-center space-x-1">
                 @foreach($primaryNav as $item)
                     <a href="{{ route($item['route']) }}"
-                        class="px-3 py-2 rounded-xl text-sm font-bold transition-all {{ request()->routeIs($item['route']) ? 'bg-white/20 text-white' : 'text-emerald-100 hover:text-white hover:bg-white/10' }}">
+                        class="px-3 py-2 rounded-xl text-sm font-bold transition-all {{ $navIsActive($item) ? 'bg-white/20 text-white' : 'text-emerald-100 hover:text-white hover:bg-white/10' }}">
                         {{ $item['label'] }}
                     </a>
                 @endforeach
@@ -248,7 +257,7 @@
                             class="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-2xl border border-slate-100 py-2 z-50 text-slate-900">
                             @foreach($moreNav as $item)
                                 <a href="{{ route($item['route']) }}"
-                                    class="block px-4 py-2.5 text-sm font-bold transition-colors {{ request()->routeIs($item['route']) ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50' }}">
+                                    class="block px-4 py-2.5 text-sm font-bold transition-colors {{ $navIsActive($item) ? 'bg-emerald-50 text-emerald-700' : 'text-slate-700 hover:bg-slate-50' }}">
                                     {{ $item['label'] }}
                                 </a>
                             @endforeach
@@ -360,6 +369,7 @@
             </div>
             <div
                 class="flex flex-wrap items-center justify-center gap-4 sm:gap-6 text-[10px] uppercase font-black tracking-widest text-slate-500">
+                <a href="{{ route('scholars.index') }}" class="hover:text-emerald-500 transition-colors">Scholars</a>
                 <a href="{{ route('donate') }}" class="text-emerald-400 hover:text-emerald-300 font-black transition-colors">🤲 Sadaqah Jariyah / Donate</a>
                 <a href="{{ route('survey.show') }}" class="text-amber-300 hover:text-amber-200 font-black transition-colors">🗳️ Shape the app: 2-min survey</a>
                 <a href="{{ route('privacy') }}" class="hover:text-emerald-500 transition-colors">Privacy Policy</a>
@@ -374,9 +384,9 @@
         class="mobile-bottom-nav md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around p-2 z-50">
         @foreach(array_slice($navItems, 0, 5) as $item)
             <a href="{{ route($item['route']) }}"
-                class="flex flex-col items-center p-2 flex-1 transition-colors {{ request()->routeIs($item['route']) ? 'text-emerald-600' : 'text-slate-400' }}">
+                class="flex flex-col items-center p-2 flex-1 transition-colors {{ $navIsActive($item) ? 'text-emerald-600' : 'text-slate-400' }}">
                 <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"
-                    stroke-width="{{ request()->routeIs($item['route']) ? '2.5' : '2' }}">
+                    stroke-width="{{ $navIsActive($item) ? '2.5' : '2' }}">
                     <path stroke-linecap="round" stroke-linejoin="round" d="{{ $item['icon'] }}" />
                 </svg>
                 <span class="text-[10px] mt-1 font-bold">{{ $item['label'] }}</span>

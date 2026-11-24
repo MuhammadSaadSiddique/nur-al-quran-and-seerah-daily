@@ -101,6 +101,12 @@ Route::get('/themes/{theme:slug}', [\App\Http\Controllers\ThemeShowcaseControlle
 Route::get('/leaderboard', [LeaderboardController::class, 'index'])->name('leaderboard');
 Route::get('/sitemap.xml', [SitemapController::class, 'index'])->name('sitemap');
 
+// Scholars Directory. Onboarding is registered before the slug route.
+Route::get('/scholars', [\App\Http\Controllers\ScholarsController::class, 'index'])->name('scholars.index');
+Route::get('/scholars/onboarding', [\App\Http\Controllers\ScholarsController::class, 'onboarding'])->name('scholars.onboarding')->middleware('auth');
+Route::post('/scholars/onboarding', [\App\Http\Controllers\ScholarsController::class, 'storeOnboarding'])->name('scholars.onboarding.store')->middleware('auth');
+Route::get('/scholars/{scholar:slug}', [\App\Http\Controllers\ScholarsController::class, 'show'])->name('scholars.show');
+
 // Researchers Directory
 Route::get('/researchers', [\App\Http\Controllers\ResearchersController::class, 'index'])->name('researchers.index');
 Route::get('/researchers/onboarding', [\App\Http\Controllers\ResearchersController::class, 'onboarding'])->name('researchers.onboarding')->middleware('auth');
@@ -182,6 +188,11 @@ Route::middleware('auth')->group(function () {
         Route::get('/survey', [\App\Http\Controllers\SurveyController::class, 'adminIndex'])->name('survey.index');
         Route::get('/survey/export', [\App\Http\Controllers\SurveyController::class, 'export'])->name('survey.export');
         Route::get('/researchers', [\App\Http\Controllers\Admin\ResearcherController::class, 'index'])->name('researchers.index');
+        Route::get('/scholars', [\App\Http\Controllers\Admin\ScholarController::class, 'index'])->name('scholars.index');
+        Route::get('/scholars/{scholar}/edit', [\App\Http\Controllers\Admin\ScholarController::class, 'edit'])->name('scholars.edit');
+        Route::put('/scholars/{scholar}', [\App\Http\Controllers\Admin\ScholarController::class, 'update'])->name('scholars.update');
+        Route::patch('/scholars/{scholar}/publish', [\App\Http\Controllers\Admin\ScholarController::class, 'publish'])->name('scholars.publish');
+        Route::delete('/scholars/{scholar}', [\App\Http\Controllers\Admin\ScholarController::class, 'destroy'])->name('scholars.destroy');
         Route::get('/app-feedback', [\App\Http\Controllers\AppFeedbackController::class, 'adminIndex'])->name('app-feedback.index');
         Route::patch('/app-feedback/{appFeedback}/status', [\App\Http\Controllers\AppFeedbackController::class, 'updateStatus'])->name('app-feedback.update-status');
 

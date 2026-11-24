@@ -57,7 +57,9 @@ class ContributionPointsTest extends TestCase
         $expected = 5
             + ContributionPoints::MOSQUE_ADDED_POINTS
             + ContributionPoints::MOSQUE_UPDATED_POINTS
-            + ContributionPoints::MOSQUE_UPDATED_POINTS;
+            + ContributionPoints::MOSQUE_UPDATED_POINTS
+            + ContributionPoints::DAILY_TASK_POINTS
+            + ContributionPoints::STREAK_BASE_POINTS;
         $this->assertSame($expected, (int) $user->total_score);
         $this->assertSame($expected - 5, (int) $user->contribution_points);
         $this->assertSame(5, $user->quiz_score);
@@ -91,8 +93,8 @@ class ContributionPointsTest extends TestCase
         ]);
 
         $user->refresh();
-        $this->assertSame(5 + ContributionPoints::QURAN_VIDEO_POINTS + ContributionPoints::QURAN_CONNECTION_POINTS, (int) $user->total_score);
-        $this->assertSame(ContributionPoints::QURAN_VIDEO_POINTS + ContributionPoints::QURAN_CONNECTION_POINTS, (int) $user->contribution_points);
+        $this->assertSame(5 + ContributionPoints::QURAN_VIDEO_POINTS + ContributionPoints::QURAN_CONNECTION_POINTS + ContributionPoints::DAILY_TASK_POINTS + ContributionPoints::STREAK_BASE_POINTS, (int) $user->total_score);
+        $this->assertSame(ContributionPoints::QURAN_VIDEO_POINTS + ContributionPoints::QURAN_CONNECTION_POINTS + ContributionPoints::DAILY_TASK_POINTS + ContributionPoints::STREAK_BASE_POINTS, (int) $user->contribution_points);
         $this->assertSame(50, $user->accuracy);
 
         $again = app(ContributionPoints::class)->forResearch($user, 'video', 1);

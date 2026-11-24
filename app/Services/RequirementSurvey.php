@@ -120,7 +120,7 @@ class RequirementSurvey
         return [
             'goals' => [
                 'type' => 'multi',
-                'max' => 3,
+                'max' => 7,
                 'eyebrow' => 'Your intention',
                 'title' => 'What brings you to Eternal Echo?',
                 'hint' => 'Pick up to 3',
@@ -271,8 +271,9 @@ class RequirementSurvey
             'features' => ['present', 'array'],
             'nps' => ['required', 'integer', 'between:0,10'],
             'wish' => ['nullable', 'string', 'max:1000'],
-            'name' => ['nullable', 'string', 'max:100'],
-            'email' => ['nullable', 'email', 'max:150'],
+            'name' => ['required', 'string', 'max:100'],
+            'email' => ['required', 'email', 'max:150'],
+            'whatsapp' => ['nullable', 'string', 'regex:/^\+?[0-9][0-9\s\-()]{6,19}$/'],
             'notify' => ['nullable', 'boolean'],
             'source' => ['nullable', 'string', 'alpha_dash', 'max:30'],
             'duration_seconds' => ['nullable', 'integer', 'between:0,86400'],
@@ -303,14 +304,25 @@ class RequirementSurvey
      */
     public static function record(array $input, ?User $user, string $defaultSource = 'web'): SurveyResponse
     {
-        $validated = Validator::make($input, self::rules())->validate();
+        // Signed-in people (and older app versions that send blanks) fall back to their account details.
+        if ($user) {
+            $input['name'] = filled($input['name'] ?? null) ? $input['name'] : ($user->display_name ?: $user->name);
+            $input['email'] = filled($input['email'] ?? null) ? $input['email'] : $user->email;
+        }
+
+        $validated = Validator::make($input, self::rules(), [
+            'name.required' => 'Please add your name.',
+            'email.required' => 'Please add your email.',
+            'whatsapp.regex' => 'That WhatsApp number doesn\'t look right. Include your country code, e.g. +92 300 1234567.',
+        ])->validate();
 
         $attributes = [
             'answers' => self::answersFrom($validated),
             'nps' => $validated['nps'],
             'wish' => filled($validated['wish'] ?? null) ? trim($validated['wish']) : null,
-            'name' => $validated['name'] ?? ($user ? ($user->display_name ?: $user->name) : null),
-            'email' => $validated['email'] ?? $user?->email,
+            'name' => trim($validated['name']),
+            'email' => trim($validated['email']),
+            'whatsapp' => self::normalizePhone($validated['whatsapp'] ?? null),
             'notify' => (bool) ($validated['notify'] ?? false),
             'source' => $validated['source'] ?? $defaultSource,
             'duration_seconds' => $validated['duration_seconds'] ?? null,
@@ -340,8 +352,20 @@ class RequirementSurvey
             'wish' => $response->wish,
             'name' => $response->name,
             'email' => $response->email,
+            'whatsapp' => $response->whatsapp,
             'notify' => $response->notify,
         ]);
+    }
+
+    /** Keeps a leading "+" and the digits, so "+92 300-123 4567" is stored as "+923001234567". */
+    public static function normalizePhone(?string $phone): ?string
+    {
+        if (blank($phone)) {
+            return null;
+        }
+        $digits = preg_replace('/\D/', '', $phone);
+
+        return (str_starts_with(trim($phone), '+') ? '+' : '') . $digits;
     }
 
     /** Pull the answer payload (everything except contact details) out of validated input. */

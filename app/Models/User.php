@@ -28,6 +28,7 @@ class User extends Authenticatable
         'referred_by',
         'total_score',
         'contribution_points',
+        'reward_points',
         'total_questions',
         'seerah_read_count',
         'quran_history_read_count',
@@ -114,6 +115,7 @@ class User extends Authenticatable
             'is_researcher' => 'boolean',
             'expert_category_id' => 'integer',
             'contribution_points' => 'integer',
+            'reward_points' => 'integer',
         ];
     }
 

@@ -73,6 +73,7 @@ class SurveyController extends Controller
                 $query->where(fn ($q) => $q
                     ->where('name', 'like', $term)
                     ->orWhere('email', 'like', $term)
+                    ->orWhere('whatsapp', 'like', $term)
                     ->orWhereHas('user', fn ($u) => $u->where('name', 'like', $term)->orWhere('email', 'like', $term)));
             })
             ->latest()
@@ -102,7 +103,7 @@ class SurveyController extends Controller
                 ['id', 'submitted_at', 'source', 'signed_in'],
                 array_keys($questions),
                 array_map(fn ($key) => 'feature_' . $key, array_keys($features)),
-                ['nps', 'wish', 'name', 'email', 'notify', 'duration_seconds']
+                ['nps', 'wish', 'name', 'email', 'whatsapp', 'notify', 'duration_seconds']
             ));
 
             SurveyResponse::where('survey_key', RequirementSurvey::KEY)
@@ -121,7 +122,7 @@ class SurveyController extends Controller
                         foreach (array_keys($features) as $key) {
                             $row[] = $response->answers['features'][$key] ?? '';
                         }
-                        array_push($row, $response->nps, $response->wish, $response->name, $response->email, $response->notify ? 'yes' : 'no', $response->duration_seconds);
+                        array_push($row, $response->nps, $response->wish, $response->name, $response->email, $response->whatsapp, $response->notify ? 'yes' : 'no', $response->duration_seconds);
                         fputcsv($out, array_map([self::class, 'csvSafe'], $row));
                     }
                 });

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AppFeedback;
+use App\Services\ContributionPoints;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
@@ -75,13 +76,21 @@ class AppFeedbackController extends Controller
             'status' => 'pending',
         ]);
 
+        $points = $user ? app(ContributionPoints::class)->forAppFeedback($user) : 0;
+        if ($user) {
+            $user->refresh();
+        }
+
         return response()->json([
             'status' => 'success',
             'message' => 'JazakAllahu Khairan! Thank you for sharing your valuable feedback.',
+            'reward_note' => ContributionPoints::rewardNote($points),
             'data' => [
                 'id' => $feedback->id,
                 'rating' => $feedback->rating,
                 'category' => $feedback->category,
+                'points_awarded' => $points,
+                'reward_points' => (int) ($user->reward_points ?? 0),
             ]
         ]);
     }

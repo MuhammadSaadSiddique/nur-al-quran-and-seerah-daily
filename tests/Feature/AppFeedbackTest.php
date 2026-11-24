@@ -4,6 +4,9 @@ namespace Tests\Feature;
 
 use App\Models\AppFeedback;
 use App\Models\User;
+use App\Models\UserDailyEngagement;
+use App\Services\ContributionPoints;
+use App\Services\DailyEngagementService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -123,5 +126,71 @@ class AppFeedbackTest extends TestCase
             'platform' => 'android',
             'device_info' => 'Pixel 8 - Android 14'
         ]);
+    }
+
+    public function test_signed_in_feedback_saves_100_reward_points_once(): void
+    {
+        $user = User::factory()->create([
+            'total_score' => 40,
+            'contribution_points' => 0,
+            'reward_points' => 0,
+        ]);
+
+        $first = $this->actingAs($user)->postJson(route('app-feedback.store'), [
+            'rating' => 5,
+            'message' => 'The prayer page is useful.',
+        ]);
+
+        $first->assertOk()
+            ->assertJsonPath('data.points_awarded', 100)
+            ->assertJsonPath('data.reward_points', 100)
+            ->assertJsonPath('reward_note', 'You earned 100 points. They stay on your account for events and courses.');
+
+        $user->refresh();
+        $this->assertSame(100, $user->reward_points);
+        $this->assertSame(40, $user->total_score);
+
+        $second = $this->actingAs($user)->postJson(route('app-feedback.store'), [
+            'rating' => 4,
+            'message' => 'Another note.',
+        ]);
+
+        $second->assertOk()->assertJsonPath('data.points_awarded', 0);
+        $this->assertSame(100, $user->fresh()->reward_points);
+        $this->assertSame(40, $user->fresh()->total_score);
+        $this->assertSame(ContributionPoints::APP_FEEDBACK_POINTS, 100);
+    }
+
+    public function test_guest_feedback_does_not_create_reward_points(): void
+    {
+        $response = $this->postJson(route('app-feedback.store'), [
+            'rating' => 5,
+            'message' => 'Beautiful recitation links.',
+            'user_name' => 'Amina',
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.points_awarded', 0)
+            ->assertJsonPath('reward_note', '');
+    }
+
+    public function test_profile_shows_reward_balance_without_a_claim_form(): void
+    {
+        $user = User::factory()->create([
+            'total_score' => 0,
+            'contribution_points' => 0,
+            'reward_points' => 0,
+            'streak_count' => 0,
+            'last_streak_date' => null,
+        ]);
+
+        app(DailyEngagementService::class)->record($user, UserDailyEngagement::ACTIVITY_DUA);
+        $this->assertSame(10, $user->fresh()->reward_points);
+        $this->assertSame(10, $user->fresh()->total_score);
+
+        $this->actingAs($user)->get(route('profile'))
+            ->assertOk()
+            ->assertSee('Reward points')
+            ->assertDontSee('Claim points');
     }
 }

@@ -1422,6 +1422,7 @@ try {
                 $streak = calculate_user_streak($pdo, $userModel->id, true);
                 $token = \App\Services\MobileApiAuthService::issueToken($userModel);
                 $userModel->ensureAffiliateCode();
+                $userModel->refresh();
                 echo json_encode([
                     'status' => 'success',
                     'data' => [
@@ -1430,6 +1431,7 @@ try {
                         'email' => $userModel->email,
                         'total_score' => (int)$userModel->total_score,
                         'contribution_points' => (int)($userModel->contribution_points ?? 0),
+                        'reward_points' => (int)($userModel->reward_points ?? 0),
                         'affiliate_code' => (string) $userModel->affiliate_code,
                         'affiliate_url' => $userModel->affiliateUrl(),
                         'token' => $token,
@@ -1532,6 +1534,7 @@ try {
             $user->ensureAffiliateCode();
 
             $streak = calculate_user_streak($pdo, $user->id, true);
+            $user->refresh();
             $token = \App\Services\MobileApiAuthService::issueToken($user);
 
             echo json_encode([
@@ -1542,6 +1545,7 @@ try {
                     'email' => $user->email,
                     'total_score' => (int)$user->total_score,
                     'contribution_points' => (int)($user->contribution_points ?? 0),
+                    'reward_points' => (int)($user->reward_points ?? 0),
                     'affiliate_code' => (string) $user->affiliate_code,
                     'affiliate_url' => $user->affiliateUrl(),
                     'has_password' => !empty($user->password),
@@ -1991,6 +1995,9 @@ try {
                 $pointsSelect = \Illuminate\Support\Facades\Schema::hasColumn('users', 'contribution_points')
                     ? ', contribution_points'
                     : '';
+                if (\Illuminate\Support\Facades\Schema::hasColumn('users', 'reward_points')) {
+                    $pointsSelect .= ', reward_points';
+                }
                 $stmt = $pdo->prepare("SELECT id, name, display_name, email, password, total_score{$pointsSelect}, total_questions, seerah_read_count, quran_history_read_count, completed_paras, para_mastery, difficulty_stats, bookmarked_questions FROM users WHERE id = :id");
                 $stmt->execute(['id' => $userId]);
                 $user = $stmt->fetch();
@@ -2063,6 +2070,7 @@ try {
                     'total_score' => $totalScore,
                     'quiz_score' => $quizScore,
                     'contribution_points' => $contributionPoints,
+                    'reward_points' => (int)($user['reward_points'] ?? 0),
                     'affiliate_code' => $affiliateCode,
                     'affiliate_url' => $affiliateUrl,
                     'max_possible_score' => $maxPossible,
@@ -2824,14 +2832,25 @@ try {
                 $now
             ]);
             $feedbackId = (int)$pdo->lastInsertId();
+            $feedbackPoints = 0;
+            $rewardPoints = 0;
+            if ($authForFeedback) {
+                $feedbackPoints = app(\App\Services\ContributionPoints::class)->forAppFeedback($authForFeedback);
+                $authForFeedback->refresh();
+                $rewardPoints = (int) ($authForFeedback->reward_points ?? 0);
+            }
+            $feedbackNote = \App\Services\ContributionPoints::rewardNote($feedbackPoints);
 
             echo json_encode([
                 'status' => 'success',
-                'message' => 'JazakAllahu Khairan! Thank you for sharing your feedback.',
+                'message' => 'JazakAllahu Khairan! Thank you for sharing your feedback.' . ($feedbackNote !== '' ? ' ' . $feedbackNote : ''),
+                'reward_note' => $feedbackNote,
                 'data' => [
                     'id' => $feedbackId,
                     'rating' => $rating,
-                    'category' => $category
+                    'category' => $category,
+                    'points_awarded' => $feedbackPoints,
+                    'reward_points' => $rewardPoints,
                 ]
             ]);
             break;

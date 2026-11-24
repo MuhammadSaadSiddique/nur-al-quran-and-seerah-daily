@@ -1146,8 +1146,9 @@ private fun WishStep(state: SurveyUiState, vm: SurveyViewModel, palette: HomeThe
 @Composable
 private fun ContactStep(state: SurveyUiState, vm: SurveyViewModel, palette: HomeThemePalette) {
     val emailInvalid = !SurveyFlow.isEmailValid(state.answers.email)
+    val whatsappInvalid = !SurveyFlow.isWhatsappValid(state.answers.whatsapp)
     StepColumn {
-        StepHeader("Last step", "Want to hear when your ideas ship?", "Both fields are optional. We only use them to follow up on this survey.", palette)
+        StepHeader("Last step", "Want to hear when your ideas ship?", "Name and email are required. Add WhatsApp if you'd like updates there too.", palette)
         if (state.signedIn) {
             Text(
                 "👤  You're signed in, so your answers are saved to your account and you can update them any time.",
@@ -1164,7 +1165,7 @@ private fun ContactStep(state: SurveyUiState, vm: SurveyViewModel, palette: Home
         OutlinedTextField(
             value = state.answers.name,
             onValueChange = vm::setName,
-            label = { Text("Your name") },
+            label = { Text("Your name *") },
             singleLine = true,
             shape = RoundedCornerShape(16.dp),
             colors = surveyFieldColors(palette),
@@ -1175,13 +1176,29 @@ private fun ContactStep(state: SurveyUiState, vm: SurveyViewModel, palette: Home
         OutlinedTextField(
             value = state.answers.email,
             onValueChange = vm::setEmail,
-            label = { Text("Email") },
+            label = { Text("Email *") },
             singleLine = true,
             isError = emailInvalid,
             supportingText = { if (emailInvalid) Text("That email doesn't look right.") },
             shape = RoundedCornerShape(16.dp),
             colors = surveyFieldColors(palette),
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Done),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(Modifier.height(12.dp))
+        OutlinedTextField(
+            value = state.answers.whatsapp,
+            onValueChange = vm::setWhatsapp,
+            label = { Text("WhatsApp number (optional)") },
+            placeholder = { Text("+92 300 1234567") },
+            singleLine = true,
+            isError = whatsappInvalid,
+            supportingText = {
+                Text(if (whatsappInvalid) "Include your country code, e.g. +92 300 1234567." else "💬 Get updates on WhatsApp.")
+            },
+            shape = RoundedCornerShape(16.dp),
+            colors = surveyFieldColors(palette),
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
             keyboardActions = KeyboardActions(onDone = { vm.submit() }),
             modifier = Modifier.fillMaxWidth()
         )

@@ -54,6 +54,7 @@ data class SurveyAnswers(
     val wish: String = "",
     val name: String = "",
     val email: String = "",
+    val whatsapp: String = "",
     val notify: Boolean = true
 ) {
     fun picked(questionKey: String): List<String> = choices[questionKey].orEmpty()
@@ -136,6 +137,7 @@ object SurveyJson {
             wish = obj.text("wish"),
             name = obj.text("name"),
             email = obj.text("email"),
+            whatsapp = obj.text("whatsapp"),
             notify = obj.optBoolean("notify", true)
         )
     }
@@ -157,6 +159,7 @@ object SurveyJson {
         put("name", answers.name.trim().ifBlank { null } ?: JSONObject.NULL)
         val email = answers.email.trim()
         put("email", email.ifBlank { null } ?: JSONObject.NULL)
+        put("whatsapp", answers.whatsapp.trim().ifBlank { null } ?: JSONObject.NULL)
         put("notify", answers.notify && email.isNotEmpty())
         put("source", source)
         if (durationSeconds != null) put("duration_seconds", durationSeconds.coerceIn(0, 86_400))

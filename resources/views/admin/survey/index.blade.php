@@ -232,7 +232,7 @@
             </div>
             <form method="GET" action="{{ route('admin.survey.index') }}#participants" class="flex gap-2">
                 @if(request()->filled('role'))<input type="hidden" name="role" value="{{ request('role') }}">@endif
-                <input type="search" name="q" value="{{ request('q') }}" placeholder="Search name or email" aria-label="Search participants"
+                <input type="search" name="q" value="{{ request('q') }}" placeholder="Search name, email or WhatsApp" aria-label="Search participants"
                     class="w-56 bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-700 focus:outline-none focus:border-emerald-500">
                 <button class="px-3 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold rounded-xl">Search</button>
                 @if(request()->filled('q'))
@@ -276,6 +276,10 @@
                                         @if($response->notify)<span title="Wants to hear when things ship">🔔</span>@endif
                                         @if(!$response->user_id)<span class="text-slate-400">· guest</span>@endif
                                     </p>
+                                    @if($response->whatsapp)
+                                        <a href="https://wa.me/{{ ltrim($response->whatsapp, '+') }}" target="_blank" rel="noopener" @click.stop
+                                            class="text-xs font-semibold text-emerald-600 hover:underline">WhatsApp {{ $response->whatsapp }}</a>
+                                    @endif
                                 </td>
                                 <td class="py-3 pr-4 text-slate-700 whitespace-nowrap">{{ $role ? $role[0] . ' ' . $role[1] : '–' }}</td>
                                 <td class="py-3 pr-4 text-slate-600 text-xs">{{ $wantsMost->map(fn ($o) => $o[0] . ' ' . $o[1])->implode(', ') ?: '–' }}</td>

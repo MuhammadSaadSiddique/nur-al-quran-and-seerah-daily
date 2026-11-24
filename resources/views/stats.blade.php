@@ -47,6 +47,10 @@
                 <span class="font-black text-emerald-600">{{ number_format($user->contribution_points) }}</span>
             </div>
             <div class="flex items-center justify-between">
+                <span class="font-bold text-slate-600">Reward points</span>
+                <span class="font-black text-emerald-600">{{ number_format($user->reward_points) }}</span>
+            </div>
+            <div class="flex items-center justify-between">
                 <span class="font-bold text-slate-600">Total points</span>
                 <span class="font-black text-emerald-600">{{ number_format($user->total_score) }}</span>
             </div>

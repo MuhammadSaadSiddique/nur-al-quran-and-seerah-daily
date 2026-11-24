@@ -3,6 +3,8 @@
 
 @section('content')
     <div class="space-y-12 pb-10 animate-fadeIn" x-data="homePage()">
+        @include('partials.android-app-prompt', ['tone' => 'light'])
+
         {{-- Welcome --}}
         <div class="text-center space-y-4">
             <h2 class="text-3xl font-extrabold text-slate-900 md:text-4xl">
@@ -77,6 +79,39 @@
                         @endforeach
                     </ul>
                 </div>
+            </div>
+        </div>
+
+        {{-- Latest features --}}
+        @php
+            $playStoreUrl = 'https://play.google.com/store/apps/details?id=com.asloobulhayat.eternalecho';
+        @endphp
+        <div class="space-y-5">
+            <div class="text-center space-y-2">
+                <h3 class="text-2xl font-black text-slate-900">What's new</h3>
+                <p class="text-sm font-medium text-slate-500 max-w-2xl mx-auto">Salah times and the scholars directory are open here. Adhan reminders, nearby mosques, and Quran root-word search are in the Android app.</p>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <a href="{{ route('prayer') }}" class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-3 hover:border-emerald-300 transition-all">
+                    <span class="text-2xl">🕌</span>
+                    <h4 class="font-black text-slate-900">Salah times</h4>
+                    <p class="text-xs font-medium text-slate-500 leading-relaxed">Today's Fajr, Dhuhr, Asr, Maghrib, and Isha for your location.</p>
+                </a>
+                <a href="{{ route('scholars.index') }}" class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-3 hover:border-emerald-300 transition-all">
+                    <span class="text-2xl">🎓</span>
+                    <h4 class="font-black text-slate-900">Scholars</h4>
+                    <p class="text-xs font-medium text-slate-500 leading-relaxed">Fields, sources, and published works of listed scholars.</p>
+                </a>
+                <a href="{{ $playStoreUrl }}" target="_blank" rel="noopener noreferrer" class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-3 hover:border-emerald-300 transition-all">
+                    <span class="text-2xl">📍</span>
+                    <h4 class="font-black text-slate-900">Mosques and adhan</h4>
+                    <p class="text-xs font-medium text-slate-500 leading-relaxed">Nearby masajid, jamat times, and exact prayer reminders in the Android app.</p>
+                </a>
+                <a href="{{ $playStoreUrl }}" target="_blank" rel="noopener noreferrer" class="bg-white rounded-3xl p-6 shadow-sm border border-slate-100 space-y-3 hover:border-emerald-300 transition-all">
+                    <span class="text-2xl">🔍</span>
+                    <h4 class="font-black text-slate-900">Root-word search</h4>
+                    <p class="text-xs font-medium text-slate-500 leading-relaxed">Search an Arabic root across the Quran, then open the verse.</p>
+                </a>
             </div>
         </div>
 

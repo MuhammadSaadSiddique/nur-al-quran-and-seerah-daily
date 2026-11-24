@@ -14,6 +14,7 @@ class SurveyResponse extends Model
         'wish',
         'name',
         'email',
+        'whatsapp',
         'notify',
         'source',
         'duration_seconds',

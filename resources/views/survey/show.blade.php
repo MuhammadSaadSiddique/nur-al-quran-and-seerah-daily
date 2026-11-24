@@ -422,23 +422,31 @@
                                 <div class="space-y-2">
                                     <p class="text-xs font-black uppercase tracking-[0.18em] text-gold-400">Last step</p>
                                     <h2 class="text-2xl sm:text-4xl font-black tracking-tight leading-tight">Want to hear when your ideas ship?</h2>
-                                    <p class="text-sm text-slate-400 font-medium">Both fields are optional. We only use them to follow up on this survey.</p>
+                                    <p class="text-sm text-slate-400 font-medium">Name and email are required. Add WhatsApp if you'd like updates there too.</p>
                                 </div>
                                 <div x-show="opts.user" class="flex items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-4 py-3">
                                     <span class="text-xl">👤</span>
                                     <p class="text-sm text-emerald-100">You're signed in, so your answers are saved to your account and you can update them any time.</p>
                                 </div>
                                 <label class="block space-y-1.5">
-                                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Your name</span>
-                                    <input type="text" x-model="answers.name" maxlength="100" autocomplete="name" placeholder="e.g. Aisha"
+                                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Your name <span class="text-gold-400" aria-hidden="true">*</span></span>
+                                    <input type="text" x-model="answers.name" maxlength="100" autocomplete="name" placeholder="e.g. Aisha" required
                                         class="w-full rounded-2xl bg-white/[0.05] border border-white/10 focus:border-gold-400 focus:ring-2 focus:ring-gold-400/20 focus:outline-none px-4 py-3.5 text-base text-slate-100 placeholder:text-slate-500 transition">
                                 </label>
                                 <label class="block space-y-1.5">
-                                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Email</span>
-                                    <input type="email" x-model="answers.email" maxlength="150" autocomplete="email" inputmode="email" placeholder="you@example.com"
+                                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">Email <span class="text-gold-400" aria-hidden="true">*</span></span>
+                                    <input type="email" x-model="answers.email" maxlength="150" autocomplete="email" inputmode="email" placeholder="you@example.com" required
                                         class="w-full rounded-2xl bg-white/[0.05] border focus:ring-2 focus:outline-none px-4 py-3.5 text-base text-slate-100 placeholder:text-slate-500 transition"
                                         :class="emailInvalid ? 'border-rose-400 focus:border-rose-400 focus:ring-rose-400/20' : 'border-white/10 focus:border-gold-400 focus:ring-gold-400/20'">
                                     <span x-show="emailInvalid" class="text-xs font-semibold text-rose-300">That email doesn't look right.</span>
+                                </label>
+                                <label class="block space-y-1.5">
+                                    <span class="text-xs font-bold uppercase tracking-wider text-slate-400">WhatsApp number <span class="normal-case tracking-normal font-semibold text-slate-500">(optional)</span></span>
+                                    <input type="tel" x-model="answers.whatsapp" maxlength="20" autocomplete="tel" inputmode="tel" placeholder="+92 300 1234567"
+                                        class="w-full rounded-2xl bg-white/[0.05] border focus:ring-2 focus:outline-none px-4 py-3.5 text-base text-slate-100 placeholder:text-slate-500 transition"
+                                        :class="whatsappInvalid ? 'border-rose-400 focus:border-rose-400 focus:ring-rose-400/20' : 'border-white/10 focus:border-gold-400 focus:ring-gold-400/20'">
+                                    <span x-show="whatsappInvalid" class="text-xs font-semibold text-rose-300">Include your country code, e.g. +92 300 1234567.</span>
+                                    <span x-show="!whatsappInvalid" class="text-xs text-slate-500">💬 Get updates on WhatsApp.</span>
                                 </label>
                                 <button type="button" @click="answers.notify = !answers.notify" role="switch" :aria-checked="answers.notify.toString()"
                                     class="flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-left hover:bg-white/[0.07] transition">
@@ -547,7 +555,7 @@
             const blankAnswers = () => ({
                 goals: [], role: null, daily_time: null, wishlist: [], languages: [], platform: null,
                 features: {}, nps: null, wish: '',
-                name: opts.user ? opts.user.name : '', email: opts.user ? opts.user.email : '', notify: true,
+                name: opts.user ? opts.user.name : '', email: opts.user ? opts.user.email : '', whatsapp: '', notify: true,
             });
 
             return {
@@ -776,6 +784,13 @@
                     const e = (this.answers.email || '').trim();
                     return e.length > 0 && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(e);
                 },
+                get whatsappInvalid() {
+                    const w = (this.answers.whatsapp || '').trim();
+                    return w.length > 0 && !/^\+?[0-9][0-9\s\-()]{6,19}$/.test(w);
+                },
+                get contactComplete() {
+                    return !!(this.answers.name || '').trim() && !!(this.answers.email || '').trim() && !this.emailInvalid && !this.whatsappInvalid;
+                },
                 get firstName() { return (this.answers.name || '').trim().split(/\s+/)[0] || ''; },
 
                 // ---------- footer CTA ----------
@@ -785,7 +800,7 @@
                     if (s === 'features') return this.deckIndex >= this.features.length;
                     if (s === 'nps') return this.answers.nps !== null;
                     if (s === 'wish') return true;
-                    if (s === 'contact') return !this.emailInvalid;
+                    if (s === 'contact') return this.contactComplete;
                     return false;
                 },
                 get showFooter() {
@@ -866,6 +881,7 @@
                         goals: a.goals, role: a.role, daily_time: a.daily_time, wishlist: a.wishlist,
                         languages: a.languages, platform: a.platform, features: a.features, nps: a.nps,
                         wish: a.wish.trim() || null, name: a.name.trim() || null, email: a.email.trim() || null,
+                        whatsapp: (a.whatsapp || '').trim() || null,
                         notify: !!(a.notify && a.email.trim()), source: opts.source,
                         duration_seconds: this.startedAt ? Math.round((Date.now() - this.startedAt) / 1000) : null,
                     };

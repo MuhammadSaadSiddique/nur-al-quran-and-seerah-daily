@@ -246,6 +246,7 @@ class SurveyViewModel(application: Application) : AndroidViewModel(application) 
 
     fun setName(text: String) = updateAnswers { it.copy(name = text.take(100)) }
     fun setEmail(text: String) = updateAnswers { it.copy(email = text.take(150)) }
+    fun setWhatsapp(text: String) = updateAnswers { it.copy(whatsapp = text.take(20)) }
     fun toggleNotify() = updateAnswers { it.copy(notify = !it.notify) }
 
     private fun updateAnswers(change: (SurveyAnswers) -> SurveyAnswers) {

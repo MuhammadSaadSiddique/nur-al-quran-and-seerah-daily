@@ -24,6 +24,7 @@ class ContributionPoints
     public const AFFILIATE_SIGNUP = 'affiliate_signup';
     public const DAILY_TASK = 'daily_task';
     public const DAILY_STREAK = 'daily_streak';
+    public const APP_FEEDBACK = 'app_feedback';
 
     public const MOSQUE_ADDED_POINTS = 20;
     public const MOSQUE_UPDATED_POINTS = 10;
@@ -35,6 +36,7 @@ class ContributionPoints
     /** Day 1 of a streak. Each extra day adds one point, up to STREAK_MAX_POINTS. */
     public const STREAK_BASE_POINTS = 5;
     public const STREAK_MAX_POINTS = 30;
+    public const APP_FEEDBACK_POINTS = 100;
 
     /** Video and connection awards share this cap so a script cannot farm the leaderboard. */
     public const DAILY_QURAN_LIMIT = 15;
@@ -115,6 +117,7 @@ class ContributionPoints
 
                 $user->increment('contribution_points', $points);
                 $user->increment('total_score', $points);
+                $this->addRewardBalance($user, $points);
 
                 return $points;
             });
@@ -146,6 +149,54 @@ class ContributionPoints
         return $this->award($user, self::QURAN_CONNECTION, $source);
     }
 
+    /**
+     * One signed-in feedback note pays once. These points stay off the quiz
+     * score and wait with the rest of the reward balance.
+     */
+    public function forAppFeedback(User $user): int
+    {
+        $points = self::APP_FEEDBACK_POINTS;
+        $source = 'app_feedback:' . $user->id;
+        if ($points <= 0 || !$user->id || !$this->ready() || !$this->rewardReady()) {
+            return 0;
+        }
+
+        try {
+            return DB::transaction(function () use ($user, $source, $points) {
+                if (UserPointAward::where('source', $source)->exists()) {
+                    return 0;
+                }
+
+                UserPointAward::create([
+                    'user_id' => $user->id,
+                    'action' => self::APP_FEEDBACK,
+                    'points' => $points,
+                    'source' => $source,
+                ]);
+                $this->addRewardBalance($user, $points);
+
+                return $points;
+            });
+        } catch (UniqueConstraintViolationException) {
+            return 0;
+        } catch (\Throwable $e) {
+            Log::warning('Feedback reward failed: ' . $e->getMessage());
+
+            return 0;
+        }
+    }
+
+    public static function rewardNote(int $points): string
+    {
+        if ($points <= 0) {
+            return '';
+        }
+
+        $word = $points === 1 ? 'point' : 'points';
+
+        return 'You earned ' . $points . ' ' . $word . '. They stay on your account for events and courses.';
+    }
+
     public static function note(int $points): string
     {
         if ($points <= 0) {
@@ -153,6 +204,22 @@ class ContributionPoints
         }
 
         return ' You earned ' . $points . ' ' . ($points === 1 ? 'point' : 'points') . '.';
+    }
+
+    private function addRewardBalance(User $user, int $points): void
+    {
+        if ($points > 0 && $this->rewardReady()) {
+            $user->increment('reward_points', $points);
+        }
+    }
+
+    private function rewardReady(): bool
+    {
+        try {
+            return Schema::hasColumn('users', 'reward_points');
+        } catch (\Throwable) {
+            return false;
+        }
     }
 
     private function ready(): bool

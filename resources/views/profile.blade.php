@@ -176,6 +176,10 @@
                     <span class="font-black text-emerald-600">{{ number_format($user->contribution_points) }}</span>
                 </div>
                 <div class="flex justify-between py-4">
+                    <span class="font-bold text-slate-600">Reward points</span>
+                    <span class="font-black text-emerald-600">{{ number_format($user->reward_points) }}</span>
+                </div>
+                <div class="flex justify-between py-4">
                     <span class="font-bold text-slate-600">Accuracy</span>
                     <span class="font-black text-emerald-600">{{ $user->accuracy }}%</span>
                 </div>

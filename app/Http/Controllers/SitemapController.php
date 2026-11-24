@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Dua;
+use App\Models\Scholar;
 use App\Models\Theme;
 use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Route;
@@ -95,7 +96,29 @@ class SitemapController extends Controller
             ];
         }
 
-        // 10. Researchers Directory
+        // 10. Scholars Directory
+        if (Route::has('scholars.index')) {
+            $urls[] = [
+                'loc' => route('scholars.index'),
+                'lastmod' => now()->startOfDay()->toAtomString(),
+                'changefreq' => 'weekly',
+                'priority' => '0.7',
+            ];
+
+            Scholar::query()
+                ->where('status', Scholar::STATUS_PUBLISHED)
+                ->orderBy('id')
+                ->each(function (Scholar $scholar) use (&$urls) {
+                    $urls[] = [
+                        'loc' => route('scholars.show', $scholar),
+                        'lastmod' => ($scholar->updated_at ?? now())->toAtomString(),
+                        'changefreq' => 'weekly',
+                        'priority' => '0.6',
+                    ];
+                });
+        }
+
+        // Researchers Directory
         if (Route::has('researchers.index')) {
             $urls[] = [
                 'loc' => route('researchers.index'),

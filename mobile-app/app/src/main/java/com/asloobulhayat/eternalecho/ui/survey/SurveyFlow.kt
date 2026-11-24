@@ -37,6 +37,8 @@ object SurveyFlow {
     )
 
     private val EMAIL = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]{2,}$")
+    /** Same pattern as RequirementSurvey::rules() on the server. */
+    private val PHONE = Regex("^\\+?[0-9][0-9\\s\\-()]{6,19}$")
 
     fun steps(config: SurveyConfig): List<SurveyStep> {
         val choices = config.questions.map { SurveyStep.Choice(it) }
@@ -73,12 +75,19 @@ object SurveyFlow {
 
     fun isEmailValid(email: String): Boolean = email.isBlank() || EMAIL.matches(email.trim())
 
+    fun isWhatsappValid(number: String): Boolean = number.isBlank() || PHONE.matches(number.trim())
+
+    /** Name and email are required; WhatsApp is optional but must look like a number when given. */
+    fun isContactComplete(answers: SurveyAnswers): Boolean =
+        answers.name.isNotBlank() && answers.email.isNotBlank() &&
+            isEmailValid(answers.email) && isWhatsappValid(answers.whatsapp)
+
     fun canContinue(step: SurveyStep, answers: SurveyAnswers, deckDone: Boolean): Boolean = when (step) {
         is SurveyStep.Choice -> answers.picked(step.question.key).isNotEmpty()
         SurveyStep.Features -> deckDone
         SurveyStep.Nps -> answers.nps != null
         SurveyStep.Wish -> true
-        SurveyStep.Contact -> isEmailValid(answers.email)
+        SurveyStep.Contact -> isContactComplete(answers)
         SurveyStep.Welcome, SurveyStep.Done -> false
     }
 

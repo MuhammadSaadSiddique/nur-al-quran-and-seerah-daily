@@ -53,7 +53,7 @@ class UserFactory extends Factory
         $attributes = is_array($attributes) ? $attributes : [];
         $forcedKeys = [
             'is_admin', 'is_researcher', 'quran_access_token', 'quran_refresh_token',
-            'expert_category_id', 'affiliate_code', 'referred_by', 'total_score', 'contribution_points', 'total_questions', 'seerah_read_count',
+            'expert_category_id', 'affiliate_code', 'referred_by', 'total_score', 'contribution_points', 'reward_points', 'total_questions', 'seerah_read_count',
             'quran_history_read_count', 'seerah_quiz_count', 'completed_paras', 'para_mastery',
             'difficulty_stats', 'bookmarked_questions', 'seerah_quiz_best_score',
             'streak_count', 'longest_streak', 'last_streak_date', 'streak_history',

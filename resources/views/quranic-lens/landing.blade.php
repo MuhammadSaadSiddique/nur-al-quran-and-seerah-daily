@@ -165,9 +165,11 @@
                 </div>
             </a>
 
-            <nav class="hidden lg:flex items-center gap-7 text-sm font-medium text-slate-300">
+            <nav class="hidden lg:flex items-center gap-5 text-sm font-medium text-slate-300">
                 <a href="#features" class="hover:text-gold-400 transition-colors">Features</a>
                 <a href="{{ route('welcome') }}" class="hover:text-gold-400 transition-colors">Quran</a>
+                <a href="{{ route('prayer') }}" class="hover:text-gold-400 transition-colors">Prayer</a>
+                <a href="{{ route('scholars.index') }}" class="hover:text-gold-400 transition-colors">Scholars</a>
                 <a href="{{ route('duas.index') }}" class="hover:text-gold-400 transition-colors">Duas</a>
                 <a href="{{ route('quiz.learning') }}" class="hover:text-gold-400 transition-colors">Quizzes</a>
                 <a href="#links" class="hover:text-gold-400 transition-colors">Get the App</a>
@@ -182,6 +184,8 @@
                         class="absolute right-0 mt-2 w-48 rounded-2xl border border-gold-500/20 bg-emerald-950 py-2 shadow-2xl">
                         <a href="#features" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Features</a>
                         <a href="{{ route('welcome') }}" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Quran</a>
+                        <a href="{{ route('prayer') }}" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Prayer</a>
+                        <a href="{{ route('scholars.index') }}" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Scholars</a>
                         <a href="{{ route('duas.index') }}" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Duas</a>
                         <a href="{{ route('quiz.learning') }}" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Quizzes</a>
                         <a href="{{ route('seerah') }}" class="block px-4 py-2.5 text-sm text-slate-200 hover:bg-white/5">Seerah</a>
@@ -203,6 +207,8 @@
             </div>
         </div>
     </header>
+
+    @include('partials.android-app-prompt', ['tone' => 'dark', 'playStoreUrl' => $playStoreUrl])
 
     <main>
         <section id="interactive-preview" class="relative pt-12 pb-20 lg:pt-20 lg:pb-28 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -337,7 +343,7 @@
                 <div class="text-center max-w-2xl mx-auto mb-12">
                     <span class="text-xs uppercase font-mono tracking-widest text-gold-400">Asloob ul Hayat</span>
                     <h2 class="text-3xl sm:text-4xl font-bold text-white mt-1">What Eternal Echo holds</h2>
-                    <p class="text-slate-300 text-sm sm:text-base mt-2">Reading, review, and research in one place, on the web and in the Android app.</p>
+                    <p class="text-slate-300 text-sm sm:text-base mt-2">Reading, salah, scholars, and research on the web. Adhan reminders, nearby mosques, and root-word search are in the Android app.</p>
                 </div>
 
                 <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -372,6 +378,50 @@
                         <h3 class="text-lg font-bold text-white">The Quranic Lens</h3>
                         <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">Verse connections to Hadith, Seerah, history, science, and earlier scripture, reviewed by researchers.</p>
                         <div class="text-[11px] text-gold-400/80 font-mono pt-2">Open research</div>
+                    </a>
+                    <a href="{{ route('prayer') }}" class="glass-panel p-6 rounded-2xl glass-card-hover space-y-3 block">
+                        <div class="flex items-center justify-between">
+                            <div class="w-12 h-12 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-400">
+                                <i data-lucide="clock" class="w-6 h-6"></i>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-gold-400">New</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white">Salah times</h3>
+                        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">Fajr through Isha for your location, with the Karachi method and the Hanafi Asr shadow.</p>
+                        <div class="text-[11px] text-gold-400/80 font-mono pt-2">Open prayer times</div>
+                    </a>
+                    <a href="{{ route('scholars.index') }}" class="glass-panel p-6 rounded-2xl glass-card-hover space-y-3 block">
+                        <div class="flex items-center justify-between">
+                            <div class="w-12 h-12 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-400">
+                                <i data-lucide="graduation-cap" class="w-6 h-6"></i>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-gold-400">New</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white">Scholars</h3>
+                        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">Fields, sources, and published works of the scholars listed on Eternal Echo.</p>
+                        <div class="text-[11px] text-gold-400/80 font-mono pt-2">Open scholars</div>
+                    </a>
+                    <a href="{{ $playStoreUrl }}" target="_blank" rel="noopener noreferrer" class="glass-panel p-6 rounded-2xl glass-card-hover space-y-3 block">
+                        <div class="flex items-center justify-between">
+                            <div class="w-12 h-12 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-400">
+                                <i data-lucide="map-pin" class="w-6 h-6"></i>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-gold-400">Android app</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white">Mosques and adhan</h3>
+                        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">Nearby masajid, jamat times, and exact adhan reminders that stay on time through the day.</p>
+                        <div class="text-[11px] text-gold-400/80 font-mono pt-2">Get the Android app</div>
+                    </a>
+                    <a href="{{ $playStoreUrl }}" target="_blank" rel="noopener noreferrer" class="glass-panel p-6 rounded-2xl glass-card-hover space-y-3 block">
+                        <div class="flex items-center justify-between">
+                            <div class="w-12 h-12 rounded-xl bg-gold-500/10 border border-gold-500/20 flex items-center justify-center text-gold-400">
+                                <i data-lucide="search" class="w-6 h-6"></i>
+                            </div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest text-gold-400">Android app</span>
+                        </div>
+                        <h3 class="text-lg font-bold text-white">Root-word search</h3>
+                        <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">Look up an Arabic root across the Quran, then open the verse in Quranic Lens.</p>
+                        <div class="text-[11px] text-gold-400/80 font-mono pt-2">Get the Android app</div>
                     </a>
                 </div>
 
@@ -468,6 +518,8 @@
                             <button type="button" onclick="toggleQRModal()" class="hover:text-gold-400 flex items-center gap-1">
                                 <i data-lucide="qr-code" class="w-3.5 h-3.5"></i> Show QR
                             </button>
+                            <span>•</span>
+                            <a href="{{ route('scholars.index') }}" class="hover:text-gold-400">Scholars</a>
                             <span>•</span>
                             <a href="{{ route('researchers.onboarding') }}" class="hover:text-gold-400">Join research</a>
                         </div>

@@ -26,6 +26,17 @@
             <span class="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-black leading-none text-amber-900 bg-amber-200 rounded-full">{{ $researcherApplicantsBadge }} applied</span>
         @endif
     </a>
+    @php
+        $pendingScholarsBadge = \Illuminate\Support\Facades\Schema::hasTable('scholars')
+            ? \App\Models\Scholar::where('status', \App\Models\Scholar::STATUS_PENDING)->count()
+            : 0;
+    @endphp
+    <a href="{{ route('admin.scholars.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm inline-flex items-center space-x-1.5 {{ request()->routeIs('admin.scholars.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">
+        <span>🎓 Scholars</span>
+        @if($pendingScholarsBadge > 0)
+            <span class="inline-flex items-center justify-center px-2 py-0.5 text-[11px] font-black leading-none text-amber-900 bg-amber-200 rounded-full">{{ $pendingScholarsBadge }} waiting</span>
+        @endif
+    </a>
     <a href="{{ route('admin.duplicates') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.duplicates') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">Duplicates</a>
     <a href="{{ route('admin.announcements.index') }}" class="py-3 px-4 border-b-2 font-semibold text-sm {{ request()->routeIs('admin.announcements.*') ? 'border-emerald-600 text-emerald-600' : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300' }}">Send Announcements</a>
     @php

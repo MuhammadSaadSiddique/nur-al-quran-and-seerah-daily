@@ -64,7 +64,7 @@
                     </div>
                     <div>
                         <h3 class="text-xl font-black text-white tracking-tight">How is your experience?</h3>
-                        <p class="text-xs text-slate-400">Your feedback helps us continuously improve The Eternal Echo.</p>
+                        <p class="text-xs text-slate-400">Your feedback helps us continuously improve The Eternal Echo. Signed in, the first note earns 100 reward points, saved for events, products, and courses.</p>
                     </div>
                 </div>
 
@@ -181,6 +181,7 @@
                 </div>
                 <h4 class="text-2xl font-black text-white">JazakAllahu Khairan!</h4>
                 <p class="text-sm text-slate-300 max-w-sm mx-auto leading-relaxed" x-text="successMessage()"></p>
+                <p x-show="rewardNote" x-text="rewardNote" class="text-sm font-bold text-emerald-300 max-w-sm mx-auto leading-relaxed"></p>
                 <div x-show="rating >= 4 && reviewText() !== ''" class="pt-1">
                     <button type="button"
                             @click="copyReview()"
@@ -230,6 +231,7 @@ function appFeedbackModal() {
         hasTriggered: false,
         hasScrolledEnough: false,
         isSubmitted: false,
+        rewardNote: '',
         submitting: false,
         reviewCopied: false,
         playStoreUrl: 'https://play.google.com/store/apps/details?id=com.asloobulhayat.eternalecho',
@@ -378,6 +380,7 @@ function appFeedbackModal() {
 
                     if (response.ok && (data.status === 'success' || response.status === 200 || response.status === 201)) {
                         success = true;
+                        this.rewardNote = data.reward_note || '';
                         this.isSubmitted = true;
                         localStorage.setItem('the_eternal_echo_feedback_submitted', 'true');
                         if (this.rating >= 4 && this.reviewText() !== '') {

@@ -74,6 +74,28 @@ class RequirementSurveyTest extends TestCase
         $this->assertSame(0, SurveyResponse::count());
     }
 
+    public function test_guests_must_give_name_and_email(): void
+    {
+        $this->postJson(route('survey.store'), $this->payload(['name' => null, 'email' => '']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['name', 'email']);
+
+        $this->assertSame(0, SurveyResponse::count());
+    }
+
+    public function test_whatsapp_is_optional_and_stored_as_digits(): void
+    {
+        $this->postJson(route('survey.store'), $this->payload(['whatsapp' => '+92 300-123 4567']))->assertOk();
+        $this->assertSame('+923001234567', SurveyResponse::sole()->whatsapp);
+
+        $this->postJson(route('survey.store'), $this->payload(['whatsapp' => 'call me']))
+            ->assertStatus(422)
+            ->assertJsonValidationErrors(['whatsapp']);
+
+        $this->postJson(route('survey.store'), $this->payload())->assertOk();
+        $this->assertNull(SurveyResponse::latest('id')->first()->whatsapp);
+    }
+
     public function test_reacting_to_no_feature_cards_is_allowed(): void
     {
         $this->postJson(route('survey.store'), $this->payload(['features' => []]))->assertOk();

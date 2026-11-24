@@ -93,8 +93,12 @@ class SurveyFlowTest {
         assertTrue(SurveyFlow.canContinue(goals, SurveyAnswers(choices = mapOf("goals" to listOf("seerah"))), deckDone = false))
         assertFalse(SurveyFlow.canContinue(SurveyStep.Features, SurveyAnswers(), deckDone = false))
         assertTrue(SurveyFlow.canContinue(SurveyStep.Wish, SurveyAnswers(), deckDone = false))
-        assertFalse(SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(email = "learner@"), deckDone = true))
-        assertTrue(SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(email = ""), deckDone = true))
+        assertFalse(SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(name = "Aisha", email = "learner@"), deckDone = true))
+        assertFalse("email is required", SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(name = "Aisha", email = ""), deckDone = true))
+        assertFalse("name is required", SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(email = "a@b.com"), deckDone = true))
+        assertTrue(SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(name = "Aisha", email = "a@b.com"), deckDone = true))
+        assertTrue(SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(name = "Aisha", email = "a@b.com", whatsapp = "+92 300 1234567"), deckDone = true))
+        assertFalse(SurveyFlow.canContinue(SurveyStep.Contact, SurveyAnswers(name = "Aisha", email = "a@b.com", whatsapp = "call me"), deckDone = true))
     }
 
     @Test
@@ -136,5 +140,10 @@ class SurveyFlowTest {
         assertEquals(answers.choices, back.choices)
         assertEquals(answers.reactions, back.reactions)
         assertEquals(9, back.nps)
+        assertTrue(payload.isNull("whatsapp"))
+
+        val withWhatsapp = SurveyJson.payload(answers.copy(whatsapp = " +92 300 1234567 "), config.questions, durationSeconds = null)
+        assertEquals("+92 300 1234567", withWhatsapp.getString("whatsapp"))
+        assertEquals("+92 300 1234567", SurveyJson.answersFrom(withWhatsapp, config.questions.map { it.key }).whatsapp)
     }
 }
